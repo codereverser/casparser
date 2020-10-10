@@ -48,7 +48,7 @@ def read_cas_pdf(filename, password, output='dict'):
     :param output: Output format (json,dict)  [default: dict]
     :return: array of lines from the CAS.
     """
-    file_type: Optional[FileType]= None
+    file_type: Optional[FileType] = None
 
     with open(filename, 'rb') as fp:
         pdf_parser = PDFParser(fp)
@@ -64,16 +64,20 @@ def read_cas_pdf(filename, password, output='dict'):
         for page in PDFPage.create_pages(document):
             interpreter.process_page(page)
             layout = device.get_result()
-            text_elements = filter(lambda x: isinstance(x, LTTextBoxHorizontal), layout)
+            text_elements = filter(lambda x: isinstance(x,
+                                                        LTTextBoxHorizontal),
+                                   layout)
             if file_type is None:
-                for el in filter(lambda x: isinstance(x, LTTextBoxVertical), layout):
+                for el in filter(lambda x: isinstance(x, LTTextBoxVertical),
+                                 layout):
                     if re.search('CAMSCASWS', el.get_text()):
                         file_type = FileType.CAMS
                     elif re.search('KFINCASWS', el.get_text()):
                         file_type = FileType.KARVY
             pages.append(text_elements)
 
-        processed_data = process_cas_text('\u2029'.join(group_similar_rows(pages)))
+        lines = group_similar_rows(pages)
+        processed_data = process_cas_text('\u2029'.join(lines))
         processed_data['file_type'] = file_type
 
         # TODO: Add Validation (calculated close vs reported)

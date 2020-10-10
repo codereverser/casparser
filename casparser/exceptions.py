@@ -5,5 +5,6 @@ class ParserException(Exception):
 class HeaderParseError(ParserException):
     pass
 
+
 class CASParseError(ParserException):
     pass
