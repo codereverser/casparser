@@ -2,7 +2,6 @@ import json
 import re
 from typing import List, Optional, Iterator
 
-import numpy as np
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.layout import LAParams
@@ -14,6 +13,18 @@ from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
 from .encoder import CASDataEncoder
 from .enums import FileType
 from .process import process_cas_text
+
+
+def isclose(a0, a1, tol=1.e-4):
+    """
+    Check if two elements are almost equal with a tolerance
+
+    :param a0: number to compare
+    :param a1: number to compare
+    :param tol: The absolute tolerance
+    :return: Returns boolean value if the values are almost equal
+    """
+    return abs(a0 - a1) < tol
 
 
 def detect_pdf_source(document) -> FileType:
@@ -48,7 +59,7 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
         y0, y1 = sorted_elements[0].y0, sorted_elements[0].y1
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (np.isclose(el.y1, y1, atol=3)) and not(np.isclose(el.y0, y0, atol=3)):
+            if len(items) > 0 and not (isclose(el.y1, y1, tol=3) or isclose(el.y0, y0, tol=3)):
                 lines.append('\t\t'.join(
                     [
                         x.get_text().strip()
