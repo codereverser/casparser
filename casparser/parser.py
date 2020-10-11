@@ -26,7 +26,7 @@ def detect_pdf_source(document) -> FileType:
     for info in document.info:
         producer = info.get('Producer', b'').decode('utf8', 'ignore').replace('\x00', '')
         if 'Data Dynamics ActiveReports' in producer:
-            file_type = FileType.KARVY
+            file_type = FileType.KFINTECH
         elif 'Stimulsoft Reports' in producer:
             file_type = FileType.CAMS
         if file_type != FileType.UNKNOWN:
@@ -77,7 +77,7 @@ def read_cas_pdf(filename, password, output='dict'):
         document = PDFDocument(pdf_parser, password=password)
 
         line_margin = {
-            FileType.KARVY: 0.1,
+            FileType.KFINTECH: 0.1,
             FileType.CAMS: 0.2
         }.get(detect_pdf_source(document), 0.2)
 
@@ -100,7 +100,7 @@ def read_cas_pdf(filename, password, output='dict'):
                     if re.search('CAMSCASWS', el.get_text()):
                         file_type = FileType.CAMS
                     elif re.search('KFINCASWS', el.get_text()):
-                        file_type = FileType.KARVY
+                        file_type = FileType.KFINTECH
             pages.append(text_elements)
 
         lines = group_similar_rows(pages)
