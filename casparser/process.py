@@ -53,8 +53,7 @@ def process_cas_text(text):
         m = re.search(SCHEME_RE, txt, re.DOTALL | re.MULTILINE | re.I)
         if m:
             if current_folio is None:
-                raise CASParseError('Layout Error! Scheme found before folio '
-                                    'entry.')
+                raise CASParseError('Layout Error! Scheme found before folio entry.')
             scheme = m.group(2).split('(')[0].strip()
             if curr_scheme_data.get('scheme') != scheme:
                 if curr_scheme_data:
@@ -78,7 +77,7 @@ def process_cas_text(text):
         if m:
             curr_scheme_data['close'] = Decimal(m.group(1).replace(',', '_'))
             continue
-        m = re.search(TRANSACTION_RE, txt)
+        m = re.search(TRANSACTION_RE, txt, re.DOTALL)
         if m:
             date = date_parser.parse(m.group(1))
             amt = Decimal(m.group(3).replace(',', '_').replace('(', '-'))

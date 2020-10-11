@@ -16,6 +16,24 @@ from .enums import FileType
 from .process import process_cas_text
 
 
+def detect_pdf_source(document) -> FileType:
+    """
+    Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata
+    :param document: PDF document object
+    :return: FileType
+    """
+    file_type = FileType.UNKNOWN
+    for info in document.info:
+        producer = info.get('Producer', b'').decode('utf8', 'ignore').replace('\x00', '')
+        if 'Data Dynamics ActiveReports' in producer:
+            file_type = FileType.KARVY
+        elif 'Stimulsoft Reports' in producer:
+            file_type = FileType.CAMS
+        if file_type != FileType.UNKNOWN:
+            break
+    return file_type
+
+
 def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
     """
     Group `LTTextBoxHorizontal` elements having similar rows, with a tolerance
@@ -27,14 +45,18 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
         sorted_elements = list(sorted(elements, key=lambda x: (-x.y1, x.x0)))
         if len(sorted_elements) == 0:
             continue
-        y1 = sorted_elements[0].y1
+        y0, y1 = sorted_elements[0].y0, sorted_elements[0].y1
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (np.isclose(el.y1, y1, atol=3)):
-                lines.append('\t\t'.join([x.get_text().strip() for x in
-                                          sorted(items, key=lambda x: x.x0)]))
+            if len(items) > 0 and not (np.isclose(el.y1, y1, atol=3)) and not(np.isclose(el.y0, y0, atol=3)):
+                lines.append('\t\t'.join(
+                    [
+                        x.get_text().strip()
+                        for x in sorted(items, key=lambda x: x.x0)
+                    ]
+                ))
                 items = []
-                y1 = el.y1
+                y0, y1 = el.y0, el.y1
             items.append(el)
     return lines
 
@@ -54,8 +76,13 @@ def read_cas_pdf(filename, password, output='dict'):
         pdf_parser = PDFParser(fp)
         document = PDFDocument(pdf_parser, password=password)
 
+        line_margin = {
+            FileType.KARVY: 0.1,
+            FileType.CAMS: 0.2
+        }.get(detect_pdf_source(document), 0.2)
+
         rsrc_mgr = PDFResourceManager()
-        laparams = LAParams(line_margin=0.2, detect_vertical=True)
+        laparams = LAParams(line_margin=line_margin, detect_vertical=True)
         device = PDFPageAggregator(rsrc_mgr, laparams=laparams)
         interpreter = PDFPageInterpreter(rsrc_mgr, device)
 
@@ -78,7 +105,7 @@ def read_cas_pdf(filename, password, output='dict'):
 
         lines = group_similar_rows(pages)
         processed_data = process_cas_text('\u2029'.join(lines))
-        processed_data['file_type'] = file_type
+        processed_data['file_type'] = file_type.name
 
         # TODO: Add Validation (calculated close vs reported)
         if output == 'dict':
