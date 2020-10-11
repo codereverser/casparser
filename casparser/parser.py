@@ -3,7 +3,7 @@ import re
 from typing import List, Optional, Iterator
 
 from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect
 from pdfminer.layout import LAParams
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -12,6 +12,7 @@ from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
 
 from .encoder import CASDataEncoder
 from .enums import FileType
+from .exceptions import CASParseError
 from .process import process_cas_text
 
 
@@ -85,7 +86,10 @@ def read_cas_pdf(filename, password, output='dict'):
 
     with open(filename, 'rb') as fp:
         pdf_parser = PDFParser(fp)
-        document = PDFDocument(pdf_parser, password=password)
+        try:
+            document = PDFDocument(pdf_parser, password=password)
+        except PDFPasswordIncorrect:
+            raise CASParseError('Incorrect PDF password!')
 
         line_margin = {
             FileType.KFINTECH: 0.1,

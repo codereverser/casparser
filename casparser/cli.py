@@ -1,15 +1,17 @@
 import json
+import sys
 
 import click
 
 from . import __version__
 from .parser import read_cas_pdf
 from .encoder import CASDataEncoder
+from .exceptions import ParserException
 
 
 # noinspection PyUnusedLocal
 def validate_output_filename(ctx, param, filename: str):
-    if filename is not None and filename.lower().endswith('.json'):
+    if filename is None or filename.lower().endswith('.json'):
         return filename
     raise click.BadParameter('Output filename should end with .json')
 
@@ -34,8 +36,6 @@ def print_summary(data):
 
 
 @click.command(name='casparser')
-@click.version_option(__version__,
-                      prog_name='casparser-cli')
 @click.option('-o',
               '--output',
               help='Output file path (json)',
@@ -48,15 +48,21 @@ def print_summary(data):
 @click.option('-p',
               'password',
               metavar='PASSWORD',
-              prompt=True,
+              prompt='Enter PDF password',
               hide_input=True,
               confirmation_prompt=False,
               help='CAS password')
+@click.version_option(__version__,
+                      prog_name='casparser-cli')
 @click.argument('filename', type=click.Path(exists=True), metavar='CAS_PDF_FILE')
 def cli(output, summary, filename, password):
     if output is None:
         summary = True
-    data = read_cas_pdf(filename, password)
+    try:
+        data = read_cas_pdf(filename, password)
+    except ParserException as exc:
+        click.echo(f'Error parsing pdf file :: ' + click.style(str(exc), bold=True, fg='red'))
+        sys.exit(1)
     if summary:
         print_summary(data)
     if output is not None:
@@ -66,4 +72,4 @@ def cli(output, summary, filename, password):
 
 
 if __name__ == '__main__':
-    cli()
+    cli(prog_name='casparser')
