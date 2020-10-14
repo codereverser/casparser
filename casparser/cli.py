@@ -21,28 +21,20 @@ def print_summary(data):
     err = 0
     for folio in data["folios"].values():
         for scheme in folio["schemes"]:
-            calc_close = scheme["open"] + sum([x[3] for x in scheme["transactions"]])
+            calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
             close_summary = f"{scheme['close']:20.4f}\t{calc_close:20.4f}"
             if calc_close != scheme["close"]:
                 err += 1
                 close_summary = click.style(close_summary, bold=True, fg="red")
             click.echo(
-                f"{count + 1:5d}\t{scheme['scheme']:60.60s}\t{scheme['open']:20.4f}\t"
+                f"{count + 1:5d}\t{scheme['scheme']:72.72s}\t{scheme['open']:20.4f}\t"
                 f"{close_summary}"
             )
             count += 1
     click.secho("Summary", bold=True)
-    click.echo(
-        "Total   : " + click.style(f"{count:4d}", fg="white", bold=True) + " schemes"
-    )
-    click.echo(
-        "Matched : "
-        + click.style(f"{count - err:4d}", fg="green", bold=True)
-        + " schemes"
-    )
-    click.echo(
-        "Error   : " + click.style(f"{err:4d}", fg="red", bold=True) + " schemes"
-    )
+    click.echo("Total   : " + click.style(f"{count:4d}", fg="white", bold=True) + " schemes")
+    click.echo("Matched : " + click.style(f"{count - err:4d}", fg="green", bold=True) + " schemes")
+    click.echo("Error   : " + click.style(f"{err:4d}", fg="red", bold=True) + " schemes")
 
 
 @click.command(name="casparser")
@@ -53,9 +45,7 @@ def print_summary(data):
     callback=validate_output_filename,
     type=click.Path(exists=False, dir_okay=False, writable=True),
 )
-@click.option(
-    "-s", "--summary", is_flag=True, help="Print Summary of transactions parsed."
-)
+@click.option("-s", "--summary", is_flag=True, help="Print Summary of transactions parsed.")
 @click.option(
     "-p",
     "password",
@@ -73,9 +63,7 @@ def cli(output, summary, filename, password):
     try:
         data = read_cas_pdf(filename, password)
     except ParserException as exc:
-        click.echo(
-            "Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red")
-        )
+        click.echo("Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red"))
         sys.exit(1)
     if summary:
         print_summary(data)

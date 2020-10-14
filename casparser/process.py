@@ -19,52 +19,6 @@ def parse_header(text):
     raise HeaderParseError("Error parsing CAS header")
 
 
-def parse_investor_info(text):
-    """
-    Parse investor info from CAS
-    :param text:
-    :return: investor info
-    """
-    info = {
-        "name": "",
-        "email": "",
-        "address": "",
-        "mobile": "",
-    }
-    address = []
-    email_found = False
-    for lines in text.split("\u2029"):
-
-        if not email_found:
-            m = re.search(r"email\s+id:(.+?)\s", lines, re.I)
-            if m:
-                email_found = True
-                info["email"] = m.group(1).strip()
-            continue
-
-        data = lines.split("\t\t")[0]
-        if data.strip() == "":
-            continue
-
-        if info["name"] == "":
-            info["name"] = data
-            continue
-
-        m = re.search(r"mobile\s*:\s*(\+?\d+)\s*", lines, re.I)
-        if m:
-            data = re.split(r"mobile\s*:", lines, maxsplit=1, flags=re.I)[0]
-            info["mobile"] = m.group(1)
-
-        if data.strip():
-            address.append(data.strip())
-
-        if info["mobile"] != "":
-            break
-
-    info["address"] = "\n".join(address)
-    return info
-
-
 def process_cas_text(text):
     """
     Process the text version of a CAS pdf and return the detailed summary.
@@ -72,7 +26,6 @@ def process_cas_text(text):
     :return:
     """
     hdr_data = parse_header(text[:1000])
-    info = parse_investor_info(text)
     statement_period = {"from": hdr_data["from"], "to": hdr_data["to"]}
 
     folios = {}
@@ -99,7 +52,7 @@ def process_cas_text(text):
         if m:
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
-            scheme = m.group(2).split("(")[0].strip()
+            scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
             if curr_scheme_data.get("scheme") != scheme:
                 if curr_scheme_data:
                     folios[current_folio]["schemes"].append(curr_scheme_data)
@@ -142,6 +95,5 @@ def process_cas_text(text):
         folios[current_folio]["schemes"].append(curr_scheme_data)
     return {
         "statement_period": statement_period,
-        "investor_info": info,
         "folios": folios,
     }
