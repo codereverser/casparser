@@ -1,6 +1,6 @@
 HEADER_RE = (
     r"consolidated\s+account\s+statement\s+(?P<from>\d{2}-[a-zA-Z]{3}-\d{4})"
-    r"\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-\d{4})\s+email\s+id:(?P<email>.+?)\s"
+    r"\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-\d{4})"
 )
 
 FOLIO_RE = (
