@@ -44,7 +44,7 @@ def process_cas_text(text):
                 current_folio = folio
                 folios[folio] = {
                     "folio": current_folio,
-                    "PAN": m.group(2).strip(),
+                    "PAN": (m.group(2) or '').strip(),
                     "KYC": m.group(3).strip(),
                     "PANKYC": m.group(4).strip(),
                     "schemes": [],

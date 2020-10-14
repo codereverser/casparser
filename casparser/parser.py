@@ -83,7 +83,7 @@ def read_cas_pdf(filename, password, output="dict"):
     """
     Parses CAS pdf and returns line data.
 
-    :param filename: CAS pdf file (CAMS or Karvy)
+    :param filename: CAS pdf file (CAMS or Kfintech)
     :param password: CAS pdf password
     :param output: Output format (json,dict)  [default: dict]
     :return: array of lines from the CAS.

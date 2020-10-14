@@ -4,8 +4,8 @@ HEADER_RE = (
 )
 
 FOLIO_RE = (
-    r"Folio\s+No\s*:\s+(.+?)\s+PAN:\s+([A-Z]{5}\d{4}[A-Z])"
-    r"\s+KYC\s*:\s*(.+?)\s+PAN\s*:\s*(.+?)$"
+    r"Folio\s+No\s*:\s+(.+?)\s+(?:PAN\s*:\s+([A-Z]{5}\d{4}[A-Z])\s+)?"
+    r"KYC\s*:\s*(.+?)\s+PAN\s*:\s*(.+?)$"
 )
 
 SCHEME_RE = r"(\w+)-\s*\d*\s*(.+?)\s*\(Advisor\s*:\s*(.+?)\)\s+Registrar\s*:\s*(.*)\s*$"
