@@ -13,8 +13,7 @@ def parse_header(text):
     Parse CAS header data
     :param text: CAS text
     """
-    m = re.search(HEADER_RE, text, re.DOTALL | re.MULTILINE | re.I)
-    if m:
+    if m := re.search(HEADER_RE, text, re.DOTALL | re.MULTILINE | re.I):
         return m.groupdict()
     raise HeaderParseError("Error parsing CAS header")
 
@@ -33,8 +32,7 @@ def process_cas_text(text):
     curr_scheme_data = {}
     lines = text.split("\u2029")
     for txt in lines:
-        m = re.search(FOLIO_RE, txt, re.I)
-        if m:
+        if m := re.search(FOLIO_RE, txt, re.I):
             folio = m.group(1).strip()
             if current_folio is None or current_folio != folio:
                 if curr_scheme_data and current_folio is not None:
@@ -48,8 +46,7 @@ def process_cas_text(text):
                     "PANKYC": m.group(4).strip(),
                     "schemes": [],
                 }
-        m = re.search(SCHEME_RE, txt, re.DOTALL | re.MULTILINE | re.I)
-        if m:
+        if m := re.search(SCHEME_RE, txt, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
             scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
@@ -67,16 +64,13 @@ def process_cas_text(text):
                 }
         if not curr_scheme_data:
             continue
-        m = re.search(OPEN_UNITS_RE, txt)
-        if m:
+        if m := re.search(OPEN_UNITS_RE, txt):
             curr_scheme_data["open"] = Decimal(m.group(1).replace(",", "_"))
             continue
-        m = re.search(CLOSE_UNITS_RE, txt)
-        if m:
+        if m := re.search(CLOSE_UNITS_RE, txt):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
             continue
-        m = re.search(TRANSACTION_RE, txt, re.DOTALL)
-        if m:
+        if m := re.search(TRANSACTION_RE, txt, re.DOTALL):
             date = date_parser.parse(m.group(1))
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))

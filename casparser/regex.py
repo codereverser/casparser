@@ -8,7 +8,7 @@ FOLIO_RE = (
     r"KYC\s*:\s*(.+?)\s+PAN\s*:\s*(.+?)$"
 )
 
-SCHEME_RE = r"(\w+)-\s*\d*\s*(.+?)\s*\(Advisor\s*:\s*(.+?)\)\s+Registrar\s*:\s*(.*)\s*$"
+SCHEME_RE = r"([\s\w]+)-\s*\d*\s*(.+?)\s*\(Advisor\s*:\s*(.+?)\)\s+Registrar\s*:\s*(.*)\s*$"
 OPEN_UNITS_RE = r"Opening\s+Unit\s+Balance.+?([\d,.]+)"
 CLOSE_UNITS_RE = r"Closing\s+Unit\s+Balance.+?([\d,.]+)"
 
