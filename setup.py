@@ -12,7 +12,7 @@ setup(
     license="MIT License",
     author="Sandeep Somasekharan",
     author_email="codereverser@gmail.com",
-    description="CAS (Karvy/CAMS) PDF parser",
+    description="(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser",
     long_description=readme_md,
     long_description_content_type="text/markdown",
     install_requires=[
@@ -29,6 +29,7 @@ setup(
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.8",

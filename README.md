@@ -8,7 +8,7 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 
 ## Installation
 ```bash
-python setup.py install
+pip install casparser
 ```
 
 ## Usage
