@@ -1,7 +1,8 @@
 from collections import namedtuple
+import io
 import json
 import re
-from typing import List, Optional, Iterator
+from typing import List, Optional, Iterator, Union
 
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect
@@ -109,7 +110,7 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
     return lines
 
 
-def read_cas_pdf(filename, password, output="dict"):
+def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
     """
     Parses CAS pdf and returns line data.
 
@@ -120,7 +121,16 @@ def read_cas_pdf(filename, password, output="dict"):
     """
     file_type: Optional[FileType] = None
 
-    with open(filename, "rb") as fp:
+    if isinstance(filename, str):
+        fp = open(filename, "rb")
+    elif isinstance(filename, io.IOBase):
+        fp = filename
+    elif hasattr(filename, "read"):  # compatibility for Django UploadedFile
+        fp = filename
+    else:
+        raise CASParseError("Invalid input. filename should be a string or a file like object")
+
+    with fp:
         pdf_parser = PDFParser(fp)
         try:
             document = PDFDocument(pdf_parser, password=password)
