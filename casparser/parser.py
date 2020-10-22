@@ -46,7 +46,7 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
         elif name is None:
             name = txt
         else:
-            if m := re.search(r"mobile\s*:\s*(\+\d+)(?:s|$)", txt, re.I):
+            if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
                 mobile = m.group(1).strip()
             address_lines.append(txt)
             if mobile is not None:
