@@ -9,7 +9,7 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 ## Installation
 ```bash
 pip install casparser
-```
+``` 
 
 ## Usage
 
@@ -30,3 +30,7 @@ Options:
   --version          Show the version and exit.
   --help             Show this message and exit.
 ``` 
+
+##### Demo
+
+![demo](https://raw.githubusercontent.com/codereverser/casparser/main/assets/demo.jpg)
