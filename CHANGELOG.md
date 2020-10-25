@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2020-10-26
+
+- re-release 0.3.0 : Minor bug fix 
+
 ## 0.3.0 - 2020-10-25
 
 - **Breaking Change**: `folios` is a list instead of dict, so that the order is 
