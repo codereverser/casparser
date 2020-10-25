@@ -6,6 +6,7 @@ import click
 import texttable
 
 from .__version__ import __version__
+
 try:
     from .parsers.mupdf import read_cas_pdf
 except ImportError:
@@ -95,14 +96,22 @@ def print_summary(data):
     confirmation_prompt=False,
     help="CAS password",
 )
+@click.option(
+    "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
+)
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
-def cli(output, summary, filename, password):
+def cli(output, summary, password, force_pdfminer, filename):
     if output is None and not summary:
         click.echo("No output file provided. Printing summary")
         summary = True
     try:
-        data = read_cas_pdf(filename, password)
+        if force_pdfminer:
+            from .parsers.pdfminer import read_cas_pdf as read_cas_pdf_pm
+
+            data = read_cas_pdf_pm(filename, password)
+        else:
+            data = read_cas_pdf(filename, password)
     except ParserException as exc:
         click.echo("Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red"))
         sys.exit(1)
