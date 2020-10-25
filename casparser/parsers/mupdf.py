@@ -26,7 +26,10 @@ def extract_blocks(page_dict):
     for block in page_dict.get("blocks", []):
         lines = []
         items = []
-        y0, y1 = block["lines"][0]["bbox"][1], block["lines"][0]["bbox"][3]
+        if len(block.get('lines', [])) == 0:
+            continue
+        bbox = block['lines'][0]['bbox']
+        y0, y1 = bbox[1], bbox[3]
         for line in sorted(block["lines"], key=lambda x: x["bbox"][1]):
             if len(items) > 0 and not (
                     isclose(y0, line["bbox"][1], tol=3) or isclose(y1, line["bbox"][3], tol=3)

@@ -41,9 +41,16 @@ def print_summary(data):
         click.echo(f"{key:>40s}: {fmt_value}")
     click.echo("")
     table = texttable.Texttable(max_width=100)
-    table.set_cols_align(["l", "r", "r", "r", "c"])
-    table.add_row(["Scheme", "Open", "Close\nReported", "Close\nCalculated", "Status"])
+    table.set_cols_align(["l", "r", "r", "r", "r", "c"])
+    table.set_cols_valign(["m", "m", "m", "m", "m", "m"])
+    table.add_row(
+        ["Scheme", "Open", "Close\nReported", "Close\nCalculated", "Transactions", "Status"]
+    )
+    current_amc = None
     for folio in data["folios"].values():
+        if current_amc != folio.get("amc", ""):
+            current_amc = folio["amc"]
+            table.add_row([current_amc] + [""] * 5)
         for scheme in folio["schemes"]:
             calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
             if calc_close != scheme["close"]:
@@ -51,8 +58,17 @@ def print_summary(data):
                 status = "❗️"
             else:
                 status = "️✅"
-            scheme_name = "\n".join([scheme["scheme"], folio["folio"]])
-            table.add_row([scheme_name, scheme["open"], scheme["close"], calc_close, status])
+            scheme_name = f"{scheme['scheme']}\nFolio: {folio['folio']}"
+            table.add_row(
+                [
+                    scheme_name,
+                    scheme["open"],
+                    scheme["close"],
+                    calc_close,
+                    len(scheme["transactions"]),
+                    status,
+                ]
+            )
             count += 1
     click.echo(table.draw())
     click.secho("Summary", bold=True)

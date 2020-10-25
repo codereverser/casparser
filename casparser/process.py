@@ -29,10 +29,13 @@ def process_cas_text(text):
 
     folios = {}
     current_folio = None
+    current_amc = None
     curr_scheme_data = {}
     lines = text.split("\u2029")
-    for txt in lines:
-        if m := re.search(FOLIO_RE, txt, re.I):
+    for line in lines:
+        if amc_match := re.search(r"^(.+?)\s+(MF|Mutual\s+Fund)$", line, re.I | re.DOTALL):
+            current_amc = amc_match.group(0)
+        elif m := re.search(FOLIO_RE, line, re.I):
             folio = m.group(1).strip()
             if current_folio is None or current_folio != folio:
                 if curr_scheme_data and current_folio is not None:
@@ -41,12 +44,13 @@ def process_cas_text(text):
                 current_folio = folio
                 folios[folio] = {
                     "folio": current_folio,
+                    "amc": current_amc,
                     "PAN": (m.group(2) or "").strip(),
                     "KYC": m.group(3).strip(),
                     "PANKYC": m.group(4).strip(),
                     "schemes": [],
                 }
-        if m := re.search(SCHEME_RE, txt, re.DOTALL | re.MULTILINE | re.I):
+        elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
             scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
@@ -64,13 +68,13 @@ def process_cas_text(text):
                 }
         if not curr_scheme_data:
             continue
-        if m := re.search(OPEN_UNITS_RE, txt):
+        if m := re.search(OPEN_UNITS_RE, line):
             curr_scheme_data["open"] = Decimal(m.group(1).replace(",", "_"))
             continue
-        if m := re.search(CLOSE_UNITS_RE, txt):
+        if m := re.search(CLOSE_UNITS_RE, line):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
             continue
-        if m := re.search(TRANSACTION_RE, txt, re.DOTALL):
+        if m := re.search(TRANSACTION_RE, line, re.DOTALL):
             date = date_parser.parse(m.group(1))
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
