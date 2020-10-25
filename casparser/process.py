@@ -93,5 +93,5 @@ def process_cas_text(text):
         folios[current_folio]["schemes"].append(curr_scheme_data)
     return {
         "statement_period": statement_period,
-        "folios": folios,
+        "folios": list(folios.values()),
     }

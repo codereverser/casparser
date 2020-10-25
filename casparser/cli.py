@@ -47,7 +47,7 @@ def print_summary(data):
         ["Scheme", "Open", "Close\nReported", "Close\nCalculated", "Transactions", "Status"]
     )
     current_amc = None
-    for folio in data["folios"].values():
+    for folio in data["folios"]:
         if current_amc != folio.get("amc", ""):
             current_amc = folio["amc"]
             table.add_row([current_amc] + [""] * 5)
