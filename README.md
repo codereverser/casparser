@@ -11,6 +11,15 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 pip install casparser
 ``` 
 
+### with faster PyMuPDF parser
+```bash
+pip install casparser[mupdf]
+```
+
+**Note:** Enabling this dependency could result in licensing changes. Check the 
+[License](#license-info) section for more details 
+ 
+
 ## Usage
 
 ```
@@ -34,3 +43,13 @@ Options:
 ##### Demo
 
 ![demo](https://raw.githubusercontent.com/codereverser/casparser/main/assets/demo.jpg)
+
+
+## License
+<a name="license-info"></a>
+
+CASParser is distributed under MIT license by default. However enabling the optional dependency
+`mupdf` would imply the use of [PyMuPDF](https://github.com/pymupdf/PyMuPDF) /
+[MuPDF](https://mupdf.com/license.html) and hence the licenses GNU GPL v3 and GNU Affero GPL v3 
+would apply. Copies of all licenses have been included in this repository. - _IANAL_
+ 

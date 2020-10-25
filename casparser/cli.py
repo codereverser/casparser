@@ -6,7 +6,10 @@ import click
 import texttable
 
 from .__version__ import __version__
-from .parser import read_cas_pdf
+try:
+    from .parsers.mupdf import read_cas_pdf
+except ImportError:
+    from .parsers.pdfminer import read_cas_pdf
 from .encoder import CASDataEncoder
 from .exceptions import ParserException
 
@@ -43,13 +46,13 @@ def print_summary(data):
     for folio in data["folios"].values():
         for scheme in folio["schemes"]:
             calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
-            close_summary = f"{scheme['close']:20.4f}\t{calc_close:20.4f}"
             if calc_close != scheme["close"]:
                 err += 1
-                status = "⛔️"
+                status = "❗️"
             else:
                 status = "️✅"
-            table.add_row([scheme["scheme"], scheme["open"], scheme["close"], calc_close, status])
+            scheme_name = "\n".join([scheme["scheme"], folio["folio"]])
+            table.add_row([scheme_name, scheme["open"], scheme["close"], calc_close, status])
             count += 1
     click.echo(table.draw())
     click.secho("Summary", bold=True)

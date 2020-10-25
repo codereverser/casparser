@@ -12,10 +12,11 @@ from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.pdfpage import PDFPage
 from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
 
-from .encoder import CASDataEncoder
-from .enums import FileType
-from .exceptions import CASParseError
-from .process import process_cas_text
+from casparser.encoder import CASDataEncoder
+from casparser.enums import FileType
+from casparser.exceptions import CASParseError
+from casparser.process import process_cas_text
+from .utils import isclose
 
 InvestorInfo = namedtuple("InvestorInfo", ["name", "email", "address", "mobile"])
 
@@ -56,18 +57,6 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
     return InvestorInfo(email=email, name=name, mobile=mobile, address="\n".join(address_lines))
 
 
-def isclose(a0, a1, tol=1.0e-4):
-    """
-    Check if two elements are almost equal with a tolerance
-
-    :param a0: number to compare
-    :param a1: number to compare
-    :param tol: The absolute tolerance
-    :return: Returns boolean value if the values are almost equal
-    """
-    return abs(a0 - a1) < tol
-
-
 def detect_pdf_source(document) -> FileType:
     """
     Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata
@@ -101,9 +90,11 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
         items = []
         for el in sorted_elements:
             if len(items) > 0 and not (isclose(el.y1, y1, tol=3) or isclose(el.y0, y0, tol=3)):
-                lines.append(
-                    "\t\t".join([x.get_text().strip() for x in sorted(items, key=lambda x: x.x0)])
+                line = "\t\t".join(
+                    [x.get_text().strip() for x in sorted(items, key=lambda x: x.x0)]
                 )
+                if line.strip():
+                    lines.append(line)
                 items = []
                 y0, y1 = el.y0, el.y1
             items.append(el)
