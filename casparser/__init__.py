@@ -1,6 +1,6 @@
 try:
     from .parsers.mupdf import read_cas_pdf
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     from .parsers.pdfminer import read_cas_pdf
 
 from .__version__ import __version__
