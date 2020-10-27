@@ -27,7 +27,54 @@ import casparser
 data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
 ```
 
-#### CLI
+### Data structure
+
+```json
+{
+    "statement_period": {
+        "from": "YYYY-MMM-DD",
+        "to": "YYYY-MMM-DD"
+    },
+    "file_type": "CAMS/KARVY/UNKNOWN",
+    "investor_info": {
+        "email": "string",
+        "name": "string",
+        "mobile": "string",
+        "address": "string"
+    },
+    "folios": [
+        {
+            "folio": "string",
+            "amc": "string",
+            "PAN": "string",
+            "KYC": "OK/NOT OK",
+            "PANKYC": "OK/NOT OK",
+            "schemes": [
+                {
+                    "scheme": "string",
+                    "advisor": "string",
+                    "rta_code": "string",
+                    "rta": "string",
+                    "open": "number",
+                    "close": "number",
+                    "transactions": [
+                        {
+                            "date": "YYYY-MM-DD",
+                            "description": "string",
+                            "amount": "number",
+                            "units": "number",
+                            "nav": "number"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+
+### CLI
 
 ```bash
 Usage: casparser [-o output_file.json] [-p password] [-s] CAS_PDF_FILE
@@ -40,7 +87,7 @@ Options:
   --help             Show this message and exit.
 ``` 
 
-##### Demo
+#### Demo
 
 ![demo](https://raw.githubusercontent.com/codereverser/casparser/main/assets/demo.jpg)
 
