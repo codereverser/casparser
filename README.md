@@ -17,7 +17,7 @@ pip install casparser[mupdf]
 ```
 
 **Note:** Enabling this dependency could result in licensing changes. Check the 
-[License](#license-info) section for more details 
+[License](#license) section for more details 
  
 
 ## Usage
@@ -93,7 +93,6 @@ Options:
 
 
 ## License
-<a name="license-info"></a>
 
 CASParser is distributed under MIT license by default. However enabling the optional dependency
 `mupdf` would imply the use of [PyMuPDF](https://github.com/pymupdf/PyMuPDF) /
