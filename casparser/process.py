@@ -75,7 +75,7 @@ def process_cas_text(text):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
             continue
         if m := re.search(TRANSACTION_RE, line, re.DOTALL):
-            date = date_parser.parse(m.group(1))
+            date = date_parser.parse(m.group(1)).date()
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
             nav = Decimal(m.group(5).replace(",", "_"))

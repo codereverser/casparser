@@ -14,7 +14,7 @@ class CASDataEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, decimal.Decimal):
             return str(o)
-        elif isinstance(o, (datetime.date, datetime.date)):
+        elif isinstance(o, datetime.date):
             return o.isoformat()
         elif isinstance(o, FileType):
             return o.name
