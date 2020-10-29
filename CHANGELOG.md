@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 - 2020-10-29
+
+- minor bug fixes
+
 ## 0.3.1 - 2020-10-26
 
 - re-release 0.3.0 : Minor bug fix 
