@@ -20,6 +20,7 @@ class TransactionType(TypedDict):
     amount: Union[Decimal, float]
     units: Union[Decimal, float]
     nav: Union[Decimal, float]
+    balance: Union[Decimal, float]
 
 
 class SchemeType(TypedDict, total=False):

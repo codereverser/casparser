@@ -63,7 +63,8 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                             "description": "string",
                             "amount": "number",
                             "units": "number",
-                            "nav": "number"
+                            "nav": "number",
+                            "balance": "number"
                         }
                     ]
                 }

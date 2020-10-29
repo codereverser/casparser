@@ -79,6 +79,7 @@ def process_cas_text(text):
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
             nav = Decimal(m.group(5).replace(",", "_"))
+            balance = Decimal(m.group(6).replace(",", "_"))
             desc = m.group(2).strip()
             curr_scheme_data["transactions"].append(
                 {
@@ -87,6 +88,7 @@ def process_cas_text(text):
                     "amount": amt,
                     "units": units,
                     "nav": nav,
+                    "balance": balance,
                 }
             )
     if curr_scheme_data:

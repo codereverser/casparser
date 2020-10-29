@@ -14,5 +14,5 @@ CLOSE_UNITS_RE = r"Closing\s+Unit\s+Balance.+?([\d,.]+)"
 
 TRANSACTION_RE = (
     r"(\d{2}-[A-Za-z]{3}-\d{4})\s*\t\t(.+?)\t\t([(\d,.]+)\)*\t\t"
-    r"([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t"
+    r"([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*"
 )
