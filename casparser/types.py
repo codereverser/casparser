@@ -4,7 +4,7 @@ from typing import List, TypedDict, Union
 
 from .enums import FileType
 
-StatementPeriod = TypedDict('StatementPeriod', {'from': str, 'to': str})
+StatementPeriod = TypedDict("StatementPeriod", {"from": str, "to": str})
 
 
 class InvestorInfoType(TypedDict):

@@ -32,19 +32,27 @@ def extract_blocks(page_dict):
         y0, y1 = bbox[1], bbox[3]
         for line in sorted(block["lines"], key=lambda x: x["bbox"][1]):
             if len(items) > 0 and not (
-                    isclose(y0, line["bbox"][1], tol=3) or isclose(y1, line["bbox"][3], tol=3)
+                isclose(y0, line["bbox"][1], tol=3) or isclose(y1, line["bbox"][3], tol=3)
             ):
-                full_text = "\t\t".join([x[0] for x in sorted(items, key=lambda x: x[1][0])])
+                full_text = "\t\t".join(
+                    [x[0].strip() for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
+                )
                 if full_text.strip():
                     lines.append(full_text)
                 items = []
                 y0, y1 = line["bbox"][1], line["bbox"][3]
             line_text = "\t\t".join(
-                [span["text"] for span in sorted(line["spans"], key=lambda x: (x["origin"][0]))]
+                [
+                    span["text"].strip()
+                    for span in sorted(line["spans"], key=lambda x: (x["origin"][0]))
+                    if span["text"].strip()
+                ]
             )
             items.append([line_text, line["bbox"]])
         if len(items) > 0:
-            full_text = "\t\t".join([x[0] for x in sorted(items, key=lambda x: x[1][0])])
+            full_text = "\t\t".join(
+                [x[0] for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
+            )
             if full_text.strip():
                 lines.append(full_text)
         text = "\n".join(lines)
@@ -116,7 +124,9 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
         items = []
         for el in sorted_elements:
             if len(items) > 0 and not (isclose(el[3], y1, tol=3) or isclose(el[1], y0, tol=3)):
-                line = "\t\t".join([x[4] for x in sorted(items, key=lambda x: x[0])])
+                line = "\t\t".join(
+                    [x[4].strip() for x in sorted(items, key=lambda x: x[0]) if x[4].strip()]
+                )
                 if line.strip():
                     lines.append(line)
                 items = []
