@@ -2,7 +2,9 @@
 line-length = 100
 target-version = ['py38']
 
-[tool.coverage.run]
-branch = false
-command_line = '-m pytest'
-source_pkgs = ['casparser']
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--cov=casparser"
+testpaths = [
+    "tests",
+]
