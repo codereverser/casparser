@@ -62,14 +62,17 @@ def extract_blocks(page_dict):
 
 
 def parse_file_type(blocks):
+    """Parse file type."""
     for block in sorted(blocks, key=lambda x: -x[1]):
         if re.search("CAMSCASWS", block[4]):
             return FileType.CAMS
-        elif re.search("KFINCASWS", block[4]):
+        if re.search("KFINCASWS", block[4]):
             return FileType.KFINTECH
+    return FileType.UNKNOWN
 
 
 def parse_investor_info(page_dict) -> InvestorInfo:
+    """Parse investor info."""
     width = page_dict["width"]
     height = page_dict["height"]
     blocks = sorted(
@@ -94,7 +97,7 @@ def parse_investor_info(page_dict) -> InvestorInfo:
                         email = m.group(1).strip()
                         email_found = True
                     continue
-                elif name is None:
+                if name is None:
                     name = txt
                 else:
                     if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
@@ -111,7 +114,7 @@ def parse_investor_info(page_dict) -> InvestorInfo:
 
 def group_similar_rows(elements_list: List[Iterator[Any]]):
     """
-    Group elements having similar rows, with a tolerance
+    Group elements having similar rows, with a tolerance.
 
     :param elements_list: List of elements from each page
     """
@@ -137,7 +140,7 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
 
 def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
     """
-    Parses CAS pdf and returns line data.
+    Parse CAS pdf and returns line data.
 
     :param filename: CAS pdf file (CAMS or Kfintech)
     :param password: CAS pdf password
@@ -192,5 +195,4 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
         )
         if output == "dict":
             return processed_data
-        else:
-            return json.dumps(processed_data, cls=CASDataEncoder)
+        return json.dumps(processed_data, cls=CASDataEncoder)

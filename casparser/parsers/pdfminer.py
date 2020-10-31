@@ -22,6 +22,7 @@ InvestorInfo = namedtuple("InvestorInfo", ["name", "email", "address", "mobile"]
 
 
 def parse_investor_info(layout, width, height) -> InvestorInfo:
+    """Parse investor info."""
     text_elements = sorted(
         [
             x
@@ -44,7 +45,7 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
                 email = m.group(1).strip()
                 email_found = True
             continue
-        elif name is None:
+        if name is None:
             name = txt
         else:
             if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
@@ -59,7 +60,8 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
 
 def detect_pdf_source(document) -> FileType:
     """
-    Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata
+    Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata.
+
     :param document: PDF document object
     :return: FileType
     """
@@ -77,7 +79,7 @@ def detect_pdf_source(document) -> FileType:
 
 def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
     """
-    Group `LTTextBoxHorizontal` elements having similar rows, with a tolerance
+    Group `LTTextBoxHorizontal` elements having similar rows, with a tolerance.
 
     :param elements_list: List of elements from each page
     """
@@ -103,7 +105,7 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
 
 def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
     """
-    Parses CAS pdf and returns line data.
+    Parse CAS pdf and returns line data.
 
     :param filename: CAS pdf file (CAMS or Kfintech)
     :param password: CAS pdf password
@@ -150,7 +152,7 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
                 for el in filter(lambda x: isinstance(x, LTTextBoxVertical), layout):
                     if re.search("CAMSCASWS", el.get_text()):
                         file_type = FileType.CAMS
-                    elif re.search("KFINCASWS", el.get_text()):
+                    if re.search("KFINCASWS", el.get_text()):
                         file_type = FileType.KFINTECH
             if investor_info is None:
                 investor_info = parse_investor_info(layout, *page.mediabox[2:])
@@ -165,8 +167,6 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
             }
         )
 
-        # TODO: Add Validation (calculated close vs reported)
         if output == "dict":
             return processed_data
-        else:
-            return json.dumps(processed_data, cls=CASDataEncoder)
+        return json.dumps(processed_data, cls=CASDataEncoder)

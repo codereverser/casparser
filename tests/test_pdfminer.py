@@ -4,6 +4,8 @@ from .base import BaseTestClass
 
 
 class TestPDFMiner(BaseTestClass):
+    """Test pdfminer parser."""
+
     @classmethod
     def setup_class(cls):
         BaseTestClass.setup_class()

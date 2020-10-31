@@ -8,6 +8,8 @@ StatementPeriod = TypedDict("StatementPeriod", {"from": str, "to": str})
 
 
 class InvestorInfoType(TypedDict):
+    """Investor Info data structure."""
+
     name: str
     email: str
     address: str
@@ -15,6 +17,8 @@ class InvestorInfoType(TypedDict):
 
 
 class TransactionType(TypedDict):
+    """Mutual fund scheme transaction."""
+
     date: Union[date, str]
     description: str
     amount: Union[Decimal, float]
@@ -24,6 +28,8 @@ class TransactionType(TypedDict):
 
 
 class SchemeType(TypedDict, total=False):
+    """Mutual Fund Scheme data structure."""
+
     scheme_id: int
     scheme: str
     advisor: str
@@ -35,6 +41,8 @@ class SchemeType(TypedDict, total=False):
 
 
 class FolioType(TypedDict, total=False):
+    """Mutual Fund Folio data structure."""
+
     folio_id: int
     folio: str
     amc: str
@@ -46,6 +54,8 @@ class FolioType(TypedDict, total=False):
 
 
 class CASParserDataType(TypedDict):
+    """CAS Parser return data type."""
+
     statement_period: StatementPeriod
     folios: List[FolioType]
     investor_info: InvestorInfoType

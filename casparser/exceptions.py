@@ -1,10 +1,10 @@
 class ParserException(Exception):
-    pass
+    """Generic parser error."""
 
 
 class HeaderParseError(ParserException):
-    pass
+    """Error while parsing header."""
 
 
 class CASParseError(ParserException):
-    pass
+    """Error while parsing pdf file."""

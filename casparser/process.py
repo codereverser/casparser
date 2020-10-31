@@ -10,7 +10,7 @@ from .regex import CLOSE_UNITS_RE, OPEN_UNITS_RE, TRANSACTION_RE
 
 def parse_header(text):
     """
-    Parse CAS header data
+    Parse CAS header data.
     :param text: CAS text
     """
     if m := re.search(HEADER_RE, text, re.DOTALL | re.MULTILINE | re.I):

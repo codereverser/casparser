@@ -1,13 +1,14 @@
 import io
 import os
 
-from click.testing import CliRunner
 import pytest
 
 from casparser.exceptions import CASParseError
 
 
 class BaseTestClass:
+    """Common test cases for all available parsers."""
+    
     @classmethod
     def setup_class(cls):
         cls.mode = "mupdf"
