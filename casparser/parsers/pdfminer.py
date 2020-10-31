@@ -59,7 +59,8 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
 
 def detect_pdf_source(document) -> FileType:
     """
-    Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata
+    Try to infer pdf source (CAMS/KFINTECH) from the pdf metadata.
+
     :param document: PDF document object
     :return: FileType
     """
@@ -77,7 +78,7 @@ def detect_pdf_source(document) -> FileType:
 
 def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
     """
-    Group `LTTextBoxHorizontal` elements having similar rows, with a tolerance
+    Group `LTTextBoxHorizontal` elements having similar rows, with a tolerance.
 
     :param elements_list: List of elements from each page
     """
@@ -103,7 +104,7 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
 
 def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
     """
-    Parses CAS pdf and returns line data.
+    Parse CAS pdf and returns line data.
 
     :param filename: CAS pdf file (CAMS or Kfintech)
     :param password: CAS pdf password

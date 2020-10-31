@@ -7,6 +7,8 @@ from casparser.exceptions import CASParseError
 
 
 class BaseTestClass:
+    """Common test cases for all available parsers."""
+    
     @classmethod
     def setup_class(cls):
         cls.mode = "mupdf"

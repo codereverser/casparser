@@ -18,7 +18,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 # noinspection PyUnusedLocal
-def validate_output_filename(ctx, param, filename: str):
+def validate_output_filename(_, _, filename: str):
     if filename is None or filename.lower().endswith(".json"):
         return filename
     raise click.BadParameter("Output filename should end with .json")

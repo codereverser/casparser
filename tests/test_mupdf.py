@@ -4,6 +4,8 @@ from .base import BaseTestClass
 
 
 class TestMuPDF(BaseTestClass):
+    """Test PyMuPDF parser."""
+
     def test_cli(self, tmpdir):
         from casparser.cli import cli
 
