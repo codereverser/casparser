@@ -1,0 +1,2 @@
+pytest==6.1.2
+coverage[toml]==5.3

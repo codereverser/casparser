@@ -16,6 +16,4 @@ class CASDataEncoder(json.JSONEncoder):
             return str(o)
         elif isinstance(o, datetime.date):
             return o.isoformat()
-        elif isinstance(o, FileType):
-            return o.name
         return super().default(o)

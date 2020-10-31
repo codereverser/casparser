@@ -5,7 +5,7 @@ import re
 from typing import List, Optional, Iterator, Union
 
 from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect
+from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect, PDFSyntaxError
 from pdfminer.layout import LAParams
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -127,6 +127,8 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
             document = PDFDocument(pdf_parser, password=password)
         except PDFPasswordIncorrect:
             raise CASParseError("Incorrect PDF password!")
+        except PDFSyntaxError:
+            raise CASParseError("Unhandled error while opening file")
 
         line_margin = {FileType.KFINTECH: 0.1, FileType.CAMS: 0.2}.get(
             detect_pdf_source(document), 0.2
