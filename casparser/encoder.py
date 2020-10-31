@@ -3,8 +3,6 @@ import decimal
 import json
 from typing import Any
 
-from .enums import FileType
-
 
 class CASDataEncoder(json.JSONEncoder):
     """
