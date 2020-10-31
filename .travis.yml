@@ -7,6 +7,7 @@ before_install:
 - tar xf tests/files.tar -C tests/
 - python --version
 - pip install -U pip
+- pip install codecov
 install:
 - pip install '.[mupdf,test]'
 script: pytest
