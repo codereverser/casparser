@@ -1,6 +1,9 @@
 # CASParser
+
 [![code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![GitHub](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
+[![Travis CI](https://img.shields.io/travis/codereverser/casparser)](https://travis-ci.org/github/codereverser/casparser)
+[![Codecov](https://img.shields.io/codecov/c/github/codereverser/casparser)](https://codecov.io/gh/codereverser/casparser)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/casparser)
 
 Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTECH

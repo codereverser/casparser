@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 - 2020-10-31
+
+- Added `balance` to Transaction
+- Added test cases with travis-ci and codecov support
+- minor bug fixes while parsing kfintech cas files
+
 ## 0.3.2 - 2020-10-29
 
 - minor bug fixes
