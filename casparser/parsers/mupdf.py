@@ -65,7 +65,7 @@ def parse_file_type(blocks):
     for block in sorted(blocks, key=lambda x: -x[1]):
         if re.search("CAMSCASWS", block[4]):
             return FileType.CAMS
-        elif re.search("KFINCASWS", block[4]):
+        if re.search("KFINCASWS", block[4]):
             return FileType.KFINTECH
 
 
@@ -94,7 +94,7 @@ def parse_investor_info(page_dict) -> InvestorInfo:
                         email = m.group(1).strip()
                         email_found = True
                     continue
-                elif name is None:
+                if name is None:
                     name = txt
                 else:
                     if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
@@ -192,5 +192,4 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
         )
         if output == "dict":
             return processed_data
-        else:
-            return json.dumps(processed_data, cls=CASDataEncoder)
+        return json.dumps(processed_data, cls=CASDataEncoder)

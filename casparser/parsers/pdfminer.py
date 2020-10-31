@@ -44,7 +44,7 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
                 email = m.group(1).strip()
                 email_found = True
             continue
-        elif name is None:
+        if name is None:
             name = txt
         else:
             if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
@@ -150,7 +150,7 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
                 for el in filter(lambda x: isinstance(x, LTTextBoxVertical), layout):
                     if re.search("CAMSCASWS", el.get_text()):
                         file_type = FileType.CAMS
-                    elif re.search("KFINCASWS", el.get_text()):
+                    if re.search("KFINCASWS", el.get_text()):
                         file_type = FileType.KFINTECH
             if investor_info is None:
                 investor_info = parse_investor_info(layout, *page.mediabox[2:])
@@ -165,8 +165,6 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
             }
         )
 
-        # TODO: Add Validation (calculated close vs reported)
         if output == "dict":
             return processed_data
-        else:
-            return json.dumps(processed_data, cls=CASDataEncoder)
+        return json.dumps(processed_data, cls=CASDataEncoder)
