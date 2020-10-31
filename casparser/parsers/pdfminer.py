@@ -22,6 +22,7 @@ InvestorInfo = namedtuple("InvestorInfo", ["name", "email", "address", "mobile"]
 
 
 def parse_investor_info(layout, width, height) -> InvestorInfo:
+    """Parse investor info."""
     text_elements = sorted(
         [
             x

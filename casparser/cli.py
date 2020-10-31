@@ -19,12 +19,14 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 # noinspection PyUnusedLocal
 def validate_output_filename(ctx, param, filename: str):
+    """Validate whether output filename ends with json."""
     if filename is None or filename.lower().endswith(".json"):
         return filename
     raise click.BadParameter("Output filename should end with .json")
 
 
 def print_summary(data):
+    """Print summary of parsed data."""
     count = 0
     err = 0
     click.echo("\n")
@@ -102,6 +104,7 @@ def print_summary(data):
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
 def cli(output, summary, password, force_pdfminer, filename):
+    """CLI function."""
     if output is None and not summary:
         click.echo("No output file provided. Printing summary")
         summary = True

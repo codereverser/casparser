@@ -62,6 +62,7 @@ def extract_blocks(page_dict):
 
 
 def parse_file_type(blocks):
+    """Parse file type."""
     for block in sorted(blocks, key=lambda x: -x[1]):
         if re.search("CAMSCASWS", block[4]):
             return FileType.CAMS
@@ -71,6 +72,7 @@ def parse_file_type(blocks):
 
 
 def parse_investor_info(page_dict) -> InvestorInfo:
+    """Parse investor info."""
     width = page_dict["width"]
     height = page_dict["height"]
     blocks = sorted(
