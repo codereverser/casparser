@@ -67,6 +67,7 @@ def parse_file_type(blocks):
             return FileType.CAMS
         if re.search("KFINCASWS", block[4]):
             return FileType.KFINTECH
+    return FileType.UNKNOWN
 
 
 def parse_investor_info(page_dict) -> InvestorInfo:
