@@ -164,9 +164,6 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
         except Exception as e:
             raise CASParseError("Unhandled error while opening file :: %s" % (str(e)))
 
-        if not doc.isPDF:
-            raise CASParseError("Input file is not PDF")
-
         if doc.needsPass:
             rc = doc.authenticate(password)
             if not rc:
