@@ -1,6 +1,4 @@
-from collections import namedtuple
 import io
-import json
 from operator import itemgetter
 import re
 from typing import List, Iterator, Union, Any
@@ -8,13 +6,9 @@ from typing import List, Iterator, Union, Any
 # noinspection PyPackageRequirements
 import fitz
 
-from casparser.encoder import CASDataEncoder
 from casparser.enums import FileType
 from casparser.exceptions import CASParseError
-from casparser.process import process_cas_text
-from .utils import isclose
-
-InvestorInfo = namedtuple("InvestorInfo", ["name", "email", "address", "mobile"])
+from .utils import isclose, InvestorInfo, PartialCASData
 
 
 def extract_blocks(page_dict):
@@ -138,14 +132,13 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
     return lines
 
 
-def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
+def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData:
     """
     Parse CAS pdf and returns line data.
 
     :param filename: CAS pdf file (CAMS or Kfintech)
     :param password: CAS pdf password
-    :param output: Output format (json,dict)  [default: dict]
-    :return: array of lines from the CAS.
+    :return: partial cas data with FileType, InvestorInfo and lines of data
     """
     file_type: FileType = FileType.UNKNOWN
 
@@ -183,13 +176,4 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict"):
                 investor_info = parse_investor_info(page_dict)
             pages.append(sorted_blocks)
         lines = group_similar_rows(pages)
-        processed_data = process_cas_text("\u2029".join(lines))
-        processed_data.update(
-            {
-                "file_type": file_type.name,
-                "investor_info": investor_info._asdict(),
-            }
-        )
-        if output == "dict":
-            return processed_data
-        return json.dumps(processed_data, cls=CASDataEncoder)
+        return PartialCASData(file_type=file_type, investor_info=investor_info, lines=lines)

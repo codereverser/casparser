@@ -7,10 +7,7 @@ import texttable
 
 from .__version__ import __version__
 
-try:
-    from .parsers.mupdf import read_cas_pdf
-except ImportError:
-    from .parsers.pdfminer import read_cas_pdf
+from . import read_cas_pdf
 from .encoder import CASDataEncoder
 from .exceptions import ParserException
 
@@ -109,12 +106,7 @@ def cli(output, summary, password, force_pdfminer, filename):
         click.echo("No output file provided. Printing summary")
         summary = True
     try:
-        if force_pdfminer:
-            from .parsers.pdfminer import read_cas_pdf as read_cas_pdf_pm
-
-            data = read_cas_pdf_pm(filename, password)
-        else:
-            data = read_cas_pdf(filename, password)
+        data = read_cas_pdf(filename, password, force_pdfminer=force_pdfminer)
     except ParserException as exc:
         click.echo("Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red"))
         sys.exit(1)

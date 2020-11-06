@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from casparser import read_cas_pdf
 from casparser.exceptions import CASParseError
 
 
@@ -19,12 +20,8 @@ class BaseTestClass:
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
     def read_pdf(self, filename, password, output="dict"):
-        if self.mode == "pdfminer":
-            from casparser.parsers.pdfminer import read_cas_pdf
-        else:
-            from casparser.parsers.mupdf import read_cas_pdf
-
-        return read_cas_pdf(filename, password, output=output)
+        use_pdfminer = (self.mode == "pdfminer")
+        return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
     def test_read_dict(self):
         self.read_pdf(self.cams_file_name, self.cams_password)

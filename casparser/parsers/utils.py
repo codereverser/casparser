@@ -1,3 +1,9 @@
+from collections import namedtuple
+
+InvestorInfo = namedtuple("InvestorInfo", ["name", "email", "address", "mobile"])
+PartialCASData = namedtuple("PartialCASData", ["file_type", "investor_info", "lines"])
+
+
 def isclose(a0, a1, tol=1.0e-4):
     """
     Check if two elements are almost equal with a tolerance.
