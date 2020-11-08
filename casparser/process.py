@@ -5,7 +5,7 @@ from dateutil import parser as date_parser
 
 from .exceptions import HeaderParseError, CASParseError
 from .regex import FOLIO_RE, HEADER_RE, SCHEME_RE
-from .regex import CLOSE_UNITS_RE, OPEN_UNITS_RE, TRANSACTION_RE
+from .regex import CLOSE_UNITS_RE, OPEN_UNITS_RE, VALUATION_RE, TRANSACTION_RE
 
 
 def parse_header(text):
@@ -64,6 +64,7 @@ def process_cas_text(text):
                     "rta": m.group(4).strip(),
                     "open": Decimal(0.0),
                     "close": Decimal(0.0),
+                    "valuation": {"date": None, "value": 0},
                     "transactions": [],
                 }
         if not curr_scheme_data:
@@ -73,6 +74,11 @@ def process_cas_text(text):
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
+        if m := re.search(VALUATION_RE, line, re.I):
+            curr_scheme_data["valuation"].update(
+                date=date_parser.parse(m.group(1)).date(),
+                value=Decimal(m.group(2).replace(",", "_")),
+            )
             continue
         if m := re.search(TRANSACTION_RE, line, re.DOTALL):
             date = date_parser.parse(m.group(1)).date()

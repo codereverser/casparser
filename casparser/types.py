@@ -27,6 +27,11 @@ class TransactionType(TypedDict):
     balance: Union[Decimal, float]
 
 
+class SchemeValuation(TypedDict):
+    date: Union[date, str]
+    value: Union[Decimal, float]
+
+
 class SchemeType(TypedDict, total=False):
     """Mutual Fund Scheme data structure."""
 
@@ -37,6 +42,7 @@ class SchemeType(TypedDict, total=False):
     rta: str
     open: Union[Decimal, float]
     close: Union[Decimal, float]
+    valuation: str
     transactions: List[TransactionType]
 
 

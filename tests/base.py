@@ -20,7 +20,7 @@ class BaseTestClass:
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
     def read_pdf(self, filename, password, output="dict"):
-        use_pdfminer = (self.mode == "pdfminer")
+        use_pdfminer = self.mode == "pdfminer"
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
     def test_read_dict(self):

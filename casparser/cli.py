@@ -1,3 +1,4 @@
+from decimal import Decimal
 import json
 import re
 import sys
@@ -40,37 +41,53 @@ def print_summary(data):
             fmt_value = fmt_value[:37] + "..."
         click.echo(f"{key:>40s}: {fmt_value}")
     click.echo("")
-    table = texttable.Texttable(max_width=100)
-    table.set_cols_align(["l", "r", "r", "r", "r", "c"])
-    table.set_cols_valign(["m", "m", "m", "m", "m", "m"])
-    table.add_row(
-        ["Scheme", "Open", "Close\nReported", "Close\nCalculated", "Transactions", "Status"]
-    )
+    table = texttable.Texttable(max_width=120)
+    header = [
+        "Scheme",
+        "Open",
+        "Close\nReported",
+        "Close\nCalculated",
+        f"Value\n({data['statement_period']['to']})",
+        "Transactions",
+        "Status",
+    ]
+    table.add_row(header)
+    table.set_cols_align(["l"] + ["r"] * (len(header) - 2) + ["c"])
+    table.set_cols_valign(["m"] * len(header))
     current_amc = None
+    value = Decimal(0)
     for folio in data["folios"]:
         if current_amc != folio.get("amc", ""):
             current_amc = folio["amc"]
-            table.add_row([current_amc] + [""] * 5)
+            table.add_row([current_amc] + [""] * 6)
         for scheme in folio["schemes"]:
             calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
+            valuation = scheme["valuation"]
             if calc_close != scheme["close"]:
                 err += 1
                 status = "❗️"
             else:
                 status = "️✅"
             scheme_name = f"{scheme['scheme']}\nFolio: {folio['folio']}"
+            value += valuation["value"]
             table.add_row(
                 [
                     scheme_name,
                     scheme["open"],
                     scheme["close"],
                     calc_close,
+                    f"₹{valuation['value']:,.2f}",
                     len(scheme["transactions"]),
                     status,
                 ]
             )
             count += 1
     click.echo(table.draw())
+    click.echo(
+        "Portfolio Valuation : "
+        + click.style(f"₹{value:,.2f}", fg="green", bold=True)
+        + f" [As of {data['statement_period']['to']}]"
+    )
     click.secho("Summary", bold=True)
     click.echo("Total   : " + click.style(f"{count:4d}", fg="white", bold=True) + " schemes")
     click.echo("Matched : " + click.style(f"{count - err:4d}", fg="green", bold=True) + " schemes")
