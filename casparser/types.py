@@ -27,7 +27,9 @@ class TransactionType(TypedDict):
     balance: Union[Decimal, float]
 
 
-class SchemeValuation(TypedDict):
+class SchemeValuationType(TypedDict):
+    """Scheme valuation as of a given date."""
+
     date: Union[date, str]
     value: Union[Decimal, float]
 
@@ -42,7 +44,7 @@ class SchemeType(TypedDict, total=False):
     rta: str
     open: Union[Decimal, float]
     close: Union[Decimal, float]
-    valuation: str
+    valuation: SchemeValuationType
     transactions: List[TransactionType]
 
 
