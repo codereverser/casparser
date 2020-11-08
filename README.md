@@ -61,6 +61,10 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                     "rta": "string",
                     "open": "number",
                     "close": "number",
+                    "valuation": {
+                      "date": "date",
+                      "value": "number"
+                    },
                     "transactions": [
                         {
                             "date": "YYYY-MM-DD",
@@ -104,3 +108,8 @@ CASParser is distributed under MIT license by default. However enabling the opti
 [MuPDF](https://mupdf.com/license.html) and hence the licenses GNU GPL v3 and GNU Affero GPL v3 
 would apply. Copies of all licenses have been included in this repository. - _IANAL_
  
+## Resources
+1. [CAS from CAMS](https://new.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
+2. [CAS from Karvy/Kfintech](https://mfs.kfintech.com/investor/General/ConsolidatedAccountStatement)
+
+PS:- select the detailed statement (including transactions) option

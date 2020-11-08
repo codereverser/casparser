@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 - 2020-11-08
+
+- Support for parsing scheme valuation
+- Parser code refactor (transparent to user)
+
 ## 0.3.3 - 2020-10-31
 
 - Added `balance` to Transaction
