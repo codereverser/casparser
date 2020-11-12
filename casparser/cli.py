@@ -17,6 +17,7 @@ from .__version__ import __version__
 from . import read_cas_pdf
 from .encoder import CASDataEncoder
 from .exceptions import ParserException
+from .parsers.utils import isclose
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -48,7 +49,9 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
             click.echo(f"{key:>40s}: {fmt_value}")
         click.echo("")
     rows = []
-    header = [
+    console_rows = []
+
+    console_header = [
         "Scheme",
         "Open",
         "Close\n\nReported\nvs.\nCalculated",
@@ -56,7 +59,18 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
         "Txns",
         "",
     ]
+    header = [
+        "Scheme",
+        "Open",
+        "Close Reported",
+        "Close Calculated",
+        f"NAV ({data['statement_period']['to']})",
+        f"Value ({data['statement_period']['to']})",
+        "Transactions",
+        "Status",
+    ]
     col_align = ["left"] + ["right"] * (len(header) - 2) + ["center"]
+    console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
 
     current_amc = None
     value = Decimal(0)
@@ -66,11 +80,22 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
     for folio in data["folios"]:
         if current_amc != folio.get("amc", ""):
             current_amc = folio["amc"]
-            rows.append([textwrap.fill(current_amc, width=scheme_col_width)] + [""] * 5)
+            rows.append(
+                [textwrap.fill(current_amc, width=scheme_col_width)] + [""] * (len(header) - 1)
+            )
+            console_rows.append(
+                [textwrap.fill(current_amc, width=scheme_col_width)]
+                + [""] * (len(console_header) - 1)
+            )
         for scheme in folio["schemes"]:
             calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
             valuation = scheme["valuation"]
-            if calc_close != scheme["close"]:
+
+            # Check is calculated close (i.e. open + units from all transactions) is same as
+            # reported close and also the scheme valuation = nav * calculated close.
+            if calc_close != scheme["close"] or not isclose(
+                valuation["nav"] * calc_close, valuation["value"], tol=2
+            ):
                 err += 1
                 status = "❗️"
             else:
@@ -80,19 +105,31 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
             folio_string = textwrap.fill(f"Folio: {folio_number}", width=scheme_col_width)
             scheme_name = f"{wrapped_name}\n{folio_string}"
             value += valuation["value"]
+            console_rows.append(
+                [
+                    scheme_name,
+                    scheme["open"],
+                    f"{scheme['close']}\n/\n{calc_close}",
+                    f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
+                    len(scheme["transactions"]),
+                    status,
+                ]
+            )
             rows.append(
                 [
                     scheme_name,
                     scheme["open"],
-                    f"{scheme['close']}\n\n{calc_close}",
-                    f"₹{valuation['value']:,.2f}",
+                    scheme["close"],
+                    calc_close,
+                    valuation["nav"],
+                    valuation["value"],
                     len(scheme["transactions"]),
                     status,
                 ]
             )
             count += 1
-    click.echo(tabulate(rows, header, tablefmt=fmt, colalign=col_align))
     if print_extra_info:
+        click.echo(tabulate(console_rows, console_header, tablefmt=fmt, colalign=console_col_align))
         click.echo(
             "Portfolio Valuation : "
             + click.style(f"₹{value:,.2f}", fg="green", bold=True)
@@ -104,6 +141,9 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
             "Matched : " + click.style(f"{count - err:4d}", fg="green", bold=True) + " schemes"
         )
         click.echo("Error   : " + click.style(f"{err:4d}", fg="red", bold=True) + " schemes")
+    else:
+        click.echo(tabulate(rows, header, tablefmt=fmt, colalign=col_align))
+
     if output_filename:
         with open(output_filename, "w") as f:
             f.write(tabulate(rows, header, tablefmt=tablefmt, colalign=col_align))
