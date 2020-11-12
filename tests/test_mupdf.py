@@ -26,12 +26,12 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code == 0
         assert "File saved" in result.output
 
-        fpath = tmpdir.join("output.html")
+        fpath = tmpdir.join("output.txt")
         result = runner.invoke(
-            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath, "-s", "html"]
+            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath]
         )
         assert result.exit_code != 1
-        assert "File saved" in result.output
+        assert "Output filename should end" in result.output
 
         result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.cams_password])
         assert result.exit_code != 0
