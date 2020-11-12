@@ -1,3 +1,5 @@
+import re
+
 from click.testing import CliRunner
 import pytest
 
@@ -24,16 +26,20 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code == 0
         assert "File saved" in result.output
 
-        fpath = tmpdir.join("output.txt")
+        fpath = tmpdir.join("output.html")
         result = runner.invoke(
-            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath]
+            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath, "-s", "html"]
         )
         assert result.exit_code != 1
-        assert "Output filename should end" in result.output
+        assert "File saved" in result.output
 
         result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.cams_password])
         assert result.exit_code != 0
         assert "Incorrect PDF password!" in result.output
+
+        result = runner.invoke(cli, [self.bad_file_name, "-p", ""])
+        assert result.exit_code == 0
+        assert re.search(r"Error\s+:\s+1\s+schemes", result.output) is not None
 
     def test_bad_investor_info(self):
         from casparser.parsers.mupdf import parse_investor_info
