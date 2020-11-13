@@ -22,7 +22,7 @@ from .parsers.utils import isclose
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def print_summary(data, tablefmt="fancy_grid", output_filename=None):
+def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zero_folios=False):
     """Print summary of parsed data."""
     count = 0
     err = 0
@@ -77,17 +77,16 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
     columns, _ = shutil.get_terminal_size()
     scheme_col_width = columns - 66
 
+    folio_header_added = False
     for folio in data["folios"]:
         if current_amc != folio.get("amc", ""):
+            folio_header_added = False
             current_amc = folio["amc"]
-            rows.append(
-                [textwrap.fill(current_amc, width=scheme_col_width)] + [""] * (len(header) - 1)
-            )
-            console_rows.append(
-                [textwrap.fill(current_amc, width=scheme_col_width)]
-                + [""] * (len(console_header) - 1)
-            )
         for scheme in folio["schemes"]:
+
+            if scheme["close"] < 1e-3 and not include_zero_folios:
+                continue
+
             calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
             valuation = scheme["valuation"]
 
@@ -105,6 +104,17 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
             folio_string = textwrap.fill(f"Folio: {folio_number}", width=scheme_col_width)
             scheme_name = f"{wrapped_name}\n{folio_string}"
             value += valuation["value"]
+
+            if not folio_header_added:
+                rows.append(
+                    [textwrap.fill(current_amc, width=scheme_col_width)] + [""] * (len(header) - 1)
+                )
+                console_rows.append(
+                    [textwrap.fill(current_amc, width=scheme_col_width)]
+                    + [""] * (len(console_header) - 1)
+                )
+                folio_header_added = True
+
             console_rows.append(
                 [
                     scheme_name,
@@ -173,11 +183,17 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None):
     help="CAS password",
 )
 @click.option(
+    "-a",
+    "--include-all",
+    is_flag=True,
+    help="Include schemes with zero valuation in the summary output"
+)
+@click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
 )
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
-def cli(output, summary, password, force_pdfminer, filename):
+def cli(output, summary, password, include_all, force_pdfminer, filename):
     """CLI function."""
     output_ext = None
     if output is not None:
@@ -193,7 +209,7 @@ def cli(output, summary, password, force_pdfminer, filename):
         sys.exit(1)
     if summary:
         print_summary(
-            data, tablefmt=summary, output_filename=None if output_ext == ".json" else output
+            data, tablefmt=summary, include_zero_folios=include_all, output_filename=None if output_ext == ".json" else output
         )
     if output_ext == ".json":
         with open(output, "w") as fp:
