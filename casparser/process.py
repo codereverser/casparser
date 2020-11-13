@@ -64,7 +64,7 @@ def process_cas_text(text):
                     "rta": m.group(4).strip(),
                     "open": Decimal(0.0),
                     "close": Decimal(0.0),
-                    "valuation": {"date": None, "value": 0},
+                    "valuation": {"date": None, "value": 0, "nav": 0},
                     "transactions": [],
                 }
         if not curr_scheme_data:
