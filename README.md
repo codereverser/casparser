@@ -63,6 +63,7 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                     "close": "number",
                     "valuation": {
                       "date": "date",
+                      "nav": "number",
                       "value": "number"
                     },
                     "transactions": [

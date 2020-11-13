@@ -31,6 +31,7 @@ class SchemeValuationType(TypedDict):
     """Scheme valuation as of a given date."""
 
     date: Union[date, str]
+    nav: Union[Decimal, float]
     value: Union[Decimal, float]
 
 
