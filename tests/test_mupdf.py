@@ -1,3 +1,5 @@
+import re
+
 from click.testing import CliRunner
 import pytest
 
@@ -34,6 +36,10 @@ class TestMuPDF(BaseTestClass):
         result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.cams_password])
         assert result.exit_code != 0
         assert "Incorrect PDF password!" in result.output
+
+        result = runner.invoke(cli, [self.bad_file_name, "-p", ""])
+        assert result.exit_code == 0
+        assert re.search(r"Error\s+:\s+1\s+schemes", result.output) is not None
 
     def test_bad_investor_info(self):
         from casparser.parsers.mupdf import parse_investor_info
