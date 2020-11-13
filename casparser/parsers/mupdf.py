@@ -103,7 +103,6 @@ def parse_investor_info(page_dict) -> InvestorInfo:
                         )
     if email is None or mobile is None:
         raise CASParseError("Unable to parse investor data")
-    return InvestorInfo(email=email, name=name, mobile=mobile, address="\n".join(address_lines))
 
 
 def group_similar_rows(elements_list: List[Iterator[Any]]):

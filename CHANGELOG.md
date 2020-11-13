@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 - 2020-11-13
+
+- Support for parsing scheme's latest nav
+- Replaced `texttable` with `tabulate` for more cli output formats
+- Added more test cases
+
 ## 0.3.4 - 2020-11-08
 
 - Support for parsing scheme valuation
