@@ -4,7 +4,6 @@
 [![GitHub](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
 [![Travis CI](https://img.shields.io/travis/codereverser/casparser)](https://travis-ci.org/github/codereverser/casparser)
 [![Codecov](https://img.shields.io/codecov/c/github/codereverser/casparser)](https://codecov.io/gh/codereverser/casparser)
-[![DeepSource](https://deepsource.io/gh/codereverser/casparser.svg/?label=active+issues)](https://deepsource.io/gh/codereverser/casparser/?ref=repository-badge)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/casparser)
 
 Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTECH
@@ -86,15 +85,24 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
 
 ### CLI
 
-```bash
-Usage: casparser [-o output_file.json] [-p password] [-s] CAS_PDF_FILE
+casparser also comes with a command-line interface that prints summary of parsed 
+portfolio in a wide variety of formats. 
 
-Options:
-  -o, --output FILE  Output file path (json)
-  -s, --summary      Print Summary of transactions parsed.
-  -p PASSWORD        CAS password
-  --version          Show the version and exit.
-  --help             Show this message and exit.
+```bash
+Usage: casparser [-o output_file.json] [-p password] [-s type] [-a] CAS_PDF_FILE
+
+  -o, --output FILE               Output file path
+  -s, --summary simple|plain|grid|fancy_grid|html... 
+                                  Print Summary of transactions parsed.
+  -p PASSWORD                     CAS password
+  -a, --include-all               Include schemes with zero valuation in the
+                                  summary output
+
+  --force-pdfminer                Force PDFMiner parser even if MuPDF is
+                                  detected
+
+  --version                       Show the version and exit.
+  -h, --help                      Show this message and exit.
 ``` 
 
 #### Demo
