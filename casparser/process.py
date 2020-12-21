@@ -57,9 +57,12 @@ def process_cas_text(text):
             if curr_scheme_data.get("scheme") != scheme:
                 if curr_scheme_data:
                     folios[current_folio]["schemes"].append(curr_scheme_data)
+                advisor = m.group(3)
+                if advisor is not None:
+                    advisor = advisor.strip()
                 curr_scheme_data = {
                     "scheme": scheme,
-                    "advisor": m.group(3).strip(),
+                    "advisor": advisor,
                     "rta_code": m.group(1).strip(),
                     "rta": m.group(4).strip(),
                     "open": Decimal(0.0),

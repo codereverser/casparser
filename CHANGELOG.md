@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6 - 2020-12-21
+
+- Support for parsing folios without advisor
+
 ## 0.3.5 - 2020-11-13
 
 - Support for parsing scheme's latest nav
