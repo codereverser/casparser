@@ -1,0 +1,44 @@
+name: run-tests
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8']
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Extract test files
+      run: ./.github/scripts/extract_files.sh
+      env:
+        FILES_PASSPHRASE: ${{ secrets.FILES_PASSPHRASE }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f requirements-mupdf.txt ]; then pip install -r requirements-mupdf.txt; fi
+        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+    - name: Test with pytest
+      run: |
+        pytest
+      env:
+        BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
+        CAMS_CAS_FILE: ${{ secrets.CAMS_CAS_FILE }}
+        CAMS_CAS_PASSWORD: ${{ secrets.CAMS_CAS_PASSWORD }}
+        KFINTECH_CAS_FILE: ${{ secrets.KFINTECH_CAS_FILE }}
+        KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}
+    - name: Upload coverage report to codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
