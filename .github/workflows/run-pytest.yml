@@ -34,7 +34,7 @@ jobs:
       run: |
         pytest
       env:
-        BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }
+        BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
         CAMS_CAS_FILE: ${{ secrets.CAMS_CAS_FILE }}
         CAMS_CAS_PASSWORD: ${{ secrets.CAMS_CAS_PASSWORD }}
         KFINTECH_CAS_FILE: ${{ secrets.KFINTECH_CAS_FILE }}
