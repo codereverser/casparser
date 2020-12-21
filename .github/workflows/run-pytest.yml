@@ -1,4 +1,4 @@
-name: Run tests on casparser
+name: run-tests
 
 on:
   push:
@@ -39,3 +39,7 @@ jobs:
         CAMS_CAS_PASSWORD: ${{ secrets.CAMS_CAS_PASSWORD }}
         KFINTECH_CAS_FILE: ${{ secrets.KFINTECH_CAS_FILE }}
         KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}
+    - name: Upload coverage report to codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
