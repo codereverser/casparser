@@ -98,16 +98,16 @@ def process_cas_text(text):
             continue
         if m := re.search(TRANSACTION_RE, line, re.DOTALL):
             date = date_parser.parse(m.group(1)).date()
+            desc = m.group(2).strip() + description_tail
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
-            is_dividend = m.group(4) is None
-            if is_dividend:
+            is_dividend = m.group(4) is None and re.search("dividend", desc, re.I) is not None
+            if m.group(4) is None:
                 units = None
                 nav = None
             else:
                 units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_"))
-            desc = m.group(2).strip() + description_tail
             curr_scheme_data["transactions"].append(
                 {
                     "date": date,

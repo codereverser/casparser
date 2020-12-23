@@ -87,7 +87,9 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
             if scheme["close"] < 1e-3 and not include_zero_folios:
                 continue
 
-            calc_close = scheme["open"] + sum([x["units"] for x in scheme["transactions"]])
+            calc_close = scheme["open"] + sum(
+                [x["units"] for x in scheme["transactions"] if x["units"] is not None]
+            )
             valuation = scheme["valuation"]
 
             # Check is calculated close (i.e. open + units from all transactions) is same as
