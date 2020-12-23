@@ -46,7 +46,9 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
                 mobile = m.group(1).strip()
             address_lines.append(txt)
             if mobile is not None:
-                return InvestorInfo(email=email, name=name, mobile=mobile, address="\n".join(address_lines))
+                return InvestorInfo(
+                    email=email, name=name, mobile=mobile, address="\n".join(address_lines)
+                )
     if email is None or mobile is None:
         raise CASParseError("Unable to parse investor data")
 

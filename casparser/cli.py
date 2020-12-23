@@ -186,7 +186,7 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
     "-a",
     "--include-all",
     is_flag=True,
-    help="Include schemes with zero valuation in the summary output"
+    help="Include schemes with zero valuation in the summary output",
 )
 @click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
@@ -209,7 +209,10 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
         sys.exit(1)
     if summary:
         print_summary(
-            data, tablefmt=summary, include_zero_folios=include_all, output_filename=None if output_ext == ".json" else output
+            data,
+            tablefmt=summary,
+            include_zero_folios=include_all,
+            output_filename=None if output_ext == ".json" else output,
         )
     if output_ext == ".json":
         with open(output, "w") as fp:
