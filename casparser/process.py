@@ -6,7 +6,7 @@ from dateutil import parser as date_parser
 from .exceptions import HeaderParseError, CASParseError
 from .regex import FOLIO_RE, HEADER_RE, SCHEME_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
-from .regex import DESCRIPTION_TAIL_RE, TRANSACTION_RE
+from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
 
 
 def parse_header(text):
@@ -100,7 +100,6 @@ def process_cas_text(text):
             date = date_parser.parse(m.group(1)).date()
             desc = m.group(2).strip() + description_tail
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
-            is_dividend = m.group(4) is None and re.search("dividend", desc, re.I) is not None
             if m.group(4) is None:
                 units = None
                 nav = None
@@ -108,6 +107,14 @@ def process_cas_text(text):
                 units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_"))
+            if div_match := re.search(DIVIDEND_RE, desc, re.I | re.DOTALL):
+                reinvest_flag, rate = div_match.groups()
+                is_dividend_payout = reinvest_flag is None
+                is_dividend_reinvestment = not is_dividend_payout
+                dividend_rate = Decimal(rate)
+            else:
+                is_dividend_payout = is_dividend_reinvestment = False
+                dividend_rate = None
             curr_scheme_data["transactions"].append(
                 {
                     "date": date,
@@ -116,7 +123,9 @@ def process_cas_text(text):
                     "units": units,
                     "nav": nav,
                     "balance": balance,
-                    "is_dividend": is_dividend,
+                    "is_dividend_payout": is_dividend_payout,
+                    "is_dividend_reinvestment": is_dividend_reinvestment,
+                    "dividend_rate": dividend_rate,
                 }
             )
     if curr_scheme_data:
