@@ -5,7 +5,8 @@ from dateutil import parser as date_parser
 
 from .exceptions import HeaderParseError, CASParseError
 from .regex import FOLIO_RE, HEADER_RE, SCHEME_RE
-from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE, TRANSACTION_RE
+from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
+from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
 
 
 def parse_header(text):
@@ -31,8 +32,14 @@ def process_cas_text(text):
     current_folio = None
     current_amc = None
     curr_scheme_data = {}
+    balance = Decimal(0.0)
     lines = text.split("\u2029")
     for line in lines:
+        if m := re.search(DESCRIPTION_TAIL_RE, line, re.I | re.DOTALL):
+            description_tail = m.group(1).rstrip()
+            line = line.replace(description_tail, "")
+        else:
+            description_tail = ""
         if amc_match := re.search(r"^(.+?)\s+(MF|Mutual\s+Fund)$", line, re.I | re.DOTALL):
             current_amc = amc_match.group(0)
         elif m := re.search(FOLIO_RE, line, re.I):
@@ -70,6 +77,7 @@ def process_cas_text(text):
                     "valuation": {"date": None, "value": 0, "nav": 0},
                     "transactions": [],
                 }
+                balance = Decimal(0.0)
         if not curr_scheme_data:
             continue
         if m := re.search(OPEN_UNITS_RE, line):
@@ -90,11 +98,23 @@ def process_cas_text(text):
             continue
         if m := re.search(TRANSACTION_RE, line, re.DOTALL):
             date = date_parser.parse(m.group(1)).date()
+            desc = m.group(2).strip() + description_tail
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
-            units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
-            nav = Decimal(m.group(5).replace(",", "_"))
-            balance = Decimal(m.group(6).replace(",", "_"))
-            desc = m.group(2).strip()
+            if m.group(4) is None:
+                units = None
+                nav = None
+            else:
+                units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
+                nav = Decimal(m.group(5).replace(",", "_"))
+                balance = Decimal(m.group(6).replace(",", "_"))
+            if div_match := re.search(DIVIDEND_RE, desc, re.I | re.DOTALL):
+                reinvest_flag, rate = div_match.groups()
+                is_dividend_payout = reinvest_flag is None
+                is_dividend_reinvestment = not is_dividend_payout
+                dividend_rate = Decimal(rate)
+            else:
+                is_dividend_payout = is_dividend_reinvestment = False
+                dividend_rate = None
             curr_scheme_data["transactions"].append(
                 {
                     "date": date,
@@ -103,6 +123,9 @@ def process_cas_text(text):
                     "units": units,
                     "nav": nav,
                     "balance": balance,
+                    "is_dividend_payout": is_dividend_payout,
+                    "is_dividend_reinvestment": is_dividend_reinvestment,
+                    "dividend_rate": dividend_rate,
                 }
             )
     if curr_scheme_data:

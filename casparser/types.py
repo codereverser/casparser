@@ -22,9 +22,12 @@ class TransactionType(TypedDict):
     date: Union[date, str]
     description: str
     amount: Union[Decimal, float]
-    units: Union[Decimal, float]
-    nav: Union[Decimal, float]
+    units: Union[Decimal, float, None]
+    nav: Union[Decimal, float, None]
     balance: Union[Decimal, float]
+    is_dividend_payout: bool
+    is_dividend_reinvestment: bool
+    dividend_rate: Union[Decimal, float, None]
 
 
 class SchemeValuationType(TypedDict):

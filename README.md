@@ -72,7 +72,10 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                             "amount": "number",
                             "units": "number",
                             "nav": "number",
-                            "balance": "number"
+                            "balance": "number",
+                            "is_dividend_payout": "boolean",
+                            "is_dividend_reinvestment": "boolean",
+                            "dividend_rate": null
                         }
                     ]
                 }
