@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7 - 2020-12-24
+
+- Support for parsing dividend transactions
+
 ## 0.3.6 - 2020-12-21
 
 - Support for parsing folios without advisor

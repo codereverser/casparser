@@ -25,7 +25,9 @@ class TransactionType(TypedDict):
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
     balance: Union[Decimal, float]
-    is_dividend: bool
+    is_dividend_payout: bool
+    is_dividend_reinvestment: bool
+    dividend_rate: Union[Decimal, float, None]
 
 
 class SchemeValuationType(TypedDict):
