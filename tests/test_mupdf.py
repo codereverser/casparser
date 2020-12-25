@@ -33,7 +33,9 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code != 1
         assert "File saved" in result.output
 
-        result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s", "html"])
+        result = runner.invoke(
+            cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s", "html"]
+        )
         assert result.exit_code != 1
         assert "<table>\n<thead>" in result.output
 

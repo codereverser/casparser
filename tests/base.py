@@ -25,9 +25,9 @@ class BaseTestClass:
 
     def test_read_dict(self):
         data = self.read_pdf(self.cams_file_name, self.cams_password)
-        assert len(data.get('folios', [])) == 10
+        assert len(data.get("folios", [])) == 10
         data = self.read_pdf(self.kfintech_file_name, self.kfintech_password)
-        assert len(data.get('folios', [])) == 10
+        assert len(data.get("folios", [])) == 10
 
     def test_read_json(self):
         self.read_pdf(self.cams_file_name, self.cams_password, output="json")
