@@ -24,8 +24,10 @@ class BaseTestClass:
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
     def test_read_dict(self):
-        self.read_pdf(self.cams_file_name, self.cams_password)
-        self.read_pdf(self.kfintech_file_name, self.kfintech_password)
+        data = self.read_pdf(self.cams_file_name, self.cams_password)
+        assert len(data.get('folios', [])) == 10
+        data = self.read_pdf(self.kfintech_file_name, self.kfintech_password)
+        assert len(data.get('folios', [])) == 10
 
     def test_read_json(self):
         self.read_pdf(self.cams_file_name, self.cams_password, output="json")

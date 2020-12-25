@@ -12,7 +12,6 @@ VALUATION_RE = r"Valuation\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+
 NAV_RE = r"NAV\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+)"
 
 TRANSACTION_RE = (
-    # r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*"
     r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*(?:\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*)*"
 )
 DIVIDEND_RE = r"dividend.+?(reinvest)*.+?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"
