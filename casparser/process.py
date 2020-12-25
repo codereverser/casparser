@@ -1,8 +1,10 @@
 from decimal import Decimal
 import re
+from typing import Optional, Tuple
 
 from dateutil import parser as date_parser
 
+from .enums import TransactionType
 from .exceptions import HeaderParseError, CASParseError
 from .regex import FOLIO_RE, HEADER_RE, SCHEME_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
@@ -17,6 +19,50 @@ def parse_header(text):
     if m := re.search(HEADER_RE, text, re.DOTALL | re.MULTILINE | re.I):
         return m.groupdict()
     raise HeaderParseError("Error parsing CAS header")
+
+
+def get_transaction_type(
+    description: str, units: Optional[Decimal]
+) -> Tuple[TransactionType, Optional[Decimal]]:
+    dividend_rate = None
+    description = description.lower()
+    if div_match := re.search(DIVIDEND_RE, description, re.I | re.DOTALL):
+        reinvest_flag, dividend_rate = div_match.groups()
+        txn_type = (
+            TransactionType.DIVIDEND_REINVEST if reinvest_flag else TransactionType.DIVIDEND_PAYOUT
+        )
+    elif units is None:
+        if "stt" in description:
+            txn_type = TransactionType.TAX
+        else:
+            txn_type = TransactionType.MISC
+    elif units > 0:
+        if "sip" in description or "systematic" in description:
+            txn_type = TransactionType.PURCHASE_SIP
+        elif "switch" in description:
+            if "merger" in description:
+                txn_type = TransactionType.SWITCH_IN_MERGER
+            else:
+                txn_type = TransactionType.SWITCH_IN
+        else:
+            txn_type = TransactionType.PURCHASE
+    elif units < 0:
+        if "switch" in description:
+            if "merger" in description:
+                txn_type = TransactionType.SWITCH_OUT_MERGER
+            else:
+                txn_type = TransactionType.SWITCH_OUT
+        else:
+            txn_type = TransactionType.REDEMPTION
+    else:
+        print(
+            "Warning: Error identifying transaction. "
+            "Please report the issue with the transaction description"
+        )
+        print(f"Txn description: {description} :: Units: {units}")
+        txn_type = TransactionType.UNKNOWN
+
+    return txn_type, dividend_rate
 
 
 def process_cas_text(text):
@@ -107,14 +153,7 @@ def process_cas_text(text):
                 units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_"))
-            if div_match := re.search(DIVIDEND_RE, desc, re.I | re.DOTALL):
-                reinvest_flag, rate = div_match.groups()
-                is_dividend_payout = reinvest_flag is None
-                is_dividend_reinvestment = not is_dividend_payout
-                dividend_rate = Decimal(rate)
-            else:
-                is_dividend_payout = is_dividend_reinvestment = False
-                dividend_rate = None
+            txn_type, dividend_rate = get_transaction_type(desc, units)
             curr_scheme_data["transactions"].append(
                 {
                     "date": date,
@@ -123,8 +162,7 @@ def process_cas_text(text):
                     "units": units,
                     "nav": nav,
                     "balance": balance,
-                    "is_dividend_payout": is_dividend_payout,
-                    "is_dividend_reinvestment": is_dividend_reinvestment,
+                    "type": txn_type,
                     "dividend_rate": dividend_rate,
                 }
             )
