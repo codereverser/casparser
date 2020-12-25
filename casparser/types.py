@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import List, TypedDict, Union
 
-from .enums import FileType
+from .enums import FileType, TransactionType
 
 StatementPeriod = TypedDict("StatementPeriod", {"from": str, "to": str})
 
@@ -16,7 +16,7 @@ class InvestorInfoType(TypedDict):
     mobile: str
 
 
-class TransactionType(TypedDict):
+class TransactionDataType(TypedDict):
     """Mutual fund scheme transaction."""
 
     date: Union[date, str]
@@ -25,8 +25,7 @@ class TransactionType(TypedDict):
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
     balance: Union[Decimal, float]
-    is_dividend_payout: bool
-    is_dividend_reinvestment: bool
+    type: TransactionType
     dividend_rate: Union[Decimal, float, None]
 
 
@@ -49,7 +48,7 @@ class SchemeType(TypedDict, total=False):
     open: Union[Decimal, float]
     close: Union[Decimal, float]
     valuation: SchemeValuationType
-    transactions: List[TransactionType]
+    transactions: List[TransactionDataType]
 
 
 class FolioType(TypedDict, total=False):

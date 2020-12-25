@@ -37,13 +37,13 @@ def get_transaction_type(
         else:
             txn_type = TransactionType.MISC
     elif units > 0:
-        if "sip" in description or "systematic" in description:
-            txn_type = TransactionType.PURCHASE_SIP
-        elif "switch" in description:
+        if "switch" in description:
             if "merger" in description:
                 txn_type = TransactionType.SWITCH_IN_MERGER
             else:
                 txn_type = TransactionType.SWITCH_IN
+        elif "sip" in description or "systematic" in description:
+            txn_type = TransactionType.PURCHASE_SIP
         else:
             txn_type = TransactionType.PURCHASE
     elif units < 0:
