@@ -25,9 +25,9 @@ pip install casparser[mupdf]
 
 ## Usage
 
-```
+```python
 import casparser
-data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
+data = casparser.read_cas_pdf('/path/to/cas/file.pdf', 'password')
 ```
 
 ### Data structure
@@ -73,8 +73,7 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                             "units": "number",
                             "nav": "number",
                             "balance": "number",
-                            "is_dividend_payout": "boolean",
-                            "is_dividend_reinvestment": "boolean",
+                            "type": "string",
                             "dividend_rate": null
                         }
                     ]

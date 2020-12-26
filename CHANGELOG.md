@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 - 2020-12-25
+
+- Support for classifying  transactions
+
 ## 0.3.7 - 2020-12-24
 
 - Support for parsing dividend transactions
@@ -51,7 +55,7 @@
 
 ## 0.2.0 - 2020-10-15
 
-- removed support for python < 3.8 versions
+- removed support for python versions <3.8
 - Better investor info parser
 
 ## 0.1.2 - 2020-10-14
