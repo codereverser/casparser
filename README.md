@@ -74,7 +74,7 @@ data = casparser.read_cas_pdf('/path/to/cas/file.pdf', 'password')
                             "nav": "number",
                             "balance": "number",
                             "type": "string",
-                            "dividend_rate": null
+                            "dividend_rate": "number"
                         }
                     ]
                 }
@@ -83,8 +83,22 @@ data = casparser.read_cas_pdf('/path/to/cas/file.pdf', 'password')
     ]
 }
 ```
-
-
+Notes: 
+- Transaction `type` can be any value from the following
+  - `PURCHASE`
+  - `PURCHASE_SIP`
+  - `REDEMPTION`
+  - `SWITCH_IN`
+  - `SWITCH_IN_MERGER`
+  - `SWITCH_OUT`
+  - `SWITCH_OUT_MERGER`
+  - `DIVIDEND_PAYOUT`
+  - `DIVIDEND_REINVESTMENT`
+  - `TAX`
+  - `MISC`
+- `dividend_rate` is applicable only for `DIVIDEND_PAYOUT` and 
+  `DIVIDEND_REINVESTMENT` transactions.
+  
 ### CLI
 
 casparser also comes with a command-line interface that prints summary of parsed 

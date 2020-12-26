@@ -162,7 +162,7 @@ def process_cas_text(text):
                     "units": units,
                     "nav": nav,
                     "balance": balance,
-                    "type": txn_type,
+                    "type": txn_type.name,
                     "dividend_rate": dividend_rate,
                 }
             )
