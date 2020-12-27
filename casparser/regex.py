@@ -1,3 +1,5 @@
+"""Regular expressions for parsing various sections in CAS."""
+
 HEADER_RE = r"(?P<from>\d{2}-[a-zA-Z]{3}-\d{4})\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-\d{4})"
 
 FOLIO_RE = (

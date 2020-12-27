@@ -24,6 +24,8 @@ def parse_header(text):
 def get_transaction_type(
     description: str, units: Optional[Decimal]
 ) -> Tuple[TransactionType, Optional[Decimal]]:
+    """Get transaction type from the description text."""
+
     dividend_rate = None
     description = description.lower()
     if div_match := re.search(DIVIDEND_RE, description, re.I | re.DOTALL):
