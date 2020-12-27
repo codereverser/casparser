@@ -18,6 +18,7 @@ class TestMuPDF(BaseTestClass):
         result = runner.invoke(cli, [self.cams_file_name, "-p", self.cams_password])
         assert result.exit_code == 0
         assert "Statement Period:" in result.output
+        assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
 
         fpath = tmpdir.join("output.json")
         result = runner.invoke(

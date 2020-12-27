@@ -54,7 +54,7 @@ def process_cas_text(text):
                     "amc": current_amc,
                     "PAN": (m.group(2) or "").strip(),
                     "KYC": m.group(3).strip(),
-                    "PANKYC": m.group(4).strip(),
+                    "PANKYC": None if m.group(4) is None else m.group(4).strip(),
                     "schemes": [],
                 }
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):

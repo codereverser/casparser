@@ -2,7 +2,7 @@ HEADER_RE = r"(?P<from>\d{2}-[a-zA-Z]{3}-\d{4})\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-
 
 FOLIO_RE = (
     r"Folio\s+No\s*:\s+(.+?)\s+(?:PAN\s*:\s+([A-Z]{5}\d{4}[A-Z])\s+)?"
-    r"KYC\s*:\s*(.+?)\s+PAN\s*:\s*(.+?)$"
+    r"KYC\s*:\s*(OK|NOT\s+OK)\s*(?:PAN\s*:\s*(OK|NOT\s+OK))?$"
 )
 
 SCHEME_RE = r"([\s\w]+)-\s*\d*\s*(.+?)\s*(?:\(Advisor\s*:\s*(.+?)\))*\s+Registrar\s*:\s*(.*)\s*$"
@@ -12,7 +12,8 @@ VALUATION_RE = r"Valuation\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+
 NAV_RE = r"NAV\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+)"
 
 TRANSACTION_RE = (
-    r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*(?:\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*)*"
+    r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*(?:\t\t([(\d,.]+)\)*\t\t"
+    r"([(\d,.]+)\)*\t\t([(\d,.]+)\)*)*"
 )
 DIVIDEND_RE = r"dividend.+?(reinvest)*.+?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"
 
