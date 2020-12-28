@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8 - 2020-12-29
+
+- Support for parsing folios without PAN/KYC details
+
 ## 0.3.7 - 2020-12-24
 
 - Support for parsing dividend transactions
