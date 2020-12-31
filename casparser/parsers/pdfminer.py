@@ -12,7 +12,7 @@ from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
 
 from casparser.enums import FileType
 from casparser.exceptions import CASParseError
-from .utils import isclose, InvestorInfo, PartialCASData
+from .utils import is_close, InvestorInfo, PartialCASData
 
 
 def parse_investor_info(layout, width, height) -> InvestorInfo:
@@ -86,7 +86,7 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
         y0, y1 = sorted_elements[0].y0, sorted_elements[0].y1
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (isclose(el.y1, y1, tol=3) or isclose(el.y0, y0, tol=3)):
+            if len(items) > 0 and not (is_close(el.y1, y1, tol=3) or is_close(el.y0, y0, tol=3)):
                 line = "\t\t".join(
                     [x.get_text().strip() for x in sorted(items, key=lambda x: x.x0)]
                 )

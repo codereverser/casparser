@@ -8,7 +8,7 @@ import fitz
 
 from casparser.enums import FileType
 from casparser.exceptions import CASParseError
-from .utils import isclose, InvestorInfo, PartialCASData
+from .utils import is_close, InvestorInfo, PartialCASData
 
 
 def extract_blocks(page_dict):
@@ -26,7 +26,7 @@ def extract_blocks(page_dict):
         y0, y1 = bbox[1], bbox[3]
         for line in sorted(block["lines"], key=lambda x: x["bbox"][1]):
             if len(items) > 0 and not (
-                isclose(y0, line["bbox"][1], tol=3) or isclose(y1, line["bbox"][3], tol=3)
+                is_close(y0, line["bbox"][1], tol=3) or is_close(y1, line["bbox"][3], tol=3)
             ):
                 full_text = "\t\t".join(
                     [x[0].strip() for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
@@ -119,7 +119,7 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
         y0, y1 = sorted_elements[0][1], sorted_elements[0][3]
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (isclose(el[3], y1, tol=3) or isclose(el[1], y0, tol=3)):
+            if len(items) > 0 and not (is_close(el[3], y1, tol=3) or is_close(el[1], y0, tol=3)):
                 line = "\t\t".join(
                     [x[4].strip() for x in sorted(items, key=lambda x: x[0]) if x[4].strip()]
                 )

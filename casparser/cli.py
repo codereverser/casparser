@@ -1,5 +1,4 @@
 from decimal import Decimal
-import json
 import os
 import re
 import shutil
@@ -15,9 +14,8 @@ from tabulate import tabulate, _table_formats
 from .__version__ import __version__
 
 from . import read_cas_pdf
-from .encoder import CASDataEncoder
 from .exceptions import ParserException
-from .parsers.utils import isclose
+from .parsers.utils import is_close, cas2json, cas2csv
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -94,7 +92,7 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
 
             # Check is calculated close (i.e. open + units from all transactions) is same as
             # reported close and also the scheme valuation = nav * calculated close.
-            if calc_close != scheme["close"] or not isclose(
+            if calc_close != scheme["close"] or not is_close(
                 valuation["nav"] * calc_close, valuation["value"], tol=2
             ):
                 err += 1
@@ -201,7 +199,7 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
     if output is not None:
         output_ext = os.path.splitext(output)[-1].lower()
 
-    if not (summary or output_ext == ".json"):
+    if not (summary or output_ext in (".csv", ".json")):
         summary = "fancy_grid"
 
     try:
@@ -214,11 +212,12 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
             data,
             tablefmt=summary,
             include_zero_folios=include_all,
-            output_filename=None if output_ext == ".json" else output,
+            output_filename=None if output_ext in (".csv", ".json") else output,
         )
-    if output_ext == ".json":
+    if output_ext in (".csv", ".json"):
+        conv_fn = cas2json if output_ext == ".json" else cas2csv
         with open(output, "w") as fp:
-            json.dump(data, fp, cls=CASDataEncoder, indent=2)
+            fp.write(conv_fn(data))
         click.echo("File saved : " + click.style(output, bold=True))
 
 

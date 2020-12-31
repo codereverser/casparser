@@ -34,6 +34,13 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code != 1
         assert "File saved" in result.output
 
+        fpath = tmpdir.join("output.csv")
+        result = runner.invoke(
+            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath]
+        )
+        assert result.exit_code != 1
+        assert "File saved" in result.output
+
         result = runner.invoke(
             cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s", "html"]
         )
@@ -47,6 +54,7 @@ class TestMuPDF(BaseTestClass):
         result = runner.invoke(cli, [self.bad_file_name, "-p", "", "-a"])
         assert result.exit_code == 0
         assert re.search(r"Error\s+:\s+1\s+schemes", result.output) is not None
+
 
     def test_bad_investor_info(self):
         from casparser.parsers.mupdf import parse_investor_info
