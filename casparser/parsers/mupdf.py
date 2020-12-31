@@ -143,9 +143,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
 
     if isinstance(filename, str):
         fp = open(filename, "rb")
-    elif isinstance(filename, io.IOBase):
-        fp = filename
-    elif hasattr(filename, "read"):  # compatibility for Django UploadedFile
+    elif hasattr(filename, "read") and hasattr(filename, "close"):  # file-like object
         fp = filename
     else:
         raise CASParseError("Invalid input. filename should be a string or a file like object")

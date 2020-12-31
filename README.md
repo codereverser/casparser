@@ -27,7 +27,14 @@ pip install casparser[mupdf]
 
 ```python
 import casparser
-data = casparser.read_cas_pdf('/path/to/cas/file.pdf', 'password')
+data = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password")
+
+# Get data in json format
+json_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="json")
+
+# Get transactions data in csv string format
+csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="csv")
+
 ```
 
 ### Data structure
@@ -120,6 +127,10 @@ Usage: casparser [-o output_file.json] [-p password] [-s type] [-a] CAS_PDF_FILE
   --version                       Show the version and exit.
   -h, --help                      Show this message and exit.
 ``` 
+
+**Note:** `casparser cli` supports two special output file formats [-o _file.json_ / _file.csv_]
+1. `json` - complete parsed data is exported in json format (including investor info)
+2. `csv`  - transactions with AMC, Folio and Scheme info are exported into csv format. 
 
 #### Demo
 
