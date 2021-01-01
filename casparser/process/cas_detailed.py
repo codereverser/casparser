@@ -4,9 +4,9 @@ from typing import Optional, Tuple
 
 from dateutil import parser as date_parser
 
-from .enums import TransactionType
-from .exceptions import HeaderParseError, CASParseError
-from .regex import FOLIO_RE, HEADER_RE, SCHEME_RE
+from ..enums import TransactionType, CASFileType
+from ..exceptions import HeaderParseError, CASParseError
+from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
 from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
 
@@ -16,7 +16,7 @@ def parse_header(text):
     Parse CAS header data.
     :param text: CAS text
     """
-    if m := re.search(HEADER_RE, text, re.DOTALL | re.MULTILINE | re.I):
+    if m := re.search(DETAILED_DATE_RE, text, re.DOTALL | re.MULTILINE | re.I):
         return m.groupdict()
     raise HeaderParseError("Error parsing CAS header")
 
@@ -67,7 +67,7 @@ def get_transaction_type(
     return txn_type, dividend_rate
 
 
-def process_cas_text(text):
+def process_detailed_text(text):
     """
     Process the text version of a CAS pdf and return the detailed summary.
     :param text:
@@ -171,6 +171,7 @@ def process_cas_text(text):
     if curr_scheme_data:
         folios[current_folio]["schemes"].append(curr_scheme_data)
     return {
+        "cas_type": CASFileType.DETAILED.name,
         "statement_period": statement_period,
         "folios": list(folios.values()),
     }

@@ -9,6 +9,14 @@ class FileType(IntEnum):
     KFINTECH = 2
 
 
+class CASFileType(IntEnum):
+    """Enum for CAS file type"""
+
+    UNKNOWN = 0
+    SUMMARY = 1
+    DETAILED = 2
+
+
 class TransactionType(Enum):
     PURCHASE = auto()
     PURCHASE_SIP = auto()

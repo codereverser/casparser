@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 
 from casparser.exceptions import HeaderParseError
-from casparser.process import parse_header, get_transaction_type
+from casparser.process.cas_detailed import parse_header, get_transaction_type
 from casparser.enums import TransactionType
 
 
