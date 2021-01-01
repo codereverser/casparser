@@ -14,6 +14,7 @@ class BaseTestClass:
     def setup_class(cls):
         cls.mode = "mupdf"
         cls.cams_file_name = os.getenv("CAMS_CAS_FILE")
+        cls.cams_summary_file_name = os.getenv("CAMS_CAS_SUMMARY")
         cls.kfintech_file_name = os.getenv("KFINTECH_CAS_FILE")
         cls.bad_file_name = os.getenv("BAD_CAS_FILE")
         cls.cams_password = os.getenv("CAMS_CAS_PASSWORD")
@@ -24,10 +25,19 @@ class BaseTestClass:
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
     def test_read_dict(self):
+
         data = self.read_pdf(self.cams_file_name, self.cams_password)
         assert len(data.get("folios", [])) == 10
+        assert data["cas_type"] == "DETAILED"
+
         data = self.read_pdf(self.kfintech_file_name, self.kfintech_password)
         assert len(data.get("folios", [])) == 10
+        assert data["cas_type"] == "DETAILED"
+
+    def test_read_summary(self):
+        data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
+        assert len(data.get("folios", [])) == 4
+        assert data["cas_type"] == "SUMMARY"
 
     def test_output_json(self):
         self.read_pdf(self.cams_file_name, self.cams_password, output="json")

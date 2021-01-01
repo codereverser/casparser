@@ -55,7 +55,6 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code == 0
         assert re.search(r"Error\s+:\s+1\s+schemes", result.output) is not None
 
-
     def test_bad_investor_info(self):
         from casparser.parsers.mupdf import parse_investor_info
 
