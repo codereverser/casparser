@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - 2020-12-25
+## 0.3.9 - 2021-01-01
 
 - Support for classifying  transactions
 
