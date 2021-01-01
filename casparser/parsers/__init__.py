@@ -1,9 +1,8 @@
 import io
-import json
 from typing import Union
 
-from casparser.encoder import CASDataEncoder
 from casparser.process import process_cas_text
+from .utils import cas2json
 
 
 def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict", force_pdfminer=False):
@@ -35,4 +34,4 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict", force
     )
     if output == "dict":
         return processed_data
-    return json.dumps(processed_data, cls=CASDataEncoder)
+    return cas2json(processed_data)

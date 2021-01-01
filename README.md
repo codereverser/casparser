@@ -25,9 +25,16 @@ pip install casparser[mupdf]
 
 ## Usage
 
-```
+```python
 import casparser
-data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
+data = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password")
+
+# Get data in json format
+json_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="json")
+
+# Get transactions data in csv string format
+csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="csv")
+
 ```
 
 ### Data structure
@@ -73,9 +80,8 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
                             "units": "number",
                             "nav": "number",
                             "balance": "number",
-                            "is_dividend_payout": "boolean",
-                            "is_dividend_reinvestment": "boolean",
-                            "dividend_rate": null
+                            "type": "string",
+                            "dividend_rate": "number"
                         }
                     ]
                 }
@@ -84,8 +90,22 @@ data = casparser.read_cas_pdf('/path/to/cas/pdf/file.pdf', 'password')
     ]
 }
 ```
-
-
+Notes: 
+- Transaction `type` can be any value from the following
+  - `PURCHASE`
+  - `PURCHASE_SIP`
+  - `REDEMPTION`
+  - `SWITCH_IN`
+  - `SWITCH_IN_MERGER`
+  - `SWITCH_OUT`
+  - `SWITCH_OUT_MERGER`
+  - `DIVIDEND_PAYOUT`
+  - `DIVIDEND_REINVESTMENT`
+  - `TAX`
+  - `MISC`
+- `dividend_rate` is applicable only for `DIVIDEND_PAYOUT` and 
+  `DIVIDEND_REINVESTMENT` transactions.
+  
 ### CLI
 
 casparser also comes with a command-line interface that prints summary of parsed 
@@ -107,6 +127,10 @@ Usage: casparser [-o output_file.json] [-p password] [-s type] [-a] CAS_PDF_FILE
   --version                       Show the version and exit.
   -h, --help                      Show this message and exit.
 ``` 
+
+**Note:** `casparser cli` supports two special output file formats [-o _file.json_ / _file.csv_]
+1. `json` - complete parsed data is exported in json format (including investor info)
+2. `csv`  - transactions with AMC, Folio and Scheme info are exported into csv format. 
 
 #### Demo
 

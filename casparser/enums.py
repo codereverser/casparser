@@ -1,9 +1,24 @@
-import enum
+from enum import Enum, IntEnum, auto
 
 
-class FileType(enum.IntEnum):
+class FileType(IntEnum):
     """Enum for CAS file source."""
 
     UNKNOWN = 0
     CAMS = 1
     KFINTECH = 2
+
+
+class TransactionType(Enum):
+    PURCHASE = auto()
+    PURCHASE_SIP = auto()
+    REDEMPTION = auto()
+    DIVIDEND_PAYOUT = auto()
+    DIVIDEND_REINVEST = auto()
+    SWITCH_IN = auto()
+    SWITCH_IN_MERGER = auto()
+    SWITCH_OUT = auto()
+    SWITCH_OUT_MERGER = auto()
+    TAX = auto()
+    MISC = auto()
+    UNKNOWN = auto()
