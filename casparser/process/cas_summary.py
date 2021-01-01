@@ -33,6 +33,8 @@ def process_summary_text(text):
     curr_scheme_data = {}
     lines = text.split("\u2029")
     for line in lines:
+        if len(folios) > 0 and re.search('Total', line, re.I):
+            break
         if m := re.search(SUMMARY_ROW_RE, line, re.DOTALL | re.MULTILINE | re.I):
             folio = m.group(1).strip()
             if current_folio is None or current_folio != folio:
