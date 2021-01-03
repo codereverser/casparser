@@ -50,11 +50,11 @@ def cas2csv(data: CASParserDataType) -> str:
             for scheme in folio["schemes"]:
                 for transaction in scheme["transactions"]:
                     row = {
-                        "amc": current_amc,
+                        "amc": current_amc.replace("\n", " "),
                         "folio": folio["folio"],
-                        "scheme": scheme["scheme"],
+                        "scheme": scheme["scheme"].replace("\n", " "),
                         "date": transaction["date"],
-                        "description": transaction["description"],
+                        "description": transaction["description"].replace("\n", " "),
                         "amount": transaction["amount"],
                         "units": transaction["units"],
                         "nav": transaction["nav"],
