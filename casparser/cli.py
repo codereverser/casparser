@@ -14,6 +14,7 @@ from tabulate import tabulate, _table_formats
 from .__version__ import __version__
 
 from . import read_cas_pdf
+from .enums import CASFileType
 from .exceptions import ParserException
 from .parsers.utils import is_close, cas2json, cas2csv
 
@@ -30,15 +31,18 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
     else:
         fmt = tablefmt
 
+    is_summary = data["cas_type"] == CASFileType.SUMMARY.name
+
     print_extra_info = fmt in ("simple", "plain", "fancy_grid", "grid", "pretty")
     if print_extra_info:
         click.echo("\n")
         click.echo(
             f"{'Statement Period':>40s}: "
             f"{click.style(data['statement_period']['from'], fg='green', bold=True)}"
-            f"  To {click.style(data['statement_period']['to'], fg='green', bold=True)}"
+            f" To {click.style(data['statement_period']['to'], fg='green', bold=True)}"
         )
         click.echo(f"{'File Type':>40s}: {click.style(data['file_type'], bold=True)}")
+        click.echo(f"{'CAS Type':>40s}: {click.style(data['cas_type'], bold=True)}")
         for key, value in data["investor_info"].items():
             fmt_value = " ".join([x.strip() for x in value.splitlines()])
             fmt_value = re.sub(r"\s+", " ", fmt_value)
@@ -49,26 +53,32 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
     rows = []
     console_rows = []
 
-    console_header = [
-        "Scheme",
-        "Open",
-        "Close\n\nReported\nvs.\nCalculated",
-        f"Value\n({data['statement_period']['to']})",
-        "Txns",
-        "",
-    ]
-    header = [
-        "Scheme",
-        "Open",
-        "Close Reported",
-        "Close Calculated",
-        f"NAV ({data['statement_period']['to']})",
-        f"Value ({data['statement_period']['to']})",
-        "Transactions",
-        "Status",
-    ]
-    col_align = ["left"] + ["right"] * (len(header) - 2) + ["center"]
-    console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
+    console_header = {
+        "scheme": "Scheme",
+        "open": "Open",
+        "close": "Close" if is_summary else "Close\n\nReported\nvs.\nCalculated",
+        "value": f"Value\n({data['statement_period']['to']})",
+        "txns": "Txns",
+        "status": "",
+    }
+    header = {
+        "scheme": "Scheme",
+        "open": "Open",
+        "close": "Close",
+        "close_calc": "Close Calculated",
+        "nav": f"NAV ({data['statement_period']['to']})",
+        "value": f"Value ({data['statement_period']['to']})",
+        "txns": "Transactions",
+        "status": "Status",
+    }
+    if is_summary:
+        console_header.update(close="Balance")
+        header.update(close="Balance")
+        col_align = ["left"] + ["right"] * (len(header) - 5) + ["center"]
+        console_col_align = ["left"] + ["right"] * (len(console_header) - 4) + ["center"]
+    else:
+        col_align = ["left"] + ["right"] * (len(header) - 2) + ["center"]
+        console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
 
     current_amc = None
     value = Decimal(0)
@@ -105,39 +115,45 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
             scheme_name = f"{wrapped_name}\n{folio_string}"
             value += valuation["value"]
 
-            if not folio_header_added:
-                rows.append(
-                    [textwrap.fill(current_amc, width=scheme_col_width)] + [""] * (len(header) - 1)
-                )
+            if not (is_summary or folio_header_added):
+                rows.append({k: current_amc if k == "scheme" else "" for k in header.keys()})
                 console_rows.append(
-                    [textwrap.fill(current_amc, width=scheme_col_width)]
-                    + [""] * (len(console_header) - 1)
+                    {k: current_amc if k == "scheme" else "" for k in console_header.keys()}
                 )
                 folio_header_added = True
 
-            console_rows.append(
-                [
-                    scheme_name,
-                    scheme["open"],
-                    f"{scheme['close']}\n/\n{calc_close}",
-                    f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
-                    len(scheme["transactions"]),
-                    status,
-                ]
+            row = {
+                "scheme": scheme_name,
+                "open": scheme["open"],
+                "close": scheme["close"],
+                "close_calc": calc_close,
+                "nav": valuation["nav"],
+                "value": valuation["value"],
+                "txns": len(scheme["transactions"]),
+                "status": status,
+            }
+            console_row = row.copy()
+            console_row.pop("close_calc")
+            console_row.pop("nav")
+            console_row.update(
+                value=f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
             )
-            rows.append(
-                [
-                    scheme_name,
-                    scheme["open"],
-                    scheme["close"],
-                    calc_close,
-                    valuation["nav"],
-                    valuation["value"],
-                    len(scheme["transactions"]),
-                    status,
-                ]
-            )
+            if is_summary:
+
+                row.pop("open")
+                row.pop("close_calc")
+                row.pop("txns")
+
+                console_row.pop("open")
+                console_row.pop("txns")
+            else:
+                console_row.update(
+                    close=f"{scheme['close']}\n/\n{calc_close}",
+                )
+            console_rows.append(console_row)
+            rows.append(row)
             count += 1
+
     if print_extra_info:
         click.echo(tabulate(console_rows, console_header, tablefmt=fmt, colalign=console_col_align))
         click.echo(
