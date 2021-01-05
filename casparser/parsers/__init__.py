@@ -2,7 +2,7 @@ import io
 from typing import Union
 
 from casparser.process import process_cas_text
-from .utils import cas2json
+from .utils import cas2json, cas2csv
 
 
 def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict", force_pdfminer=False):
@@ -34,4 +34,6 @@ def read_cas_pdf(filename: Union[str, io.IOBase], password, output="dict", force
     )
     if output == "dict":
         return processed_data
+    elif output == "csv":
+        return cas2csv(processed_data)
     return cas2json(processed_data)
