@@ -29,7 +29,16 @@ class TestMuPDF(BaseTestClass):
 
         fpath = tmpdir.join("output.html")
         result = runner.invoke(
-            cli, [self.cams_file_name, "-p", self.cams_password, "-o", fpath.strpath, "-s", "html"]
+            cli,
+            [
+                self.cams_summary_file_name,
+                "-p",
+                self.cams_password,
+                "-o",
+                fpath.strpath,
+                "-s",
+                "html",
+            ],
         )
         assert result.exit_code != 1
         assert "File saved" in result.output
