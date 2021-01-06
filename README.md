@@ -46,6 +46,7 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
         "to": "YYYY-MMM-DD"
     },
     "file_type": "CAMS/KARVY/UNKNOWN",
+    "cas_type": "DETAILED/SUMMARY",
     "investor_info": {
         "email": "string",
         "name": "string",
@@ -148,4 +149,3 @@ would apply. Copies of all licenses have been included in this repository. - _IA
 1. [CAS from CAMS](https://new.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
 2. [CAS from Karvy/Kfintech](https://mfs.kfintech.com/investor/General/ConsolidatedAccountStatement)
 
-PS:- select the detailed statement (including transactions) option

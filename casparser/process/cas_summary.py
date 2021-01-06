@@ -25,7 +25,7 @@ def process_summary_text(text):
     :return:
     """
     hdr_data = parse_header(text[:1000])
-    statement_period = {"from": "N/A", "to": hdr_data["date"]}
+    statement_period = {"from": hdr_data["date"], "to": hdr_data["date"]}
 
     folios = {}
     current_folio = None
