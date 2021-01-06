@@ -35,6 +35,7 @@ jobs:
       env:
         BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
         CAMS_CAS_FILE: ${{ secrets.CAMS_CAS_FILE }}
+        CAMS_CAS_SUMMARY: ${{ secrets.CAMS_CAS_SUMMARY }}
         CAMS_CAS_PASSWORD: ${{ secrets.CAMS_CAS_PASSWORD }}
         KFINTECH_CAS_FILE: ${{ secrets.KFINTECH_CAS_FILE }}
         KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}

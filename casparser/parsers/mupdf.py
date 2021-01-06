@@ -1,3 +1,4 @@
+import copy
 import io
 from operator import itemgetter
 import re
@@ -11,13 +12,42 @@ from casparser.exceptions import CASParseError
 from .utils import is_close, InvestorInfo, PartialCASData
 
 
+def merge_bbox(bbox1, bbox2):
+    """Merge two pdf blocks' bounding boxes."""
+    return (
+        min(bbox1[0], bbox2[0]),  # x0
+        min(bbox1[1], bbox2[1]),  # y0
+        max(bbox1[2], bbox2[2]),  # x1
+        max(bbox1[3], bbox2[3]),  # y1
+    )
+
+
+def group_similar_blocks(blocks):
+    """Group overlapping blocks in a page."""
+    grouped_blocks = []
+    curr_y0 = -1
+    blocks = copy.deepcopy(blocks)
+    for block in blocks:
+        y0 = block["bbox"][1]
+        if is_close(y0, curr_y0, 0.1) and len(grouped_blocks) > 0:
+            new_block = grouped_blocks.pop()
+            new_block["lines"].extend(block["lines"])
+            new_block["bbox"] = merge_bbox(new_block["bbox"], block["bbox"])
+        else:
+            new_block = block
+        grouped_blocks.append(new_block)
+        curr_y0 = new_block["bbox"][1]
+    return grouped_blocks
+
+
 def extract_blocks(page_dict):
     """Extract text blocks from page dictionary.
     The logic is similar to `PyMuPDF.TextPage.extractBLOCKS` but with a slightly better text
     arrangement.
     """
     blocks = []
-    for block in page_dict.get("blocks", []):
+    grouped_blocks = group_similar_blocks(page_dict.get("blocks", []))
+    for block in grouped_blocks:
         lines = []
         items = []
         if len(block.get("lines", [])) == 0:
@@ -119,7 +149,7 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
         y0, y1 = sorted_elements[0][1], sorted_elements[0][3]
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (is_close(el[3], y1, tol=3) or is_close(el[1], y0, tol=3)):
+            if len(items) > 0 and not (is_close(el[3], y1, tol=2) or is_close(el[1], y0, tol=2)):
                 line = "\t\t".join(
                     [x[4].strip() for x in sorted(items, key=lambda x: x[0]) if x[4].strip()]
                 )
