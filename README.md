@@ -113,9 +113,12 @@ casparser also comes with a command-line interface that prints summary of parsed
 portfolio in a wide variety of formats. 
 
 ```bash
-Usage: casparser [-o output_file.json] [-p password] [-s type] [-a] CAS_PDF_FILE
+Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [-a] CAS_PDF_FILE
 
-  -o, --output FILE               Output file path
+  -o, --output FILE               Output file path. Saves the parsed data as json or csv
+                                  depending on the file extension. For other extensions, the
+                                  summary output is saved. [See note below]
+
   -s, --summary simple|plain|grid|fancy_grid|html... 
                                   Print Summary of transactions parsed.
   -p PASSWORD                     CAS password
@@ -132,6 +135,7 @@ Usage: casparser [-o output_file.json] [-p password] [-s type] [-a] CAS_PDF_FILE
 **Note:** `casparser cli` supports two special output file formats [-o _file.json_ / _file.csv_]
 1. `json` - complete parsed data is exported in json format (including investor info)
 2. `csv`  - transactions with AMC, Folio and Scheme info are exported into csv format. 
+3. any other extension - The summary output is saved in the file. 
 
 #### Demo
 
