@@ -1,6 +1,8 @@
 import io
 import os
+import re
 
+from click.testing import CliRunner
 import pytest
 
 from casparser import read_cas_pdf
@@ -24,24 +26,30 @@ class BaseTestClass:
         use_pdfminer = self.mode == "pdfminer"
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
-    def test_read_dict(self):
-
-        data = self.read_pdf(self.cams_file_name, self.cams_password)
-        assert len(data.get("folios", [])) == 10
-        assert data["cas_type"] == "DETAILED"
-
-        data = self.read_pdf(self.kfintech_file_name, self.kfintech_password)
-        assert len(data.get("folios", [])) == 10
-        assert data["cas_type"] == "DETAILED"
-
     def test_read_summary(self):
         data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
         assert len(data.get("folios", [])) == 4
         assert data["cas_type"] == "SUMMARY"
 
-    def test_output_json(self):
-        self.read_pdf(self.cams_file_name, self.cams_password, output="json")
-        self.read_pdf(self.kfintech_file_name, self.kfintech_password, output="json")
+    def test_read_dict(self):
+        from casparser.cli import cli
+
+        pdf_files = [
+            (self.cams_file_name, self.cams_password),
+            (self.kfintech_file_name, self.kfintech_password),
+        ]
+
+        runner = CliRunner()
+
+        for pdf_file, pdf_password in pdf_files:
+            args = [pdf_file, "-p", pdf_password]
+            if self.mode != "mupdf":
+                args.append("--force-pdfminer")
+            result = runner.invoke(cli, args)
+            assert result.exit_code == 0
+            assert "Statement Period:" in result.output
+            assert re.search(r"Matched\s+:\s+8\s+schemes", result.output) is not None
+            assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
 
     def test_invalid_password(self):
         with pytest.raises(CASParseError) as exc_info:

@@ -113,7 +113,7 @@ def parse_investor_info(page_dict) -> InvestorInfo:
             for span in line["spans"]:
                 if span["bbox"][0] > width / 3:
                     continue
-                txt = span["text"]
+                txt = span["text"].strip()
                 if txt == "":
                     continue
                 if not email_found:

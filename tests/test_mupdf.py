@@ -1,3 +1,4 @@
+import json
 import re
 
 from click.testing import CliRunner
@@ -11,14 +12,20 @@ from .base import BaseTestClass
 class TestMuPDF(BaseTestClass):
     """Test PyMuPDF parser."""
 
+    def test_output_json(self):
+        json_data = self.read_pdf(self.cams_file_name, self.cams_password, output="json")
+        data = json.loads(json_data)
+        assert len(data.get("folios", [])) == 10
+        assert data["cas_type"] == "DETAILED"
+
+    def test_output_csv(self):
+        output = self.read_pdf(self.cams_file_name, self.cams_password, output="csv")
+        assert isinstance(output, str)
+
     def test_cli(self, tmpdir):
         from casparser.cli import cli
 
         runner = CliRunner()
-        result = runner.invoke(cli, [self.cams_file_name, "-p", self.cams_password])
-        assert result.exit_code == 0
-        assert "Statement Period:" in result.output
-        assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
 
         fpath = tmpdir.join("output.json")
         result = runner.invoke(
