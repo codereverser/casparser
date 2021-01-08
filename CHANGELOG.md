@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 - 2021-01-08
+
+- :star: adds support for parsing summary statements from CAMS/KARVY (**beta**)
+- minor bug fixes in CSV file generation
+
 ## 0.3.9 - 2021-01-01
 
 - Support for classifying  transactions

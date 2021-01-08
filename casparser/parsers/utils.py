@@ -31,6 +31,7 @@ def cas2csv(data: CASParserDataType) -> str:
         header = [
             "amc",
             "folio",
+            "pan",
             "scheme",
             "date",
             "description",
@@ -52,6 +53,7 @@ def cas2csv(data: CASParserDataType) -> str:
                     row = {
                         "amc": current_amc.replace("\n", " "),
                         "folio": folio["folio"],
+                        "pan": folio["PAN"],
                         "scheme": scheme["scheme"].replace("\n", " "),
                         "date": transaction["date"],
                         "description": transaction["description"].replace("\n", " "),
