@@ -232,7 +232,7 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
         )
     if output_ext in (".csv", ".json"):
         conv_fn = cas2json if output_ext == ".json" else cas2csv
-        with open(output, "w") as fp:
+        with open(output, "w", newline="") as fp:
             fp.write(conv_fn(data))
         click.echo("File saved : " + click.style(output, bold=True))
 
