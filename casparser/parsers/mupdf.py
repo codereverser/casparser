@@ -97,8 +97,9 @@ def parse_file_type(blocks):
 
 def parse_investor_info(page_dict) -> InvestorInfo:
     """Parse investor info."""
-    width = page_dict["width"]
-    height = page_dict["height"]
+    width = max(page_dict["width"], 600)
+    height = max(page_dict["height"], 800)
+
     blocks = sorted(
         [x for x in page_dict["blocks"] if x["bbox"][1] < height / 2], key=lambda x: x["bbox"][1]
     )
