@@ -22,6 +22,11 @@ class BaseTestClass:
         cls.cams_password = os.getenv("CAMS_CAS_PASSWORD")
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
+        cls.pdf_files = [
+            (cls.cams_file_name, cls.cams_password),
+            (cls.kfintech_file_name, cls.kfintech_password),
+        ]
+
     def read_pdf(self, filename, password, output="dict"):
         use_pdfminer = self.mode == "pdfminer"
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
@@ -29,19 +34,15 @@ class BaseTestClass:
     def test_read_summary(self):
         data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
         assert len(data.get("folios", [])) == 4
+        assert data.get("investor_info", {}).get("mobile") not in (None, "")
         assert data["cas_type"] == "SUMMARY"
 
     def test_read_dict(self):
         from casparser.cli import cli
 
-        pdf_files = [
-            (self.cams_file_name, self.cams_password),
-            (self.kfintech_file_name, self.kfintech_password),
-        ]
-
         runner = CliRunner()
 
-        for pdf_file, pdf_password in pdf_files:
+        for pdf_file, pdf_password in self.pdf_files:
             args = [pdf_file, "-p", pdf_password]
             if self.mode != "mupdf":
                 args.append("--force-pdfminer")

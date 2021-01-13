@@ -125,15 +125,24 @@ def parse_investor_info(page_dict) -> InvestorInfo:
                 if name is None:
                     name = txt
                 else:
-                    if m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
+                    if (
+                        re.search(
+                            r"Date\s+Transaction|Folio\s+No|^Date\s*$",
+                            txt,
+                            re.I | re.MULTILINE,
+                        )
+                        or mobile is not None
+                    ):
+                        return InvestorInfo(
+                            email=email,
+                            name=name,
+                            mobile=mobile or "",
+                            address="\n".join(address_lines),
+                        )
+                    elif m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
                         mobile = m.group(1).strip()
                     address_lines.append(txt)
-                    if mobile is not None:
-                        return InvestorInfo(
-                            email=email, name=name, mobile=mobile, address="\n".join(address_lines)
-                        )
-    if email is None or mobile is None:
-        raise CASParseError("Unable to parse investor data")
+    raise CASParseError("Unable to parse investor data")
 
 
 def group_similar_rows(elements_list: List[Iterator[Any]]):
