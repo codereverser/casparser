@@ -11,12 +11,12 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 
 ## Installation
 ```bash
-pip install casparser
+pip install -U casparser
 ``` 
 
 ### with faster PyMuPDF parser
 ```bash
-pip install casparser[mupdf]
+pip install -U 'casparser[mupdf]'
 ```
 
 **Note:** Enabling this dependency could result in licensing changes. Check the 
