@@ -101,7 +101,7 @@ def process_detailed_text(text):
                     "folio": current_folio,
                     "amc": current_amc,
                     "PAN": (m.group(2) or "").strip(),
-                    "KYC": m.group(3).strip(),
+                    "KYC": None if m.group(3) is None else m.group(3).strip(),
                     "PANKYC": None if m.group(4) is None else m.group(4).strip(),
                     "schemes": [],
                 }
