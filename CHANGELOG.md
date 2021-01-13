@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.4.1 - 2021-01-13
+
+- hotfix for parsing folios without KYC details 
+
 ## 0.4.0 - 2021-01-08
 
-- :star: adds support for parsing summary statements from CAMS/KARVY (**beta**)
+- adds support for parsing summary statements from CAMS/KARVY (**beta**)
 - minor bug fixes in CSV file generation
 
 ## 0.3.9 - 2021-01-01
