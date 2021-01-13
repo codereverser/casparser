@@ -171,7 +171,7 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
         click.echo(tabulate(rows, header, tablefmt=fmt, colalign=col_align))
 
     if output_filename:
-        with open(output_filename, "w", encoding='utf-8') as f:
+        with open(output_filename, "w", encoding="utf-8") as f:
             f.write(tabulate(rows, header, tablefmt=tablefmt, colalign=col_align))
         click.echo("File saved : " + click.style(output_filename, bold=True))
 
@@ -232,7 +232,7 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
         )
     if output_ext in (".csv", ".json"):
         conv_fn = cas2json if output_ext == ".json" else cas2csv
-        with open(output, "w", newline="", encoding='utf-8') as fp:
+        with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
         click.echo("File saved : " + click.style(output, bold=True))
 
