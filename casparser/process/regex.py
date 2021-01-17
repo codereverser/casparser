@@ -24,6 +24,6 @@ TRANSACTION_RE = (
     r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*"
     r"(?:\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*)*"
 )
-DIVIDEND_RE = r"dividend.+?(reinvest)*.+?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"
+DIVIDEND_RE = r"dividend.+?(reinvest)*.*?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"
 
 DESCRIPTION_TAIL_RE = r"\d{2}-[A-Za-z]{3}-\d{4}\t\t.*(\n[^\t]+)[\t|$]"
