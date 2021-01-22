@@ -6,7 +6,7 @@ from dateutil import parser as date_parser
 
 from ..enums import TransactionType, CASFileType
 from ..exceptions import HeaderParseError, CASParseError
-from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE
+from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
 from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
 
@@ -80,10 +80,13 @@ def process_detailed_text(text):
     current_folio = None
     current_amc = None
     curr_scheme_data = {}
-    balance = Decimal(0.0)
     lines = text.split("\u2029")
-    for line in lines:
-        if m := re.search(DESCRIPTION_TAIL_RE, line, re.I | re.DOTALL):
+    for idx, line in enumerate(lines):
+        # Parse schemes with long names (single line) effectively pushing
+        # "Registrar" column to the previous line
+        if re.search(REGISTRAR_RE, line):
+            line = "\t\t".join([lines[idx + 1], line])
+        elif m := re.search(DESCRIPTION_TAIL_RE, line, re.I | re.DOTALL):
             description_tail = m.group(1).rstrip()
             line = line.replace(description_tail, "")
         else:
