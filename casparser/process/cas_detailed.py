@@ -151,10 +151,11 @@ def process_detailed_text(text):
             if m.group(4) is None:
                 units = None
                 nav = None
+                balance = None
             else:
                 units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
                 nav = Decimal(m.group(5).replace(",", "_"))
-                balance = Decimal(m.group(6).replace(",", "_"))
+                balance = Decimal(m.group(6).replace(",", "_").replace("(", "-"))
             txn_type, dividend_rate = get_transaction_type(desc, units)
             curr_scheme_data["transactions"].append(
                 {
