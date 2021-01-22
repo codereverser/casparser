@@ -6,6 +6,7 @@ from dateutil import parser as date_parser
 from ..enums import CASFileType
 from ..exceptions import HeaderParseError
 from .regex import SUMMARY_DATE_RE, SUMMARY_ROW_RE
+from .utils import isin_search
 
 
 def parse_header(text):
@@ -51,11 +52,16 @@ def process_summary_text(text):
             if curr_scheme_data.get("scheme") != scheme:
                 if curr_scheme_data:
                     folios[current_folio]["schemes"].append(curr_scheme_data)
+                rta = m.group(8).strip()
+                rta_code = m.group(2).strip()
+                isin, amfi = isin_search(scheme, rta, rta_code)
                 curr_scheme_data = {
                     "scheme": scheme,
                     "advisor": "N/A",
-                    "rta_code": m.group(2).strip(),
-                    "rta": m.group(8).strip(),
+                    "rta_code": rta_code,
+                    "rta": rta,
+                    "isin": isin,
+                    "amfi": amfi,
                     "open": Decimal(m.group(4).replace(",", "_")),
                     "close": Decimal(m.group(4).replace(",", "_")),
                     "valuation": {
