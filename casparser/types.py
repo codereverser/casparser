@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from typing import List, TypedDict, Union
+from typing import Optional, List, TypedDict, Union
 
 from .enums import FileType, TransactionType
 
@@ -45,6 +45,8 @@ class SchemeType(TypedDict, total=False):
     advisor: str
     rta_code: str
     rta: str
+    isin: Optional[str]
+    amfi: Optional[str]
     open: Union[Decimal, float]
     close: Union[Decimal, float]
     valuation: SchemeValuationType
