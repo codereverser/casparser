@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 
@@ -31,9 +32,25 @@ class BaseTestClass:
         use_pdfminer = self.mode == "pdfminer"
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
+    def test_output_json(self):
+        for filename, password in self.pdf_files:
+            json_data = self.read_pdf(filename, password, output="json")
+            data = json.loads(json_data)
+            assert len(data.get("folios", [])) == 10
+            for folio in data["folios"]:
+                for scheme in folio.get("schemes", []):
+                    assert scheme["isin"] is not None
+                    assert scheme["amfi"] is not None
+            assert data.get("investor_info", {}).get("mobile") not in (None, "")
+            assert data["cas_type"] == "DETAILED"
+
     def test_read_summary(self):
         data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
         assert len(data.get("folios", [])) == 4
+        for folio in data["folios"]:
+            for scheme in folio.get("schemes", []):
+                assert scheme["isin"] is not None
+                assert scheme["amfi"] is not None
         assert data.get("investor_info", {}).get("mobile") not in (None, "")
         assert data["cas_type"] == "SUMMARY"
 
