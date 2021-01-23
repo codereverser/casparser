@@ -63,6 +63,8 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
             "schemes": [
                 {
                     "scheme": "string",
+                    "isin": "string",
+                    "amfi": "string",
                     "advisor": "string",
                     "rta_code": "string",
                     "rta": "string",
