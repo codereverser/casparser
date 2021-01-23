@@ -6,6 +6,7 @@ from casparser.exceptions import CASParseError, HeaderParseError
 from casparser.process import process_cas_text
 from casparser.process.cas_detailed import parse_header, get_transaction_type
 from casparser.process.cas_summary import parse_header as parse_summary_header
+from casparser.process.utils import isin_search
 from casparser.enums import TransactionType
 
 
@@ -45,3 +46,12 @@ class TestProcessClass:
             TransactionType.UNKNOWN,
             None,
         )
+
+    def test_isin_search(self):
+        isin, amfi = isin_search("Axis Long Term Equity Fund - Direct Growth", "KFINTECH" ,"128TSDGG")
+        assert isin == "INF846K01EW2"
+        assert amfi == "120503"
+
+        isin, amfi = isin_search("", "KARVY", "")
+        assert isin is None
+        assert amfi is None

@@ -1,4 +1,3 @@
-import json
 import re
 
 from click.testing import CliRunner
@@ -11,14 +10,6 @@ from .base import BaseTestClass
 
 class TestMuPDF(BaseTestClass):
     """Test PyMuPDF parser."""
-
-    def test_output_json(self):
-        for filename, password in self.pdf_files:
-            json_data = self.read_pdf(filename, password, output="json")
-            data = json.loads(json_data)
-            assert len(data.get("folios", [])) == 10
-            assert data.get("investor_info", {}).get("mobile") not in (None, "")
-            assert data["cas_type"] == "DETAILED"
 
     def test_output_csv(self):
         output = self.read_pdf(self.cams_file_name, self.cams_password, output="csv")
