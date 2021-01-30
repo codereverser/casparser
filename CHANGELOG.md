@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 - 2021-01-30
+
+- ISIN, AMFI code mapping for schemes (**beta**)
+
 ## 0.4.2 - 2021-01-22
 
 - fixes unicode issues in windows
