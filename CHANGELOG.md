@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 - 2021-01-22
+
+- fixes unicode issues in windows
+- supports negative scheme balances
+- better scheme name parsing
+- fixes dividend transaction parsing
+   
+
 ## 0.4.1 - 2021-01-13
 
 - hotfix for parsing folios without KYC details 
