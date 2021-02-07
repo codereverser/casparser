@@ -16,7 +16,7 @@ from .__version__ import __version__
 from . import read_cas_pdf
 from .enums import CASFileType
 from .exceptions import ParserException
-from .parsers.utils import is_close, cas2json, cas2csv
+from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -95,9 +95,7 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
             if scheme["close"] < 1e-3 and not include_zero_folios:
                 continue
 
-            calc_close = scheme["open"] + sum(
-                [x["units"] for x in scheme["transactions"] if x["units"] is not None]
-            )
+            calc_close = scheme.get("close_calculated", "open")
             valuation = scheme["valuation"]
 
             # Check is calculated close (i.e. open + units from all transactions) is same as
@@ -230,8 +228,15 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
             include_zero_folios=include_all,
             output_filename=None if output_ext in (".csv", ".json") else output,
         )
+
     if output_ext in (".csv", ".json"):
-        conv_fn = cas2json if output_ext == ".json" else cas2csv
+        if output_ext == ".csv":
+            if summary or data["cas_type"] == CASFileType.SUMMARY.name:
+                conv_fn = cas2csv_summary
+            else:
+                conv_fn = cas2csv
+        else:
+            conv_fn = cas2json
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
         click.echo("File saved : " + click.style(output, bold=True))

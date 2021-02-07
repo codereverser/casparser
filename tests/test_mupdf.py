@@ -50,6 +50,22 @@ class TestMuPDF(BaseTestClass):
         assert result.exit_code != 1
         assert "File saved" in result.output
 
+        fpath = tmpdir.join("output.csv")
+        result = runner.invoke(
+            cli,
+            [
+                self.kfintech_file_name,
+                "-p",
+                self.kfintech_password,
+                "-o",
+                fpath.strpath,
+                "-s",
+                "fancy_grid",
+            ],
+        )
+        assert result.exit_code != 1
+        assert "File saved" in result.output
+
         result = runner.invoke(
             cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s", "html"]
         )

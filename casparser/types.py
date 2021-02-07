@@ -49,6 +49,7 @@ class SchemeType(TypedDict, total=False):
     amfi: Optional[str]
     open: Union[Decimal, float]
     close: Union[Decimal, float]
+    close_calculated: Union[Decimal, float]
     valuation: SchemeValuationType
     transactions: List[TransactionDataType]
 
@@ -72,4 +73,5 @@ class CASParserDataType(TypedDict):
     statement_period: StatementPeriod
     folios: List[FolioType]
     investor_info: InvestorInfoType
+    cas_type: str
     file_type: FileType

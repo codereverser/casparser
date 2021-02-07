@@ -131,6 +131,7 @@ def process_detailed_text(text):
                     "amfi": amfi,
                     "open": Decimal(0.0),
                     "close": Decimal(0.0),
+                    "close_calculated": Decimal(0.0),
                     "valuation": {"date": None, "value": 0, "nav": 0},
                     "transactions": [],
                 }
@@ -138,6 +139,7 @@ def process_detailed_text(text):
             continue
         if m := re.search(OPEN_UNITS_RE, line):
             curr_scheme_data["open"] = Decimal(m.group(1).replace(",", "_"))
+            curr_scheme_data["close_calculated"] = curr_scheme_data["open"]
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
@@ -165,6 +167,8 @@ def process_detailed_text(text):
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_").replace("(", "-"))
             txn_type, dividend_rate = get_transaction_type(desc, units)
+            if units is not None:
+                curr_scheme_data["close_calculated"] += units
             curr_scheme_data["transactions"].append(
                 {
                     "date": date,

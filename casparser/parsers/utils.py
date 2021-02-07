@@ -26,6 +26,51 @@ def cas2json(data: CASParserDataType) -> str:
     return json.dumps(data, cls=CASDataEncoder)
 
 
+def cas2csv_summary(data: CASParserDataType) -> str:
+    with io.StringIO() as csv_fp:
+        header = [
+            "amc",
+            "folio",
+            "advisor",
+            "registrar",
+            "pan",
+            "scheme",
+            "isin",
+            "amfi",
+            "open",
+            "close",
+            "value",
+            "date",
+            "transactions",
+        ]
+        writer = csv.DictWriter(csv_fp, fieldnames=header)
+        writer.writeheader()
+        current_amc = None
+        for folio in data.get("folios", []):
+            if current_amc != folio.get("amc", ""):
+                current_amc = folio["amc"]
+            for scheme in folio["schemes"]:
+                row = {
+                    "amc": current_amc.replace("\n", " "),
+                    "folio": folio["folio"],
+                    "advisor": scheme["advisor"],
+                    "registrar": scheme["rta"],
+                    "pan": folio["PAN"],
+                    "scheme": scheme["scheme"].replace("\n", " "),
+                    "isin": scheme["isin"],
+                    "amfi": scheme["amfi"],
+                    "open": scheme["open"],
+                    "close": scheme["close"],
+                    "value": scheme["valuation"]["value"],
+                    "date": scheme["valuation"]["date"],
+                    "transactions": len(scheme["transactions"]),
+                }
+                writer.writerow(row)
+        csv_fp.seek(0)
+        csv_data = csv_fp.read()
+        return csv_data
+
+
 def cas2csv(data: CASParserDataType) -> str:
     with io.StringIO() as csv_fp:
         header = [

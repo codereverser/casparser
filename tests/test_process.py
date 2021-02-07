@@ -48,7 +48,9 @@ class TestProcessClass:
         )
 
     def test_isin_search(self):
-        isin, amfi = isin_search("Axis Long Term Equity Fund - Direct Growth", "KFINTECH" ,"128TSDGG")
+        isin, amfi = isin_search(
+            "Axis Long Term Equity Fund - Direct Growth", "KFINTECH", "128TSDGG"
+        )
         assert isin == "INF846K01EW2"
         assert amfi == "120503"
 
