@@ -232,10 +232,13 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
     if output_ext in (".csv", ".json"):
         if output_ext == ".csv":
             if summary or data["cas_type"] == CASFileType.SUMMARY.name:
+                click.echo("Generating Summary CSV file...")
                 conv_fn = cas2csv_summary
             else:
+                click.echo("Generating Detailed CSV file...")
                 conv_fn = cas2csv
         else:
+            click.echo("Generating JSON file...")
             conv_fn = cas2json
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))

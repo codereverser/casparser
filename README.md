@@ -70,6 +70,7 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
                     "rta": "string",
                     "open": "number",
                     "close": "number",
+                    "close_calculated": "number",
                     "valuation": {
                       "date": "date",
                       "nav": "number",
@@ -136,13 +137,27 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [
 
 **Note:** `casparser cli` supports two special output file formats [-o _file.json_ / _file.csv_]
 1. `json` - complete parsed data is exported in json format (including investor info)
-2. `csv`  - transactions with AMC, Folio and Scheme info are exported into csv format. 
+2. `csv` - Summary info is exported in csv format if the input file is a summary statement or if 
+   a summary flag (`-s/--summary`) is passed as argument to the CLI. Otherwise, full 
+   transaction history is included in the export. 
 3. any other extension - The summary output is saved in the file. 
 
 #### Demo
 
 ![demo](https://raw.githubusercontent.com/codereverser/casparser/main/assets/demo.jpg)
 
+## ISIN & AMFI code support
+
+Since v0.4.3, `casparser` includes support for identifying ISIN and AMFI code for the parsed schemes
+via the helper module [casparser-isin](https://github.com/codereverser/casparser-isin/). If the parser
+fails to assign ISIN or AMFI codes to a scheme, try updating the local ISIN database by 
+
+```shell
+casparser-isin --update
+```
+
+If it still fails, please raise an issue at [casparser-isin](https://github.com/codereverser/casparser-isin/issues/new) with the 
+failing scheme name(s). 
 
 ## License
 
