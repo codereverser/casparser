@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4 - 2021-02-07
+
+- CSV output fixes
+  - better csv output format for summary CAS statements.
+  - option to output only summary information for detailed statements 
+    (`-s fancy_grid -o output.csv`)
+
 ## 0.4.3 - 2021-01-30
 
 - ISIN, AMFI code mapping for schemes (**beta**)
