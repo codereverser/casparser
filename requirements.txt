@@ -1,7 +1,7 @@
-casparser-isin>=2021.1.30
+casparser-isin>=2021.3.1
 click==7.1.2
 colorama==0.4.4
 pdfminer.six==20201018
 python-dateutil==2.8.1
-tabulate==0.8.7
+tabulate==0.8.9
 wcwidth==0.2.5
