@@ -39,7 +39,7 @@ def get_transaction_type(
             txn_type = TransactionType.STT_TAX
         elif "stamp" in description:
             txn_type = TransactionType.STAMP_DUTY_TAX
-        elif ("segregate" in description.lower()) or ("segregation" in description.lower()):
+        elif "segregat" in description:
             txn_type = TransactionType.SEGREGATION
         else:
             txn_type = TransactionType.MISC
