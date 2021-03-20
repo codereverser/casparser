@@ -36,7 +36,11 @@ def get_transaction_type(
         )
     elif units is None:
         if "stt" in description:
-            txn_type = TransactionType.TAX
+            txn_type = TransactionType.STT_TAX
+        elif "stamp" in description:
+            txn_type = TransactionType.STAMP_DUTY_TAX
+        elif ("segregate" in description.lower()) or ("segregation" in description.lower()):
+            txn_type = TransactionType.SEGREGATION
         else:
             txn_type = TransactionType.MISC
     elif units > 0:
@@ -167,6 +171,11 @@ def process_detailed_text(text):
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_").replace("(", "-"))
             txn_type, dividend_rate = get_transaction_type(desc, units)
+            if txn_type == TransactionType.SEGREGATION:
+                units = amt
+                balance = amt
+                amt = 0
+                nav = 0
             if units is not None:
                 curr_scheme_data["close_calculated"] += units
             curr_scheme_data["transactions"].append(
