@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5 - 2021-03-20
+
+- Support for segregated portfolio transactions [ credit: [abhishekjain-qb](https://github.com/abhishekjain-qb) ]
+
 ## 0.4.4 - 2021-02-07
 
 - CSV output fixes
