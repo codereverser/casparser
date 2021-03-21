@@ -85,6 +85,7 @@ def process_detailed_text(text):
     current_folio = None
     current_amc = None
     curr_scheme_data = {}
+    balance = Decimal(0.0)
     lines = text.split("\u2029")
     for idx, line in enumerate(lines):
         # Parse schemes with long names (single line) effectively pushing
@@ -144,6 +145,7 @@ def process_detailed_text(text):
         if m := re.search(OPEN_UNITS_RE, line):
             curr_scheme_data["open"] = Decimal(m.group(1).replace(",", "_"))
             curr_scheme_data["close_calculated"] = curr_scheme_data["open"]
+            balance = curr_scheme_data["open"]
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
             curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
@@ -165,17 +167,15 @@ def process_detailed_text(text):
             if m.group(4) is None:
                 units = None
                 nav = None
-                balance = None
             else:
                 units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
                 nav = Decimal(m.group(5).replace(",", "_"))
                 balance = Decimal(m.group(6).replace(",", "_").replace("(", "-"))
             txn_type, dividend_rate = get_transaction_type(desc, units)
             if txn_type == TransactionType.SEGREGATION:
-                units = amt
-                balance = amt
-                amt = 0
-                nav = 0
+                units = balance = amt
+                amt = Decimal(0.0)
+                nav = Decimal(0.0)
             if units is not None:
                 curr_scheme_data["close_calculated"] += units
             curr_scheme_data["transactions"].append(
