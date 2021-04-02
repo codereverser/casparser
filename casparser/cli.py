@@ -202,12 +202,13 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
     is_flag=True,
     help="Include schemes with zero valuation in the summary output",
 )
+@click.option("--sort", is_flag=True, help="Sort transactions by date")
 @click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
 )
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
-def cli(output, summary, password, include_all, force_pdfminer, filename):
+def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
     """CLI function."""
     output_ext = None
     if output is not None:
@@ -217,7 +218,9 @@ def cli(output, summary, password, include_all, force_pdfminer, filename):
         summary = "fancy_grid"
 
     try:
-        data = read_cas_pdf(filename, password, force_pdfminer=force_pdfminer)
+        data = read_cas_pdf(
+            filename, password, force_pdfminer=force_pdfminer, sort_transactions=sort
+        )
     except ParserException as exc:
         click.echo("Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red"))
         sys.exit(1)

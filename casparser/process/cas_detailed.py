@@ -1,6 +1,6 @@
 from decimal import Decimal
 import re
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from dateutil import parser as date_parser
 
@@ -9,6 +9,7 @@ from ..exceptions import HeaderParseError, CASParseError
 from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
 from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
+from ..types import FolioType
 from .utils import isin_search
 
 
@@ -81,7 +82,7 @@ def process_detailed_text(text):
     hdr_data = parse_header(text[:1000])
     statement_period = {"from": hdr_data["from"], "to": hdr_data["to"]}
 
-    folios = {}
+    folios: Dict[str, FolioType] = {}
     current_folio = None
     current_amc = None
     curr_scheme_data = {}
