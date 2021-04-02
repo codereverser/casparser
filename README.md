@@ -129,7 +129,7 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [
   -p PASSWORD                     CAS password
   -a, --include-all               Include schemes with zero valuation in the
                                   summary output
-
+  --sort                          Sort transactions by date
   --force-pdfminer                Force PDFMiner parser even if MuPDF is
                                   detected
 
