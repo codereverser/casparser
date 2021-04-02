@@ -42,8 +42,14 @@ class TestProcessClass:
         )
         assert get_transaction_type("Address updated", None) == (TransactionType.MISC, None)
         assert get_transaction_type("***STT paid ***", None) == (TransactionType.STT_TAX, None)
-        assert get_transaction_type("***stamp duty***", None) == (TransactionType.STAMP_DUTY_TAX, None)
-        assert get_transaction_type("Creation of units - Segregated portfolio", None) == (TransactionType.SEGREGATION, None)
+        assert get_transaction_type("***stamp duty***", None) == (
+            TransactionType.STAMP_DUTY_TAX,
+            None,
+        )
+        assert get_transaction_type("Creation of units - Segregated portfolio", None) == (
+            TransactionType.SEGREGATION,
+            None,
+        )
         assert get_transaction_type("***Random text***", Decimal(0.0)) == (
             TransactionType.UNKNOWN,
             None,

@@ -24,8 +24,8 @@ class BaseTestClass:
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
         cls.pdf_files = [
-            (cls.cams_file_name, cls.cams_password),
-            (cls.kfintech_file_name, cls.kfintech_password),
+            (cls.cams_file_name, cls.cams_password, 10, 8),
+            (cls.kfintech_file_name, cls.kfintech_password, 17, 19),
         ]
 
     def read_pdf(self, filename, password, output="dict"):
@@ -33,10 +33,12 @@ class BaseTestClass:
         return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
 
     def test_output_json(self):
-        for filename, password in self.pdf_files:
+        for filename, password, num_folios, _ in self.pdf_files:
             json_data = self.read_pdf(filename, password, output="json")
             data = json.loads(json_data)
-            assert len(data.get("folios", [])) == 10
+            assert (
+                len(data.get("folios", [])) == num_folios
+            ), f"Expected : {num_folios} :: Got {len(data.get('folios', []))}"
             for folio in data["folios"]:
                 for scheme in folio.get("schemes", []):
                     assert scheme["isin"] is not None
@@ -59,14 +61,14 @@ class BaseTestClass:
 
         runner = CliRunner()
 
-        for pdf_file, pdf_password in self.pdf_files:
+        for pdf_file, pdf_password, _, num_schemes in self.pdf_files:
             args = [pdf_file, "-p", pdf_password]
             if self.mode != "mupdf":
                 args.append("--force-pdfminer")
             result = runner.invoke(cli, args)
             assert result.exit_code == 0
             assert "Statement Period:" in result.output
-            assert re.search(r"Matched\s+:\s+8\s+schemes", result.output) is not None
+            assert re.search(rf"Matched\s+:\s+{num_schemes}\s+schemes", result.output) is not None
             assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
 
     def test_invalid_password(self):

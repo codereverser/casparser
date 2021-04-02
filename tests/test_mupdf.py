@@ -61,6 +61,7 @@ class TestMuPDF(BaseTestClass):
                 fpath.strpath,
                 "-s",
                 "fancy_grid",
+                "--sort",
             ],
         )
         assert result.exit_code != 1
