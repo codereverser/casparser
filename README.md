@@ -105,9 +105,9 @@ Notes:
   - `SWITCH_OUT_MERGER`
   - `DIVIDEND_PAYOUT`
   - `DIVIDEND_REINVESTMENT`
+  - `SEGREGATION`
   - `STAMP_DUTY_TAX`
   - `STT_TAX`
-  - `SEGREGATION`
   - `MISC`
 - `dividend_rate` is applicable only for `DIVIDEND_PAYOUT` and 
   `DIVIDEND_REINVESTMENT` transactions.
