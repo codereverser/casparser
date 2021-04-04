@@ -1,8 +1,14 @@
 # Changelog
 
+## 0.4.6 - 2021-04-04
+
+- New `sort_transactions` option in `casparser.read_cas_pdf` (and `--sort` flag in CLI)
+  to fix transactions (and balances) for schemes with non-chronological order.
+- support negative balances in transactions
+
 ## 0.4.5 - 2021-03-20
 
-- Support for segregated portfolio transactions [ credit: [abhishekjain-qb](https://github.com/abhishekjain-qb) ]
+- Support for segregated portfolio transactions [ credits: [abhishekjain-qb](https://github.com/abhishekjain-qb) ]
 
 ## 0.4.4 - 2021-02-07
 
