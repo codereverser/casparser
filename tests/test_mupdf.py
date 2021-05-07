@@ -37,9 +37,10 @@ class TestMuPDF(BaseTestClass):
                 "-o",
                 fpath.strpath,
                 "-s",
-                "html",
             ],
         )
+        print([result.exit_code, 1])
+        print([result.output])
         assert result.exit_code != 1
         assert "File saved" in result.output
 
@@ -60,16 +61,13 @@ class TestMuPDF(BaseTestClass):
                 "-o",
                 fpath.strpath,
                 "-s",
-                "fancy_grid",
                 "--sort",
             ],
         )
         assert result.exit_code != 1
         assert "File saved" in result.output
 
-        result = runner.invoke(
-            cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s", "html"]
-        )
+        result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.kfintech_password, "-s"])
         assert result.exit_code != 1
         assert "<table>\n<thead>" in result.output
 

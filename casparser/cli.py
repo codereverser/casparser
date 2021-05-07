@@ -1,15 +1,12 @@
 from decimal import Decimal
 import os
 import re
-import shutil
 import sys
-import textwrap
 
 import click
-
-# noinspection PyProtectedMember
-from tabulate import tabulate, _table_formats
-
+from rich.console import Console
+from rich.padding import Padding
+from rich.table import Table
 
 from .__version__ import __version__
 
@@ -19,37 +16,36 @@ from .exceptions import ParserException
 from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+console = Console()
 
 
-def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zero_folios=False):
+def print_summary(data, output_filename=None, include_zero_folios=False):
     """Print summary of parsed data."""
     count = 0
     err = 0
 
-    if output_filename:
-        fmt = "fancy_grid"
-    else:
-        fmt = tablefmt
-
     is_summary = data["cas_type"] == CASFileType.SUMMARY.name
 
-    print_extra_info = fmt in ("simple", "plain", "fancy_grid", "grid", "pretty")
-    if print_extra_info:
-        click.echo("\n")
-        click.echo(
-            f"{'Statement Period':>40s}: "
-            f"{click.style(data['statement_period']['from'], fg='green', bold=True)}"
-            f" To {click.style(data['statement_period']['to'], fg='green', bold=True)}"
+    # Print CAS header stuff
+    summary_table = Table.grid(expand=True)
+    summary_table.add_column(justify="right")
+    summary_table.add_column(justify="left")
+    spacing = (0, 1)
+    summary_table.add_row(
+        Padding("Statement Period :", spacing),
+        f"[bold green]{data['statement_period']['from']}[/] To "
+        f"[bold green]{data['statement_period']['to']}[/]",
+    )
+    summary_table.add_row(Padding("File Type :", spacing), f"[bold]{data['file_type']}[/]")
+    summary_table.add_row(Padding("CAS Type :", spacing), f"[bold]{data['cas_type']}[/]")
+
+    for key, value in data["investor_info"].items():
+        summary_table.add_row(
+            Padding(f"{key.capitalize()} :", spacing), re.sub(r"[^\S\r\n]+", " ", value)
         )
-        click.echo(f"{'File Type':>40s}: {click.style(data['file_type'], bold=True)}")
-        click.echo(f"{'CAS Type':>40s}: {click.style(data['cas_type'], bold=True)}")
-        for key, value in data["investor_info"].items():
-            fmt_value = " ".join([x.strip() for x in value.splitlines()])
-            fmt_value = re.sub(r"\s+", " ", fmt_value)
-            if len(fmt_value) > 40:
-                fmt_value = fmt_value[:37] + "..."
-            click.echo(f"{key:>40s}: {fmt_value}")
-        click.echo("")
+    console.print(summary_table)
+    console.print("")
+
     rows = []
     console_rows = []
 
@@ -73,17 +69,15 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
     }
     if is_summary:
         console_header.update(close="Balance")
+        console_header.pop("open")
+        console_header.pop("txns")
         header.update(close="Balance")
-        col_align = ["left"] + ["right"] * (len(header) - 5) + ["center"]
         console_col_align = ["left"] + ["right"] * (len(console_header) - 4) + ["center"]
     else:
-        col_align = ["left"] + ["right"] * (len(header) - 2) + ["center"]
         console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
 
     current_amc = None
     value = Decimal(0)
-    columns, _ = shutil.get_terminal_size()
-    scheme_col_width = columns - 66
 
     folio_header_added = False
     for folio in data["folios"]:
@@ -107,10 +101,8 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
                 status = "❗️"
             else:
                 status = "️✅"
-            wrapped_name = textwrap.fill(scheme["scheme"], width=scheme_col_width)
             folio_number = re.sub(r"\s+", "", folio["folio"])
-            folio_string = textwrap.fill(f"Folio: {folio_number}", width=scheme_col_width)
-            scheme_name = f"{wrapped_name}\n{folio_string}"
+            scheme_name = f"{scheme['scheme']}\nFolio: {folio_number}"
             value += valuation["value"]
 
             if not (is_summary or folio_header_added):
@@ -152,25 +144,26 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
             rows.append(row)
             count += 1
 
-    if print_extra_info:
-        click.echo(tabulate(console_rows, console_header, tablefmt=fmt, colalign=console_col_align))
-        click.echo(
-            "Portfolio Valuation : "
-            + click.style(f"₹{value:,.2f}", fg="green", bold=True)
-            + f" [As of {data['statement_period']['to']}]"
-        )
-        click.secho("Summary", bold=True)
-        click.echo("Total   : " + click.style(f"{count:4d}", fg="white", bold=True) + " schemes")
-        click.echo(
-            "Matched : " + click.style(f"{count - err:4d}", fg="green", bold=True) + " schemes"
-        )
-        click.echo("Error   : " + click.style(f"{err:4d}", fg="red", bold=True) + " schemes")
-    else:
-        click.echo(tabulate(rows, header, tablefmt=fmt, colalign=col_align))
+    table = Table(title="Portfolio Summary", show_lines=True)
+    for (hdr, align) in zip(console_header.values(), console_col_align):
+        # noinspection PyTypeChecker
+        table.add_column(hdr, justify=align)
+    for row in console_rows:
+        table.add_row(*[str(row[key]) for key in console_header.keys()])
+    console.print(table)
+    console.print(
+        f"Portfolio Valuation : [bold green]₹{value:,.2f}[/] "
+        f"[As of {data['statement_period']['to']}]"
+    )
+    console.print("[bold]Summary[/]")
+    console.print(f"{'Total':8s}: [bold white]{count:4d}[/] schemes")
+    console.print(f"{'Matched':8s}: [bold white]{count - err:4d}[/] schemes")
+    console.print(f"{'Error':8s}: [bold white]{err:4d}[/] schemes")
 
     if output_filename:
-        with open(output_filename, "w", encoding="utf-8") as f:
-            f.write(tabulate(rows, header, tablefmt=tablefmt, colalign=col_align))
+        with open(output_filename, "w", encoding="utf-8") as fp:
+            writer = Console(file=fp, width=80)
+            writer.print(table)
         click.echo("File saved : " + click.style(output_filename, bold=True))
 
 
@@ -184,7 +177,7 @@ def print_summary(data, tablefmt="fancy_grid", output_filename=None, include_zer
 @click.option(
     "-s",
     "--summary",
-    type=click.Choice(_table_formats.keys()),
+    is_flag=True,
     help="Print Summary of transactions parsed.",
 )
 @click.option(
@@ -215,7 +208,7 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
         output_ext = os.path.splitext(output)[-1].lower()
 
     if not (summary or output_ext in (".csv", ".json")):
-        summary = "fancy_grid"
+        summary = True
 
     try:
         data = read_cas_pdf(
@@ -227,7 +220,6 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
     if summary:
         print_summary(
             data,
-            tablefmt=summary,
             include_zero_folios=include_all,
             output_filename=None if output_ext in (".csv", ".json") else output,
         )

@@ -67,7 +67,7 @@ class BaseTestClass:
                 args.append("--force-pdfminer")
             result = runner.invoke(cli, args)
             assert result.exit_code == 0
-            assert "Statement Period:" in result.output
+            assert "Statement Period :" in result.output
             assert re.search(rf"Matched\s+:\s+{num_schemes}\s+schemes", result.output) is not None
             assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
 
