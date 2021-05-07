@@ -104,7 +104,7 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
                 "scheme": scheme_name,
                 "open": scheme["open"],
                 "close": scheme["close"] if is_summary else f"{scheme['close']}\n/\n{calc_close}",
-                "value": "₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
+                "value": f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
                 "txns": len(scheme["transactions"]),
                 "status": status,
             }
