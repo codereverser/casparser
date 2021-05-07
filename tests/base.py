@@ -13,6 +13,8 @@ from casparser.exceptions import CASParseError
 class BaseTestClass:
     """Common test cases for all available parsers."""
 
+    ansi_cleaner = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
     @classmethod
     def setup_class(cls):
         cls.mode = "mupdf"
@@ -67,9 +69,10 @@ class BaseTestClass:
                 args.append("--force-pdfminer")
             result = runner.invoke(cli, args)
             assert result.exit_code == 0
-            assert "Statement Period :" in result.output
-            assert re.search(rf"Matched\s+:\s+{num_schemes}\s+schemes", result.output) is not None
-            assert re.search(r"Error\s+:\s+0\s+schemes", result.output) is not None
+            clean_output = self.ansi_cleaner.sub("", result.output)
+            assert "Statement Period :" in clean_output
+            assert re.search(rf"Matched\s+:\s+{num_schemes}\s+schemes", clean_output) is not None
+            assert re.search(r"Error\s+:\s+0\s+schemes", clean_output) is not None
 
     def test_invalid_password(self):
         with pytest.raises(CASParseError) as exc_info:

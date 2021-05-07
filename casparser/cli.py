@@ -157,8 +157,8 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
     )
     console.print("[bold]Summary[/]")
     console.print(f"{'Total':8s}: [bold white]{count:4d}[/] schemes")
-    console.print(f"{'Matched':8s}: [bold white]{count - err:4d}[/] schemes")
-    console.print(f"{'Error':8s}: [bold white]{err:4d}[/] schemes")
+    console.print(f"{'Matched':8s}: [bold green]{count - err:4d}[/] schemes")
+    console.print(f"{'Error':8s}: [bold red]{err:4d}[/] schemes")
 
     if output_filename:
         with open(output_filename, "w", encoding="utf-8") as fp:
