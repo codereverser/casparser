@@ -89,7 +89,7 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
             if scheme["close"] < 1e-3 and not include_zero_folios:
                 continue
 
-            calc_close = scheme.get("close_calculated", "open")
+            calc_close = scheme.get("close_calculated", scheme["open"])
             valuation = scheme["valuation"]
 
             # Check is calculated close (i.e. open + units from all transactions) is same as
