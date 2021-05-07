@@ -124,8 +124,7 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [
                                   depending on the file extension. For other extensions, the
                                   summary output is saved. [See note below]
 
-  -s, --summary simple|plain|grid|fancy_grid|html... 
-                                  Print Summary of transactions parsed.
+  -s, --summary                   Print Summary of transactions parsed.
   -p PASSWORD                     CAS password
   -a, --include-all               Include schemes with zero valuation in the
                                   summary output
@@ -142,7 +141,7 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [
 2. `csv` - Summary info is exported in csv format if the input file is a summary statement or if 
    a summary flag (`-s/--summary`) is passed as argument to the CLI. Otherwise, full 
    transaction history is included in the export. 
-3. any other extension - The summary output is saved in the file. 
+3. any other extension - The summary table is saved in the file. 
 
 #### Demo
 
