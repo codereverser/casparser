@@ -6,6 +6,7 @@ import sys
 import click
 from rich.console import Console
 from rich.padding import Padding
+from rich.progress import BarColumn, TextColumn, SpinnerColumn, Progress
 from rich.table import Table
 
 from .__version__ import __version__
@@ -46,7 +47,6 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
     console.print(summary_table)
     console.print("")
 
-    rows = []
     console_rows = []
 
     console_header = {
@@ -57,21 +57,10 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         "txns": "Txns",
         "status": "",
     }
-    header = {
-        "scheme": "Scheme",
-        "open": "Open",
-        "close": "Close",
-        "close_calc": "Close Calculated",
-        "nav": f"NAV ({data['statement_period']['to']})",
-        "value": f"Value ({data['statement_period']['to']})",
-        "txns": "Transactions",
-        "status": "Status",
-    }
     if is_summary:
         console_header.update(close="Balance")
         console_header.pop("open")
         console_header.pop("txns")
-        header.update(close="Balance")
         console_col_align = ["left"] + ["right"] * (len(console_header) - 4) + ["center"]
     else:
         console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
@@ -106,42 +95,20 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
             value += valuation["value"]
 
             if not (is_summary or folio_header_added):
-                rows.append({k: current_amc if k == "scheme" else "" for k in header.keys()})
                 console_rows.append(
                     {k: current_amc if k == "scheme" else "" for k in console_header.keys()}
                 )
                 folio_header_added = True
 
-            row = {
+            console_row = {
                 "scheme": scheme_name,
                 "open": scheme["open"],
-                "close": scheme["close"],
-                "close_calc": calc_close,
-                "nav": valuation["nav"],
-                "value": valuation["value"],
+                "close": scheme["close"] if is_summary else f"{scheme['close']}\n/\n{calc_close}",
+                "value": "₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
                 "txns": len(scheme["transactions"]),
                 "status": status,
             }
-            console_row = row.copy()
-            console_row.pop("close_calc")
-            console_row.pop("nav")
-            console_row.update(
-                value=f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
-            )
-            if is_summary:
-
-                row.pop("open")
-                row.pop("close_calc")
-                row.pop("txns")
-
-                console_row.pop("open")
-                console_row.pop("txns")
-            else:
-                console_row.update(
-                    close=f"{scheme['close']}\n/\n{calc_close}",
-                )
             console_rows.append(console_row)
-            rows.append(row)
             count += 1
 
     table = Table(title="Portfolio Summary", show_lines=True)
@@ -164,7 +131,7 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         with open(output_filename, "w", encoding="utf-8") as fp:
             writer = Console(file=fp, width=80)
             writer.print(table)
-        click.echo("File saved : " + click.style(output_filename, bold=True))
+        console.print(f"File saved : [bold]{output_filename}[/]")
 
 
 @click.command(name="casparser", context_settings=CONTEXT_SETTINGS)
@@ -209,13 +176,19 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
 
     if not (summary or output_ext in (".csv", ".json")):
         summary = True
-
     try:
-        data = read_cas_pdf(
-            filename, password, force_pdfminer=force_pdfminer, sort_transactions=sort
-        )
+        with Progress(
+            SpinnerColumn(spinner_name="clock"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(pulse_style="yellow"),
+            transient=True,
+        ) as progress:
+            progress.add_task("Reading CAS file", start=False, total=10.0)
+            data = read_cas_pdf(
+                filename, password, force_pdfminer=force_pdfminer, sort_transactions=sort
+            )
     except ParserException as exc:
-        click.echo("Error parsing pdf file :: " + click.style(str(exc), bold=True, fg="red"))
+        console.print(f"Error parsing pdf file :: [bold red]{str(exc)}[/]")
         sys.exit(1)
     if summary:
         print_summary(
@@ -227,17 +200,18 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
     if output_ext in (".csv", ".json"):
         if output_ext == ".csv":
             if summary or data["cas_type"] == CASFileType.SUMMARY.name:
-                click.echo("Generating Summary CSV file...")
+                description = "Generating summary CSV file..."
                 conv_fn = cas2csv_summary
             else:
-                click.echo("Generating Detailed CSV file...")
+                description = "Generating detailed CSV file..."
                 conv_fn = cas2csv
         else:
-            click.echo("Generating JSON file...")
+            description = "Generating JSON file..."
             conv_fn = cas2json
+        console.print(description)
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
-        click.echo("File saved : " + click.style(output, bold=True))
+        console.print(f"File saved : [bold]{output}[/]")
 
 
 if __name__ == "__main__":
