@@ -33,7 +33,6 @@ jobs:
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
     - name: Test with pytest
       run: |
-        pip install .
         pytest
       env:
         BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
