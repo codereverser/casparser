@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
-from typing import Optional, List, TypedDict, Union
+from typing import Optional, List, Union
+from typing_extensions import TypedDict
 
 from .enums import FileType, TransactionType
 

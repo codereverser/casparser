@@ -133,3 +133,4 @@ dmypy.json
 tests/files/**
 .DS_Store
 
+casparser.code-workspace

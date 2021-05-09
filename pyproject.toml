@@ -1,10 +1,53 @@
+[tool.poetry]
+name = "casparser"
+version = "0.4.7-alpha.1"
+description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
+authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
+homepage = "https://github.com/codereverser/casparser"
+license = "MIT License"
+readme= "README.md"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent"
+]
+include = [ "CHANGELOG.md" ]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+casparser-isin = ">=2021.5.1"
+click = "^7.1.2"
+colorama = "^0.4.4"
+"pdfminer.six" = "20201018"
+python-dateutil = "^2.8.1"
+rich = "^10.1.0"
+typing-extensions = "^3.10"
+PyMuPDF = {version = "^1.18.13", optional = true}
+
+[tool.poetry.extras]
+mupdf = ["PyMuPDF"]
+
+[tool.poetry.dev-dependencies]
+coverage = {version = "^5.5", extras=["toml"]}
+pytest = "^6.2.3"
+pytest-cov = "^2.11.1"
+
+[tool.poetry.scripts]
+casparser = 'casparser.cli:cli'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.black]
 line-length = 100
 target-version = ['py38']
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "--cov=casparser --cov-report=xml"
+addopts = "--cov=casparser --cov-report=xml --cov-report=html"
 testpaths = [
     "tests",
 ]
