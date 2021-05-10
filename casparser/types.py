@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Optional, List, Union
 from typing_extensions import TypedDict
 
-from .enums import FileType, TransactionType
 
 StatementPeriod = TypedDict("StatementPeriod", {"from": str, "to": str})
 
@@ -26,7 +25,7 @@ class TransactionDataType(TypedDict):
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
     balance: Union[Decimal, float]
-    type: TransactionType
+    type: str
     dividend_rate: Union[Decimal, float, None]
 
 
@@ -75,4 +74,4 @@ class CASParserDataType(TypedDict):
     folios: List[FolioType]
     investor_info: InvestorInfoType
     cas_type: str
-    file_type: FileType
+    file_type: str
