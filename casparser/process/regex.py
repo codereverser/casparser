@@ -1,5 +1,8 @@
 """Regular expressions for parsing various sections in CAS."""
 
+date_re = r"(\d{2}-[A-Za-z]{3}-\d{4})"
+amt_re = r"([(-]*\d[\d,.]+)\)*"
+
 CAS_TYPE_RE = r"consolidated\s+account\s+(statement|summary)"
 DETAILED_DATE_RE = r"(?P<from>\d{2}-[a-zA-Z]{3}-\d{4})\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-\d{4})"
 SUMMARY_DATE_RE = r"as\s+on\s+(?P<date>\d{2}-[a-zA-Z]{3}-\d{4})"
@@ -21,10 +24,6 @@ CLOSE_UNITS_RE = r"Closing\s+Unit\s+Balance.+?([\d,.]+)"
 VALUATION_RE = r"Valuation\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+)"
 NAV_RE = r"NAV\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+)"
 
-TRANSACTION_RE = (
-    r"(\d{2}-[A-Za-z]{3}-\d{4})\t\t([^\t]+?)\t\t([(\d,.]+)\)*"
-    r"(?:\t\t([(\d,.]+)\)*\t\t([(\d,.]+)\)*\t\t([-(\d,.]+)\)*)*"
-)
-DIVIDEND_RE = r"dividend.+?(reinvest)*.*?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"
-
-DESCRIPTION_TAIL_RE = r"\d{2}-[A-Za-z]{3}-\d{4}\t\t.*(\n[^\t]+)[\t|$]"
+TRANSACTION_RE1 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}"
+TRANSACTION_RE2 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}(?:\t\t{amt_re}\t\t{amt_re}\t\t{amt_re})*"
+DIVIDEND_RE = r"(?:dividend|idcw).+?(reinvest)*.*?@\s+Rs\.\s*([\d\.]+)\s+per\s+unit"

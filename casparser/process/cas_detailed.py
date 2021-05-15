@@ -8,8 +8,8 @@ from ..enums import TransactionType, CASFileType
 from ..exceptions import HeaderParseError, CASParseError
 from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
-from .regex import DESCRIPTION_TAIL_RE, DIVIDEND_RE, TRANSACTION_RE
-from ..types import FolioType
+from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2
+from ..types import FolioType, SchemeType
 from .utils import isin_search
 
 
@@ -31,7 +31,8 @@ def get_transaction_type(
     dividend_rate = None
     description = description.lower()
     if div_match := re.search(DIVIDEND_RE, description, re.I | re.DOTALL):
-        reinvest_flag, dividend_rate = div_match.groups()
+        reinvest_flag, dividend_str = div_match.groups()
+        dividend_rate = Decimal(dividend_str)
         txn_type = (
             TransactionType.DIVIDEND_REINVEST if reinvest_flag else TransactionType.DIVIDEND_PAYOUT
         )
@@ -73,6 +74,12 @@ def get_transaction_type(
     return txn_type, dividend_rate
 
 
+def parse_transaction(line):
+    for regex in (TRANSACTION_RE1, TRANSACTION_RE2):
+        if m := re.search(regex, line, re.DOTALL | re.MULTILINE | re.I):
+            return m
+
+
 def process_detailed_text(text):
     """
     Process the text version of a CAS pdf and return the detailed summary.
@@ -93,11 +100,6 @@ def process_detailed_text(text):
         # "Registrar" column to the previous line
         if re.search(REGISTRAR_RE, line):
             line = "\t\t".join([lines[idx + 1], line])
-        if m := re.search(DESCRIPTION_TAIL_RE, line, re.I | re.DOTALL):
-            description_tail = m.group(1).rstrip()
-            line = line.replace(description_tail, "")
-        else:
-            description_tail = ""
         if amc_match := re.search(r"^(.+?)\s+(MF|Mutual\s+Fund)$", line, re.I | re.DOTALL):
             current_amc = amc_match.group(0)
         elif m := re.search(FOLIO_RE, line, re.I | re.DOTALL):
@@ -128,7 +130,7 @@ def process_detailed_text(text):
                 rta = m.group(4).strip()
                 rta_code = m.group(1).strip()
                 isin, amfi = isin_search(scheme, rta, rta_code)
-                curr_scheme_data = {
+                curr_scheme_data: SchemeType = {
                     "scheme": scheme,
                     "advisor": advisor,
                     "rta_code": rta_code,
@@ -138,7 +140,7 @@ def process_detailed_text(text):
                     "open": Decimal(0.0),
                     "close": Decimal(0.0),
                     "close_calculated": Decimal(0.0),
-                    "valuation": {"date": None, "value": 0, "nav": 0},
+                    "valuation": {"date": None, "value": Decimal(0.0), "nav": Decimal(0.0)},
                     "transactions": [],
                 }
         if not curr_scheme_data:
@@ -161,9 +163,9 @@ def process_detailed_text(text):
                 nav=Decimal(m.group(2).replace(",", "_")),
             )
             continue
-        if m := re.search(TRANSACTION_RE, line, re.DOTALL):
+        if m := parse_transaction(line):
             date = date_parser.parse(m.group(1)).date()
-            desc = m.group(2).strip() + description_tail
+            desc = m.group(2).strip()
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             if m.group(4) is None:
                 units = None

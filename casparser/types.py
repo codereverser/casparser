@@ -42,7 +42,7 @@ class SchemeType(TypedDict, total=False):
 
     scheme_id: int
     scheme: str
-    advisor: str
+    advisor: Optional[str]
     rta_code: str
     rta: str
     isin: Optional[str]
