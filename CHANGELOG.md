@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.7 - 2021-06-01
+
+- Minor bug fixes in summary statement parser.
+- cli now uses [rich](http://rich.readthedocs.io/) for console output.
+- Dependency management and deployment is handled by poetry.
+- **BREAKING CHANGE**: Table output choices have been removed. 
+  `-s/--summary` is a flag and doesn't accept any additional arguments.
+- Support for folios without PAN (#28).
+- add support for new style dividend transactions after IDCW renaming. 
+- improved transaction entry parser. 
+
 ## 0.4.6 - 2021-04-04
 
 - New `sort_transactions` option in `casparser.read_cas_pdf` (and `--sort` flag in CLI)

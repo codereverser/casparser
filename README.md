@@ -118,7 +118,7 @@ casparser also comes with a command-line interface that prints summary of parsed
 portfolio in a wide variety of formats. 
 
 ```bash
-Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s type] [-a] CAS_PDF_FILE
+Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s] [-a] CAS_PDF_FILE
 
   -o, --output FILE               Output file path. Saves the parsed data as json or csv
                                   depending on the file extension. For other extensions, the
