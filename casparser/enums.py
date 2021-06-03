@@ -32,3 +32,4 @@ class TransactionType(Enum):
     SEGREGATION = auto()
     MISC = auto()
     UNKNOWN = auto()
+    REVERSAL = auto()

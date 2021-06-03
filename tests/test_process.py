@@ -55,6 +55,10 @@ class TestProcessClass:
             None,
         )
 
+        assert get_transaction_type(
+            "Purchase SIPCheque Dishonoured - Instalment No 108", Decimal(-1.0)
+        ) == (TransactionType.REVERSAL, None)
+
     def test_isin_search(self):
         isin, amfi = isin_search(
             "Axis Long Term Equity Fund - Direct Growth", "KFINTECH", "128TSDGG"
