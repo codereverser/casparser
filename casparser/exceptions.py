@@ -8,3 +8,7 @@ class HeaderParseError(ParserException):
 
 class CASParseError(ParserException):
     """Error while parsing pdf file."""
+
+
+class CASIntegrityError(ParserException):
+    """Error while processing transactions"""

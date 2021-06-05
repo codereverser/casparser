@@ -17,6 +17,17 @@ class CASFileType(IntEnum):
     DETAILED = 2
 
 
+class FundType(Enum):
+    EQUITY = auto()
+    DEBT = auto()
+    UNKNOWN = auto()
+
+
+class GainType(Enum):
+    STCG = auto()
+    LTCG = auto()
+
+
 class TransactionType(Enum):
     PURCHASE = auto()
     PURCHASE_SIP = auto()
