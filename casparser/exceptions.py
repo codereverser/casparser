@@ -12,3 +12,7 @@ class CASParseError(ParserException):
 
 class CASIntegrityError(ParserException):
     """Error while processing transactions"""
+
+
+class IncompleteCASError(ParserException):
+    """CAS is not complete for running analysis modules"""

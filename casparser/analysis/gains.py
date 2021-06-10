@@ -1,14 +1,38 @@
 from collections import deque
+from dataclasses import dataclass
 from decimal import Decimal
 from datetime import date
 import itertools
 from typing import List
 
+from dateutil.parser import parse as dateparse
+
+from casparser.exceptions import IncompleteCASError
 from casparser.enums import FundType, GainType, TransactionType
 from casparser.types import CASParserDataType, TransactionDataType
 
 
-def get_fund_type(transactions: List[TransactionDataType]):
+@dataclass
+class MergedTransaction:
+    """Represent net transaction on a given date"""
+
+    dt: date
+    units: Decimal = Decimal(0.0)
+    nav: Decimal = Decimal(0.0)
+    amount: Decimal = Decimal(0.0)
+    tax: Decimal = Decimal(0.0)
+
+
+def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
+    """
+    Detect Fund Type.
+    - UNKNOWN if there are no redemption transactions
+    - EQUITY if STT_TAX transactions are present in the portfolio
+    - DEBT if no STT_TAX transactions are present along with redemptions
+
+    :param transactions: list of transactions for a single fund parsed from the CAS
+    :return: type of fund
+    """
     valid = any(
         [
             x["units"] is not None and x["units"] < 0 and x["type"] != TransactionType.REVERSAL.name
@@ -25,7 +49,13 @@ def get_fund_type(transactions: List[TransactionDataType]):
 
 
 class FIFOUnits:
+    """First-In First-Out units calculator."""
+
     def __init__(self, fund, transactions: List[TransactionDataType]):
+        """
+        :param fund: name of fund, mainly for reporting purposes.
+        :param transactions: list of transactions for the fund
+        """
         self._fund = fund
         self._original_transactions = transactions
         self.fund_type = get_fund_type(transactions)
@@ -38,32 +68,34 @@ class FIFOUnits:
 
     @property
     def clean_transactions(self):
+        """remove redundant transactions, without amount"""
         return filter(lambda x: x["amount"] is not None, self._original_transactions)
 
     def merge_transactions(self):
+        """Group transactions by date with taxes and investments/redemptions separated."""
         merged_transactions = {}
         for txn in sorted(self.clean_transactions, key=lambda x: (x["date"], -x["amount"])):
-            if txn["date"] not in merged_transactions:
-                merged_transactions[txn["date"]] = {
-                    "date": txn["date"],
-                    "units": Decimal(0.0),
-                    "nav": Decimal(0.0),
-                    "amount": Decimal(0.0),
-                    "tax": Decimal(0.0),
-                }
+            dt = txn["date"]
+
+            if isinstance(dt, str):
+                dt = dateparse(dt).date()
+
+            if dt not in merged_transactions:
+                merged_transactions[dt] = MergedTransaction(dt)
             if txn["type"] in (
                 TransactionType.STT_TAX.name,
                 TransactionType.STAMP_DUTY_TAX.name,
             ):
-                merged_transactions[txn["date"]]["tax"] += txn["amount"]
+                merged_transactions[dt].tax += txn["amount"]
             else:
-                merged_transactions[txn["date"]]["nav"] = txn["nav"]
-                merged_transactions[txn["date"]]["units"] += txn["units"]
-                merged_transactions[txn["date"]]["amount"] += txn["amount"]
+                merged_transactions[dt].nav = txn["nav"]
+                merged_transactions[dt].units += txn["units"]
+                merged_transactions[dt].amount += txn["amount"]
         return merged_transactions
 
     @staticmethod
     def get_fin_year(dt: date):
+        """Get financial year representation."""
         if dt.month > 3:
             year1, year2 = dt.year, dt.year + 1
         else:
@@ -75,6 +107,7 @@ class FIFOUnits:
         return f"FY{year1}-{year2}"
 
     def get_gain_type(self, buy_date: date, sell_date: date):
+        """Identify gain type based on the current fund type, buy and sell dates."""
         ltcg = {
             FundType.EQUITY: date(buy_date.year + 1, buy_date.month, buy_date.day),
             FundType.DEBT: date(buy_date.year + 3, buy_date.month, buy_date.day),
@@ -86,10 +119,10 @@ class FIFOUnits:
         self.gains = []
         for dt in sorted(self._merged_transactions.keys()):
             txn = self._merged_transactions[dt]
-            if txn["amount"] > 0:
-                self.buy(dt, txn["units"], txn["nav"], txn["tax"])
-            elif txn["amount"] < 0:
-                self.sell(dt, txn["units"], txn["nav"], txn["tax"])
+            if txn.amount > 0:
+                self.buy(dt, txn.units, txn.nav, txn.tax)
+            elif txn.amount < 0:
+                self.sell(dt, txn.units, txn.nav, txn.tax)
         return self.gains
 
     def buy(self, txn_date: date, quantity: Decimal, nav: Decimal, tax: Decimal):
@@ -101,52 +134,59 @@ class FIFOUnits:
         pending_units = original_quantity
         while pending_units > 0:
             buy_date, units, buy_nav, buy_tax = self.transactions.popleft()
+
+            gain_type = self.get_gain_type(buy_date, sell_date)
             if units <= pending_units:
                 gain_units = units
-                buy_price = round(units * buy_nav, 2)
-                sell_price = round(units * nav, 2)
-                stamp_duty = buy_tax
-                stt = tax * units / original_quantity
             else:
                 gain_units = pending_units
-                buy_price = round(pending_units * buy_nav, 2)
-                sell_price = round(pending_units * nav, 2)
-                stamp_duty = buy_tax * pending_units / units
-                stt = tax * pending_units / original_quantity
-            gain_type = self.get_gain_type(buy_date, sell_date)
+
+            buy_price = round(gain_units * buy_nav, 2)
+            sell_price = round(gain_units * nav, 2)
+            stamp_duty = round(buy_tax * gain_units / units, 2)
+            stt = round(tax * gain_units / original_quantity, 2)
+
             pending_units -= units
             self.gains.append(
                 {
                     "fy": fin_year,
                     "fund": self._fund,
                     "buy_date": buy_date,
-                    "buy_price": round(buy_price, 2),
-                    "stamp_duty": round(stamp_duty, 2),
+                    "buy_price": buy_price,
+                    "stamp_duty": stamp_duty,
                     "sell_date": sell_date,
-                    "sell_price": round(sell_price, 2),
-                    "stt": round(stt, 2),
+                    "sell_price": sell_price,
+                    "stt": stt,
                     "units": gain_units,
                     gain_type.name: round(sell_price - buy_price - stt, 2),
                 }
             )
             if pending_units < 0 and buy_nav is not None:
+                # Sale is partially matched against the last buy transactions
                 # Re-add the remaining units to the FIFO queue
                 self.transactions.appendleft((buy_date, -1 * pending_units, buy_nav, buy_tax))
 
 
 class CapitalGainReport:
+    """Generate Capital Gains Report from the parsed CAS data"""
+
     def __init__(self, data: CASParserDataType):
         self._data = data
         self._gains = []
-        self.process()
+        self.process_data()
 
-    def process(self):
+    def process_data(self):
         self._gains = []
         for folio in self._data.get("folios", []):
             for scheme in folio.get("schemes", []):
                 name = f"{scheme['scheme']} [{folio['folio']}]"
                 transactions = scheme["transactions"]
                 if len(transactions) > 0:
+                    if scheme["open"] >= 0.01:
+                        raise IncompleteCASError(
+                            "Incomplete CAS found. For gains computation, "
+                            "all folios should have zero opening balance"
+                        )
                     fifo = FIFOUnits(name, transactions)
                     self._gains.extend(fifo.gains)
 
