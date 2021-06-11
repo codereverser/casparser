@@ -23,6 +23,23 @@ class MergedTransaction:
     tax: Decimal = Decimal(0.0)
 
 
+@dataclass
+class GainEntry:
+    """Gain data of a realised transaction"""
+
+    fy: str
+    fund: str
+    buy_date: date
+    buy_price: Decimal
+    stamp_duty: Decimal
+    sell_date: date
+    sell_price: Decimal
+    stt: Decimal
+    units: Decimal
+    ltcg: Decimal = Decimal(0.0)
+    stcg: Decimal = Decimal(0.0)
+
+
 def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
     """
     Detect Fund Type.
@@ -62,7 +79,7 @@ class FIFOUnits:
         self._merged_transactions = self.merge_transactions()
 
         self.transactions = deque()
-        self.gains = []
+        self.gains: List[GainEntry] = []
 
         self.process()
 
@@ -147,20 +164,23 @@ class FIFOUnits:
             stt = round(tax * gain_units / original_quantity, 2)
 
             pending_units -= units
-            self.gains.append(
-                {
-                    "fy": fin_year,
-                    "fund": self._fund,
-                    "buy_date": buy_date,
-                    "buy_price": buy_price,
-                    "stamp_duty": stamp_duty,
-                    "sell_date": sell_date,
-                    "sell_price": sell_price,
-                    "stt": stt,
-                    "units": gain_units,
-                    gain_type.name: round(sell_price - buy_price - stt, 2),
-                }
+
+            ge = GainEntry(
+                fy=fin_year,
+                fund=self._fund,
+                buy_date=buy_date,
+                buy_price=buy_price,
+                stamp_duty=stamp_duty,
+                sell_date=sell_date,
+                sell_price=sell_price,
+                stt=stt,
+                units=gain_units,
             )
+            if gain_type == GainType.LTCG:
+                ge.ltcg = round(sell_price - buy_price - stt, 2)
+            elif gain_type == GainType.STCG:
+                ge.stcg = round(sell_price - buy_price - stt, 2)
+            self.gains.append(ge)
             if pending_units < 0 and buy_nav is not None:
                 # Sale is partially matched against the last buy transactions
                 # Re-add the remaining units to the FIFO queue
@@ -191,12 +211,17 @@ class CapitalGainReport:
                     self._gains.extend(fifo.gains)
 
     def get_summary(self):
-        sorted_gains = list(sorted(self._gains, key=lambda x: (x["fy"], x["fund"], x["sell_date"])))
+        sorted_gains: List[GainEntry] = list(
+            sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sell_date))
+        )
         summary = []
-        for (fy, fund), txns in itertools.groupby(sorted_gains, key=lambda x: (x["fy"], x["fund"])):
+        for (fy, fund), txns in itertools.groupby(sorted_gains, key=lambda x: (x.fy, x.fund)):
             ltcg = stcg = Decimal(0.0)
             for txn in txns:
-                ltcg += txn.get(GainType.LTCG.name, Decimal(0.0))
-                stcg += txn.get(GainType.STCG.name, Decimal(0.0))
+                ltcg += txn.ltcg
+                stcg += txn.stcg
             summary.append([fy, fund, ltcg, stcg])
         return summary
+
+    def get_gain_report(self):
+        sorted_gains = list(sorted(self._gains, key=lambda x: (x["fy"], x["fund"], x["sell_date"])))
