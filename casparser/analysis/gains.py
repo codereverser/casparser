@@ -1,7 +1,9 @@
+import csv
 from collections import deque
 from dataclasses import dataclass
 from decimal import Decimal
 from datetime import date
+import io
 import itertools
 from typing import List
 
@@ -24,11 +26,32 @@ class MergedTransaction:
 
 
 @dataclass
+class Fund:
+    """Fund details"""
+
+    name: str
+    isin: str
+
+    def __le__(self, other: "Fund"):
+        return self.name <= other.name
+
+    def __ge__(self, other: "Fund"):
+        return self.name >= other.name
+
+    def __lt__(self, other: "Fund"):
+        return self.name < other.name
+
+    def __gt__(self, other: "Fund"):
+        return self.name > other.name
+
+
+@dataclass
 class GainEntry:
     """Gain data of a realised transaction"""
 
     fy: str
-    fund: str
+    fund: Fund
+    type: str
     buy_date: date
     buy_price: Decimal
     stamp_duty: Decimal
@@ -68,12 +91,12 @@ def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
 class FIFOUnits:
     """First-In First-Out units calculator."""
 
-    def __init__(self, fund, transactions: List[TransactionDataType]):
+    def __init__(self, fund: Fund, transactions: List[TransactionDataType]):
         """
         :param fund: name of fund, mainly for reporting purposes.
         :param transactions: list of transactions for the fund
         """
-        self._fund = fund
+        self._fund: Fund = fund
         self._original_transactions = transactions
         self.fund_type = get_fund_type(transactions)
         self._merged_transactions = self.merge_transactions()
@@ -168,6 +191,7 @@ class FIFOUnits:
             ge = GainEntry(
                 fy=fin_year,
                 fund=self._fund,
+                type=self.fund_type.name,
                 buy_date=buy_date,
                 buy_price=buy_price,
                 stamp_duty=stamp_duty,
@@ -187,13 +211,17 @@ class FIFOUnits:
                 self.transactions.appendleft((buy_date, -1 * pending_units, buy_nav, buy_tax))
 
 
-class CapitalGainReport:
+class CapitalGainsReport:
     """Generate Capital Gains Report from the parsed CAS data"""
 
     def __init__(self, data: CASParserDataType):
-        self._data = data
-        self._gains = []
+        self._data: CASParserDataType = data
+        self._gains: List[GainEntry] = []
         self.process_data()
+
+    @property
+    def gains(self) -> List[GainEntry]:
+        return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sell_date)))
 
     def process_data(self):
         self._gains = []
@@ -207,21 +235,70 @@ class CapitalGainReport:
                             "Incomplete CAS found. For gains computation, "
                             "all folios should have zero opening balance"
                         )
-                    fifo = FIFOUnits(name, transactions)
+                    fifo = FIFOUnits(Fund(name=name, isin=scheme["isin"]), transactions)
                     self._gains.extend(fifo.gains)
 
     def get_summary(self):
-        sorted_gains: List[GainEntry] = list(
-            sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sell_date))
-        )
+        """Calculate capital gains summary"""
         summary = []
-        for (fy, fund), txns in itertools.groupby(sorted_gains, key=lambda x: (x.fy, x.fund)):
+        for (fy, fund), txns in itertools.groupby(self.gains, key=lambda x: (x.fy, x.fund)):
             ltcg = stcg = Decimal(0.0)
             for txn in txns:
                 ltcg += txn.ltcg
                 stcg += txn.stcg
-            summary.append([fy, fund, ltcg, stcg])
+            summary.append([fy, fund.name, fund.isin, ltcg, stcg])
         return summary
 
-    def get_gain_report(self):
-        sorted_gains = list(sorted(self._gains, key=lambda x: (x["fy"], x["fund"], x["sell_date"])))
+    def get_summary_csv_data(self) -> str:
+        """Return summary data as a csv string."""
+        headers = ["FY", "Fund", "ISIN", "LTCG", "STCG"]
+        with io.StringIO() as csv_fp:
+            writer = csv.writer(csv_fp)
+            writer.writerow(headers)
+            for entry in self.get_summary():
+                writer.writerow(entry)
+            csv_fp.seek(0)
+            csv_data = csv_fp.read()
+            return csv_data
+
+    def get_gains_csv_data(self) -> str:
+        """Return details gains data as a csv string."""
+        headers = [
+            "FY",
+            "Fund",
+            "ISIN",
+            "Type",
+            "Units",
+            "Buy Date",
+            "Buy NAV",
+            "Stamp Duty",
+            "Sell Date",
+            "Sell NAV",
+            "STT",
+            "LTCG",
+            "STCG",
+        ]
+        with io.StringIO() as csv_fp:
+            writer = csv.writer(csv_fp)
+            writer.writerow(headers)
+            for gain in self.gains:
+                writer.writerow(
+                    [
+                        gain.fy,
+                        gain.fund.name,
+                        gain.fund.isin,
+                        gain.type,
+                        gain.units,
+                        gain.buy_date,
+                        gain.buy_price,
+                        gain.stamp_duty,
+                        gain.sell_date,
+                        gain.sell_price,
+                        gain.stt,
+                        gain.ltcg,
+                        gain.stcg,
+                    ]
+                )
+            csv_fp.seek(0)
+            csv_data = csv_fp.read()
+            return csv_data

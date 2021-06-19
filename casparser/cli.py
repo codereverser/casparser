@@ -14,7 +14,7 @@ from rich.table import Table
 from .__version__ import __version__
 
 from . import read_cas_pdf
-from .analysis.gains import CapitalGainReport
+from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
 from .exceptions import ParserException, IncompleteCASError
 from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
@@ -146,8 +146,8 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         console.print(f"File saved : [bold]{output_filename}[/]")
 
 
-def print_gains(data):
-    cg = CapitalGainReport(data)
+def print_gains(data, output_file_path=None):
+    cg = CapitalGainsReport(data)
     summary = cg.get_summary()
     table = Table(title="Capital Gains statement (Realised)", show_lines=True)
     table.add_column("FY", no_wrap=True)
@@ -160,7 +160,7 @@ def print_gains(data):
         ltcg_total = Decimal(0.0)
         stcg_total = Decimal(0.0)
         for row in rows:
-            _, fund, ltcg, stcg = row
+            _, fund, _, ltcg, stcg = row
             ltcg_total += ltcg
             stcg_total += stcg
             table.add_row("", fund, f"₹{round(ltcg, 2)}", f"₹{round(stcg, 2)}")
@@ -171,6 +171,18 @@ def print_gains(data):
             f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
         )
     console.print(table)
+    if isinstance(output_file_path, str):
+        base_path, ext = os.path.splitext(output_file_path)
+        if not ext.lower().endswith("csv"):
+            return
+        fname = f"{base_path}-gains-summary.csv"
+        with open(fname, "w") as fp:
+            fp.write(cg.get_summary_csv_data())
+            console.print(f"Gains summary report saved : [bold]{fname}[/]")
+        fname = f"{base_path}-gains-detailed.csv"
+        with open(fname, "w") as fp:
+            fp.write(cg.get_gains_csv_data())
+            console.print(f"Detailed gains report saved : [bold]{fname}[/]")
 
 
 @click.command(name="casparser", context_settings=CONTEXT_SETTINGS)
@@ -251,7 +263,7 @@ def cli(output, summary, password, include_all, gains, force_pdfminer, filename)
         console.print(f"File saved : [bold]{output}[/]")
     if gains:
         try:
-            print_gains(data)
+            print_gains(data, output_file_path=output if output_ext == ".csv" else None)
         except IncompleteCASError:
             console.print("[bold red]Error![/] - Cannot compute gains. CAS is incomplete!")
             sys.exit(2)
