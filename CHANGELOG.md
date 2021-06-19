@@ -1,15 +1,18 @@
 # Changelog
 
+## 0.4.8 - WIP
+- Support for calculating capital gains from detailed CAS statements
+
 ## 0.4.7 - 2021-06-01
 
-- Minor bug fixes in summary statement parser.
+- Minor bug fixes in summary-statement parser.
 - cli now uses [rich](http://rich.readthedocs.io/) for console output.
-- Dependency management and deployment is handled by poetry.
+- Use poetry for dependency management and deployment.
 - **BREAKING CHANGE**: Table output choices have been removed. 
   `-s/--summary` is a flag and doesn't accept any additional arguments.
 - Support for folios without PAN (#28).
 - add support for new style dividend transactions after IDCW renaming. 
-- improved transaction entry parser. 
+- improved parser for transaction entries. 
 
 ## 0.4.6 - 2021-04-04
 
@@ -92,8 +95,8 @@
 
 ## 0.3.0 - 2020-10-25
 
-- **Breaking Change**: `folios` is a list instead of dict, so that the order is 
- preserved during format conversion to other data types like json.  
+- **Breaking Change**: In order to preserve the order of entries, during format 
+  conversion to other data types like json., `folios` is a list instead of dict.  
 - Added a second parser based on [PyMuPDF](https://github.com/pymupdf/PyMuPDF) / 
 [MuPDF](https://mupdf.com/) - ~15-20x faster compared to pure-python pdfminer.
 - Added AMC detection (accessible via `amc` property of folio)
