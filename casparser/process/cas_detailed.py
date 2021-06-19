@@ -8,7 +8,7 @@ from ..enums import TransactionType, CASFileType
 from ..exceptions import HeaderParseError, CASParseError
 from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
-from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2
+from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2, DESCRIPTION_TAIL_RE
 from ..types import FolioType, SchemeType
 from .utils import isin_search
 
@@ -165,9 +165,15 @@ def process_detailed_text(text):
                 nav=Decimal(m.group(2).replace(",", "_")),
             )
             continue
+        description_tail = ""
+        if m := re.search(DESCRIPTION_TAIL_RE, line):
+            description_tail = m.group(1).strip()
+            line = line.replace(m.group(1), "")
         if m := parse_transaction(line):
             date = date_parser.parse(m.group(1)).date()
             desc = m.group(2).strip()
+            if description_tail != "":
+                desc = " ".join([desc, description_tail])
             amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
             if m.group(4) is None:
                 units = None
