@@ -31,6 +31,7 @@ class Fund:
 
     name: str
     isin: str
+    type: str
 
     def __le__(self, other: "Fund"):
         return self.name <= other.name
@@ -98,7 +99,10 @@ class FIFOUnits:
         """
         self._fund: Fund = fund
         self._original_transactions = transactions
-        self.fund_type = get_fund_type(transactions)
+        if fund.type not in ("EQUITY", "DEBT"):
+            self.fund_type = get_fund_type(transactions)
+        else:
+            self.fund_type = getattr(FundType, fund.type)
         self._merged_transactions = self.merge_transactions()
 
         self.transactions = deque()
@@ -235,7 +239,9 @@ class CapitalGainsReport:
                             "Incomplete CAS found. For gains computation, "
                             "all folios should have zero opening balance"
                         )
-                    fifo = FIFOUnits(Fund(name=name, isin=scheme["isin"]), transactions)
+                    fifo = FIFOUnits(
+                        Fund(name=name, isin=scheme["isin"], type=scheme["type"]), transactions
+                    )
                     self._gains.extend(fifo.gains)
 
     def get_summary(self):
@@ -246,12 +252,12 @@ class CapitalGainsReport:
             for txn in txns:
                 ltcg += txn.ltcg
                 stcg += txn.stcg
-            summary.append([fy, fund.name, fund.isin, ltcg, stcg])
+            summary.append([fy, fund.name, fund.isin, fund.type, ltcg, stcg])
         return summary
 
     def get_summary_csv_data(self) -> str:
         """Return summary data as a csv string."""
-        headers = ["FY", "Fund", "ISIN", "LTCG", "STCG"]
+        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "STCG"]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)

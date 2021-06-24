@@ -160,7 +160,7 @@ def print_gains(data, output_file_path=None):
         ltcg_total = Decimal(0.0)
         stcg_total = Decimal(0.0)
         for row in rows:
-            _, fund, _, ltcg, stcg = row
+            _, fund, _, _, ltcg, stcg = row
             ltcg_total += ltcg
             stcg_total += stcg
             table.add_row("", fund, f"₹{round(ltcg, 2)}", f"₹{round(stcg, 2)}")

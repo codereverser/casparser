@@ -54,7 +54,7 @@ def process_summary_text(text):
                     folios[current_folio]["schemes"].append(curr_scheme_data)
                 rta = m.group(8).strip()
                 rta_code = m.group(2).strip()
-                isin, amfi = isin_search(scheme, rta, rta_code)
+                isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
                 curr_scheme_data = {
                     "scheme": scheme,
                     "advisor": "N/A",
@@ -62,6 +62,7 @@ def process_summary_text(text):
                     "rta": rta,
                     "isin": isin,
                     "amfi": amfi,
+                    "type": scheme_type or "N/A",
                     "open": Decimal(m.group(4).replace(",", "_")),
                     "close": Decimal(m.group(4).replace(",", "_")),
                     "valuation": {
