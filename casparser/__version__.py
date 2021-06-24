@@ -1,3 +1,13 @@
-from importlib.metadata import version
+from importlib.metadata import version, PackageNotFoundError
 
-__version__ = version("casparser")
+FALLBACK_VERSION = "0.0.0-dev"
+
+
+def get_version():
+    try:
+        return version("casparser")
+    except PackageNotFoundError:
+        return FALLBACK_VERSION
+
+
+__version__ = get_version()
