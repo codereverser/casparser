@@ -12,6 +12,7 @@ from dateutil.parser import parse as dateparse
 from casparser.exceptions import IncompleteCASError
 from casparser.enums import FundType, GainType, TransactionType
 from casparser.types import CASParserDataType, TransactionDataType
+from .utils import nav_search
 
 
 @dataclass
@@ -60,8 +61,67 @@ class GainEntry:
     sell_price: Decimal
     stt: Decimal
     units: Decimal
-    ltcg: Decimal = Decimal(0.0)
-    stcg: Decimal = Decimal(0.0)
+
+    def __post_init__(self):
+        self.__cutoff_date = date(2018, 1, 31)
+        self.__sell_cutoff_date = date(2018, 4, 1)
+        self.__update_nav()
+
+    def __update_nav(self):
+        self._cached_isin = self.fund.isin
+        self._cached_nav = nav_search(self._cached_isin)
+
+    @property
+    def gain_type(self):
+        """Identify gain type based on the current fund type, buy and sell dates."""
+        ltcg = {
+            FundType.EQUITY.name: date(
+                self.buy_date.year + 1, self.buy_date.month, self.buy_date.day
+            ),
+            FundType.DEBT.name: date(
+                self.buy_date.year + 3, self.buy_date.month, self.buy_date.day
+            ),
+        }
+
+        return GainType.LTCG if self.sell_date > ltcg[self.type] else GainType.STCG
+
+    @property
+    def gain(self) -> Decimal:
+        return Decimal(round(self.sell_price - self.buy_price, 2))
+
+    @property
+    def fmv(self) -> Decimal:
+        if self.fund.isin != self._cached_isin:
+            self.__update_nav()
+        if self._cached_nav is None:
+            return self.buy_price
+        return self._cached_nav * self.units
+
+    @property
+    def coa(self) -> Decimal:
+        if self.buy_date < self.__cutoff_date:
+            if self.sell_date < self.__sell_cutoff_date:
+                return self.sell_price
+            return max(self.buy_price, min(self.fmv, self.sell_price))
+        return self.buy_price
+
+    @property
+    def ltcg_taxable(self) -> Decimal:
+        if self.gain_type == GainType.LTCG:
+            return Decimal(round(self.sell_price - self.coa, 2))
+        return Decimal(0.0)
+
+    @property
+    def ltcg(self) -> Decimal:
+        if self.gain_type == GainType.LTCG:
+            return self.gain
+        return Decimal(0.0)
+
+    @property
+    def stcg(self) -> Decimal:
+        if self.gain_type == GainType.STCG:
+            return self.gain
+        return Decimal(0.0)
 
 
 def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
@@ -150,15 +210,6 @@ class FIFOUnits:
 
         return f"FY{year1}-{year2}"
 
-    def get_gain_type(self, buy_date: date, sell_date: date):
-        """Identify gain type based on the current fund type, buy and sell dates."""
-        ltcg = {
-            FundType.EQUITY: date(buy_date.year + 1, buy_date.month, buy_date.day),
-            FundType.DEBT: date(buy_date.year + 3, buy_date.month, buy_date.day),
-        }
-
-        return GainType.LTCG if sell_date > ltcg[self.fund_type] else GainType.STCG
-
     def process(self):
         self.gains = []
         for dt in sorted(self._merged_transactions.keys()):
@@ -179,7 +230,6 @@ class FIFOUnits:
         while pending_units > 0:
             buy_date, units, buy_nav, buy_tax = self.transactions.popleft()
 
-            gain_type = self.get_gain_type(buy_date, sell_date)
             if units <= pending_units:
                 gain_units = units
             else:
@@ -204,10 +254,6 @@ class FIFOUnits:
                 stt=stt,
                 units=gain_units,
             )
-            if gain_type == GainType.LTCG:
-                ge.ltcg = round(sell_price - buy_price - stt, 2)
-            elif gain_type == GainType.STCG:
-                ge.stcg = round(sell_price - buy_price - stt, 2)
             self.gains.append(ge)
             if pending_units < 0 and buy_nav is not None:
                 # Sale is partially matched against the last buy transactions
@@ -248,16 +294,17 @@ class CapitalGainsReport:
         """Calculate capital gains summary"""
         summary = []
         for (fy, fund), txns in itertools.groupby(self.gains, key=lambda x: (x.fy, x.fund)):
-            ltcg = stcg = Decimal(0.0)
+            ltcg = stcg = ltcg_taxable = Decimal(0.0)
             for txn in txns:
                 ltcg += txn.ltcg
                 stcg += txn.stcg
-            summary.append([fy, fund.name, fund.isin, fund.type, ltcg, stcg])
+                ltcg_taxable += txn.ltcg_taxable
+            summary.append([fy, fund.name, fund.isin, fund.type, ltcg, ltcg_taxable, stcg])
         return summary
 
     def get_summary_csv_data(self) -> str:
         """Return summary data as a csv string."""
-        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "STCG"]
+        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG"]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)
@@ -276,12 +323,14 @@ class CapitalGainsReport:
             "Type",
             "Units",
             "Buy Date",
-            "Buy NAV",
+            "Buy Value",
             "Stamp Duty",
+            "Acquisition Value",
             "Sell Date",
-            "Sell NAV",
+            "Sell Value",
             "STT",
             "LTCG",
+            "LTCG Taxable",
             "STCG",
         ]
         with io.StringIO() as csv_fp:
@@ -298,10 +347,12 @@ class CapitalGainsReport:
                         gain.buy_date,
                         gain.buy_price,
                         gain.stamp_duty,
+                        gain.coa,
                         gain.sell_date,
                         gain.sell_price,
                         gain.stt,
                         gain.ltcg,
+                        gain.ltcg_taxable,
                         gain.stcg,
                     ]
                 )

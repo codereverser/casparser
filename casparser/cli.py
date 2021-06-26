@@ -153,21 +153,31 @@ def print_gains(data, output_file_path=None):
     table.add_column("FY", no_wrap=True)
     table.add_column("Fund")
     table.add_column("LTCG")
+    table.add_column("LTCG (Taxable)")
     table.add_column("STCG")
 
     for fy, rows in itertools.groupby(summary, lambda x: x[0]):
         table.add_row(f"[bold]{fy}[/]", "", "", "")
         ltcg_total = Decimal(0.0)
         stcg_total = Decimal(0.0)
+        ltcg_taxable_total = Decimal(0.0)
         for row in rows:
-            _, fund, _, _, ltcg, stcg = row
+            _, fund, _, _, ltcg, stcg, ltcg_taxable = row
             ltcg_total += ltcg
             stcg_total += stcg
-            table.add_row("", fund, f"₹{round(ltcg, 2)}", f"₹{round(stcg, 2)}")
+            ltcg_taxable_total += ltcg_taxable
+            table.add_row(
+                "",
+                fund,
+                f"₹{round(ltcg, 2)}",
+                f"₹{round(ltcg_taxable, 2)}",
+                f"₹{round(stcg, 2)}",
+            )
         table.add_row(
             "",
             f"[bold]{fy} - Total Gains[/]",
             f"[bold {get_color(ltcg_total)}]₹{round(ltcg_total, 2)}[/]",
+            f"[bold {get_color(ltcg_taxable_total)}]₹{round(ltcg_taxable_total, 2)}[/]",
             f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
         )
     console.print(table)
