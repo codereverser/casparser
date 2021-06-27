@@ -1,30 +1,33 @@
-from enum import Enum, IntEnum, auto
+from enum import Enum, auto
 
 
-class FileType(IntEnum):
-    """Enum for CAS file source."""
-
-    UNKNOWN = 0
-    CAMS = 1
-    KFINTECH = 2
-
-
-class CASFileType(IntEnum):
-    """Enum for CAS file type"""
-
-    UNKNOWN = 0
-    SUMMARY = 1
-    DETAILED = 2
-
-
-class TransactionType(str, Enum):
-    # noinspection PyMethodParameters
+class AutoEnum(Enum):
+    # noinspection PyMethodParameters,PyTypeChecker
     def _generate_next_value_(name, start, count, last_values) -> str:  # type: ignore
         """
         Uses the name as the automatic value, rather than an integer
         See https://docs.python.org/3/library/enum.html#using-automatic-values for reference
         """
         return name
+
+
+class FileType(AutoEnum):
+    """Enum for CAS file source."""
+
+    UNKNOWN = auto()
+    CAMS = auto()
+    KFINTECH = auto()
+
+
+class CASFileType(AutoEnum):
+    """Enum for CAS file type"""
+
+    UNKNOWN = auto()
+    SUMMARY = auto()
+    DETAILED = auto()
+
+
+class TransactionType(str, AutoEnum):
 
     PURCHASE = auto()
     PURCHASE_SIP = auto()
