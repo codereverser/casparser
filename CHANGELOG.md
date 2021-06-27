@@ -1,7 +1,13 @@
 # Changelog
 
-## 0.4.8 - WIP
+## 0.4.9 - WIP
 - Support for calculating capital gains from detailed CAS statements
+
+
+## 0.4.8 - 2021-06-27
+- `REVERSAL` TransactionType to indicate reverted/rejected transactions
+- convert all enums to strEnums for better readability [(#35)](https://github.com/codereverser/casparser/pull/35)
+- fix issue with parsing multi-line transactions
 
 ## 0.4.7 - 2021-06-01
 
