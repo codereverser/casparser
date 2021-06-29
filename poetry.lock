@@ -314,7 +314,7 @@ mupdf = ["PyMuPDF"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "fd391426d8467b19610ce5844467c7c6efb4933223f9a1d574af5180d1745784"
+content-hash = "8a42f9b920353aaa9b22109472d4a4ebcbe28fabb5e7436322cbedeb0a2f74d3"
 
 [metadata.files]
 atomicwrites = [

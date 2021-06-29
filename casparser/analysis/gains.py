@@ -8,6 +8,7 @@ import itertools
 from typing import List
 
 from dateutil.parser import parse as dateparse
+from dateutil.relativedelta import relativedelta
 
 from casparser.exceptions import IncompleteCASError
 from casparser.enums import FundType, GainType, TransactionType
@@ -75,12 +76,8 @@ class GainEntry:
     def gain_type(self):
         """Identify gain type based on the current fund type, buy and sell dates."""
         ltcg = {
-            FundType.EQUITY.name: date(
-                self.buy_date.year + 1, self.buy_date.month, self.buy_date.day
-            ),
-            FundType.DEBT.name: date(
-                self.buy_date.year + 3, self.buy_date.month, self.buy_date.day
-            ),
+            FundType.EQUITY.name: self.buy_date + relativedelta(years=1),
+            FundType.DEBT.name: self.buy_date + relativedelta(years=3),
         }
 
         return GainType.LTCG if self.sell_date > ltcg[self.type] else GainType.STCG
