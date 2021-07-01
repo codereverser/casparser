@@ -162,7 +162,7 @@ def print_gains(data, output_file_path=None):
         stcg_total = Decimal(0.0)
         ltcg_taxable_total = Decimal(0.0)
         for row in rows:
-            _, fund, _, _, ltcg, stcg, ltcg_taxable = row
+            _, fund, _, _, ltcg, ltcg_taxable, stcg = row
             ltcg_total += ltcg
             stcg_total += stcg
             ltcg_taxable_total += ltcg_taxable
@@ -223,7 +223,7 @@ def print_gains(data, output_file_path=None):
     is_flag=True,
     help="Include schemes with zero valuation in the summary output",
 )
-@click.option("-g", "--gains", is_flag=True, help="Generate Capital Gains Report")
+@click.option("-g", "--gains", is_flag=True, help="Generate Capital Gains Report (BETA)")
 @click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
 )
