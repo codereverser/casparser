@@ -17,7 +17,7 @@ include = [ "CHANGELOG.md" ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-casparser-isin = ">=2021.6.1"
+casparser-isin = ">=2021.7.1"
 click = "^8.0.1"
 colorama = "^0.4.4"
 "pdfminer.six" = "20201018"
