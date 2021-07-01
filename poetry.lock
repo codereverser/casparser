@@ -22,7 +22,7 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 
 [[package]]
 name = "casparser-isin"
-version = "2021.6.1"
+version = "2021.7.1"
 description = "ISIN database for casparser"
 category = "main"
 optional = false
@@ -314,7 +314,7 @@ mupdf = ["PyMuPDF"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "8a42f9b920353aaa9b22109472d4a4ebcbe28fabb5e7436322cbedeb0a2f74d3"
+content-hash = "d5557cd0cf74acb4c049dbe06ab03c51852b469945fe6922a103d59b2e959ece"
 
 [metadata.files]
 atomicwrites = [
@@ -326,8 +326,8 @@ attrs = [
     {file = "attrs-21.2.0.tar.gz", hash = "sha256:ef6aaac3ca6cd92904cdd0d83f629a15f18053ec84e6432106f7a4d04ae4f5fb"},
 ]
 casparser-isin = [
-    {file = "casparser_isin-2021.6.1-py3-none-any.whl", hash = "sha256:e2fadcbd4c12ca203db7da7a7947469987acf4a75fdf653f40156821d77aad64"},
-    {file = "casparser_isin-2021.6.1.tar.gz", hash = "sha256:85513da5d6ac64bee358a286b99f4844b26603c64828d621d2fceee5a534e463"},
+    {file = "casparser_isin-2021.7.1-py3-none-any.whl", hash = "sha256:dd419a7a55243dd88b489dc994dabc63b140408bea6550d3caeefd789ca06632"},
+    {file = "casparser_isin-2021.7.1.tar.gz", hash = "sha256:674a7c5a68bbdf4bcf55bda5a471c380a7f93e85c2f6a92a771f91d14077dff0"},
 ]
 cffi = [
     {file = "cffi-1.14.5-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:bb89f306e5da99f4d922728ddcd6f7fcebb3241fc40edebcb7284d7514741991"},
