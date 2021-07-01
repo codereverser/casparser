@@ -168,6 +168,6 @@ CASParser is distributed under MIT license by default. However enabling the opti
 would apply. Copies of all licenses have been included in this repository. - _IANAL_
  
 ## Resources
-1. [CAS from CAMS](https://new.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
+1. [CAS from CAMS](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
 2. [CAS from Karvy/Kfintech](https://mfs.kfintech.com/investor/General/ConsolidatedAccountStatement)
 
