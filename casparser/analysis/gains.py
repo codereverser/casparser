@@ -13,7 +13,7 @@ from dateutil.relativedelta import relativedelta
 from casparser.exceptions import IncompleteCASError
 from casparser.enums import FundType, GainType, TransactionType
 from casparser.types import CASParserDataType, TransactionDataType
-from .utils import nav_search
+from .utils import CII, get_fin_year, nav_search
 
 
 @dataclass
@@ -35,17 +35,8 @@ class Fund:
     isin: str
     type: str
 
-    def __le__(self, other: "Fund"):
-        return self.name <= other.name
-
-    def __ge__(self, other: "Fund"):
-        return self.name >= other.name
-
     def __lt__(self, other: "Fund"):
         return self.name < other.name
-
-    def __gt__(self, other: "Fund"):
-        return self.name > other.name
 
 
 @dataclass
@@ -95,7 +86,15 @@ class GainEntry:
         return self._cached_nav * self.units
 
     @property
+    def index_ratio(self) -> Decimal:
+        return Decimal(
+            round(CII[get_fin_year(self.sell_date)] / CII[get_fin_year(self.buy_date)], 2)
+        )
+
+    @property
     def coa(self) -> Decimal:
+        if self.fund.type == FundType.DEBT.name:
+            return Decimal(round(self.buy_price * self.index_ratio, 2))
         if self.buy_date < self.__cutoff_date:
             if self.sell_date < self.__sell_cutoff_date:
                 return self.sell_price
@@ -105,6 +104,12 @@ class GainEntry:
     @property
     def ltcg_taxable(self) -> Decimal:
         if self.gain_type == GainType.LTCG:
+            return Decimal(round(self.sell_price - self.coa, 2))
+        return Decimal(0.0)
+
+    @property
+    def stcg_taxable(self) -> Decimal:
+        if self.gain_type == GainType.STCG:
             return Decimal(round(self.sell_price - self.coa, 2))
         return Decimal(0.0)
 
@@ -194,19 +199,6 @@ class FIFOUnits:
                 merged_transactions[dt].amount += txn["amount"]
         return merged_transactions
 
-    @staticmethod
-    def get_fin_year(dt: date):
-        """Get financial year representation."""
-        if dt.month > 3:
-            year1, year2 = dt.year, dt.year + 1
-        else:
-            year1, year2 = dt.year - 1, dt.year
-
-        if year1 % 100 != 99:
-            year2 %= 100
-
-        return f"FY{year1}-{year2}"
-
     def process(self):
         self.gains = []
         for dt in sorted(self._merged_transactions.keys()):
@@ -221,7 +213,7 @@ class FIFOUnits:
         self.transactions.append((txn_date, quantity, nav, tax))
 
     def sell(self, sell_date: date, quantity: Decimal, nav: Decimal, tax: Decimal):
-        fin_year = self.get_fin_year(sell_date)
+        fin_year = get_fin_year(sell_date)
         original_quantity = abs(quantity)
         pending_units = original_quantity
         while pending_units > 0:
@@ -291,17 +283,20 @@ class CapitalGainsReport:
         """Calculate capital gains summary"""
         summary = []
         for (fy, fund), txns in itertools.groupby(self.gains, key=lambda x: (x.fy, x.fund)):
-            ltcg = stcg = ltcg_taxable = Decimal(0.0)
+            ltcg = stcg = ltcg_taxable = stcg_taxable = Decimal(0.0)
             for txn in txns:
                 ltcg += txn.ltcg
                 stcg += txn.stcg
                 ltcg_taxable += txn.ltcg_taxable
-            summary.append([fy, fund.name, fund.isin, fund.type, ltcg, ltcg_taxable, stcg])
+                stcg_taxable += txn.stcg_taxable
+            summary.append(
+                [fy, fund.name, fund.isin, fund.type, ltcg, ltcg_taxable, stcg, stcg_taxable]
+            )
         return summary
 
     def get_summary_csv_data(self) -> str:
         """Return summary data as a csv string."""
-        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG"]
+        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG", "STCG(Taxable)"]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)
@@ -329,6 +324,7 @@ class CapitalGainsReport:
             "LTCG",
             "LTCG Taxable",
             "STCG",
+            "STCG Taxable",
         ]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
@@ -351,6 +347,7 @@ class CapitalGainsReport:
                         gain.ltcg,
                         gain.ltcg_taxable,
                         gain.stcg,
+                        gain.stcg_taxable,
                     ]
                 )
             csv_fp.seek(0)

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.9 - WIP
+## 0.5.0 - 2021-07-02
 - Support for calculating capital gains from detailed CAS statements
 
 

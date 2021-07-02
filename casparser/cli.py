@@ -155,23 +155,27 @@ def print_gains(data, output_file_path=None):
     table.add_column("LTCG")
     table.add_column("LTCG (Taxable)")
     table.add_column("STCG")
+    table.add_column("STCG (Taxable)")
 
     for fy, rows in itertools.groupby(summary, lambda x: x[0]):
         table.add_row(f"[bold]{fy}[/]", "", "", "")
         ltcg_total = Decimal(0.0)
         stcg_total = Decimal(0.0)
         ltcg_taxable_total = Decimal(0.0)
+        stcg_taxable_total = Decimal(0.0)
         for row in rows:
-            _, fund, _, _, ltcg, ltcg_taxable, stcg = row
+            _, fund, _, _, ltcg, ltcg_taxable, stcg, stcg_taxable = row
             ltcg_total += ltcg
             stcg_total += stcg
             ltcg_taxable_total += ltcg_taxable
+            stcg_taxable_total += stcg_taxable
             table.add_row(
                 "",
                 fund,
                 f"₹{round(ltcg, 2)}",
                 f"₹{round(ltcg_taxable, 2)}",
                 f"₹{round(stcg, 2)}",
+                f"₹{round(stcg_taxable, 2)}",
             )
         table.add_row(
             "",
@@ -179,6 +183,7 @@ def print_gains(data, output_file_path=None):
             f"[bold {get_color(ltcg_total)}]₹{round(ltcg_total, 2)}[/]",
             f"[bold {get_color(ltcg_taxable_total)}]₹{round(ltcg_taxable_total, 2)}[/]",
             f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
+            f"[bold {get_color(stcg_taxable_total)}]₹{round(stcg_taxable_total, 2)}[/]",
         )
     console.print(table)
     if isinstance(output_file_path, str):
