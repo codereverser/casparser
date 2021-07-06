@@ -108,12 +108,6 @@ class GainEntry:
         return Decimal(0.0)
 
     @property
-    def stcg_taxable(self) -> Decimal:
-        if self.gain_type == GainType.STCG:
-            return Decimal(round(self.sell_price - self.coa, 2))
-        return Decimal(0.0)
-
-    @property
     def ltcg(self) -> Decimal:
         if self.gain_type == GainType.LTCG:
             return self.gain
@@ -283,20 +277,17 @@ class CapitalGainsReport:
         """Calculate capital gains summary"""
         summary = []
         for (fy, fund), txns in itertools.groupby(self.gains, key=lambda x: (x.fy, x.fund)):
-            ltcg = stcg = ltcg_taxable = stcg_taxable = Decimal(0.0)
+            ltcg = stcg = ltcg_taxable = Decimal(0.0)
             for txn in txns:
                 ltcg += txn.ltcg
                 stcg += txn.stcg
                 ltcg_taxable += txn.ltcg_taxable
-                stcg_taxable += txn.stcg_taxable
-            summary.append(
-                [fy, fund.name, fund.isin, fund.type, ltcg, ltcg_taxable, stcg, stcg_taxable]
-            )
+            summary.append([fy, fund.name, fund.isin, fund.type, ltcg, ltcg_taxable, stcg])
         return summary
 
     def get_summary_csv_data(self) -> str:
         """Return summary data as a csv string."""
-        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG", "STCG(Taxable)"]
+        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG"]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)
@@ -324,7 +315,6 @@ class CapitalGainsReport:
             "LTCG",
             "LTCG Taxable",
             "STCG",
-            "STCG Taxable",
         ]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
@@ -347,7 +337,6 @@ class CapitalGainsReport:
                         gain.ltcg,
                         gain.ltcg_taxable,
                         gain.stcg,
-                        gain.stcg_taxable,
                     ]
                 )
             csv_fp.seek(0)

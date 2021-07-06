@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "casparser"
-version = "0.5.0"
+version = "0.5.0-alpha.2"
 description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
 authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
 homepage = "https://github.com/codereverser/casparser"
