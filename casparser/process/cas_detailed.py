@@ -43,6 +43,8 @@ def get_transaction_type(
             txn_type = TransactionType.STAMP_DUTY_TAX
         elif "segregat" in description:
             txn_type = TransactionType.SEGREGATION
+        elif "tds" in description:
+            txn_type = TransactionType.TDS_TAX
         else:
             txn_type = TransactionType.MISC
     elif units > 0:

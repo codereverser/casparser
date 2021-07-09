@@ -107,6 +107,7 @@ Notes:
   - `DIVIDEND_REINVESTMENT`
   - `SEGREGATION`
   - `STAMP_DUTY_TAX`
+  - `TDS_TAX`
   - `STT_TAX`
   - `MISC`
 - `dividend_rate` is applicable only for `DIVIDEND_PAYOUT` and 

@@ -40,6 +40,7 @@ class TransactionType(str, AutoEnum):
     SWITCH_OUT_MERGER = auto()
     STT_TAX = auto()
     STAMP_DUTY_TAX = auto()
+    TDS_TAX = auto()
     SEGREGATION = auto()
     MISC = auto()
     UNKNOWN = auto()
