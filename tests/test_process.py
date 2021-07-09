@@ -46,6 +46,7 @@ class TestProcessClass:
             TransactionType.STAMP_DUTY_TAX,
             None,
         )
+        assert get_transaction_type("*** TDS on Above ***", None) == (TransactionType.TDS_TAX, None)
         assert get_transaction_type("Creation of units - Segregated portfolio", None) == (
             TransactionType.SEGREGATION,
             None,
