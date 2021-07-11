@@ -46,11 +46,11 @@ class GainEntry:
     fy: str
     fund: Fund
     type: str
-    buy_date: date
-    buy_price: Decimal
+    purchase_date: date
+    purchase_value: Decimal
     stamp_duty: Decimal
-    sell_date: date
-    sell_price: Decimal
+    sale_date: date
+    sale_value: Decimal
     stt: Decimal
     units: Decimal
 
@@ -67,44 +67,44 @@ class GainEntry:
     def gain_type(self):
         """Identify gain type based on the current fund type, buy and sell dates."""
         ltcg = {
-            FundType.EQUITY.name: self.buy_date + relativedelta(years=1),
-            FundType.DEBT.name: self.buy_date + relativedelta(years=3),
+            FundType.EQUITY.name: self.purchase_date + relativedelta(years=1),
+            FundType.DEBT.name: self.purchase_date + relativedelta(years=3),
         }
 
-        return GainType.LTCG if self.sell_date > ltcg[self.type] else GainType.STCG
+        return GainType.LTCG if self.sale_date > ltcg[self.type] else GainType.STCG
 
     @property
     def gain(self) -> Decimal:
-        return Decimal(round(self.sell_price - self.buy_price, 2))
+        return Decimal(round(self.sale_value - self.purchase_value, 2))
 
     @property
     def fmv(self) -> Decimal:
         if self.fund.isin != self._cached_isin:
             self.__update_nav()
         if self._cached_nav is None:
-            return self.buy_price
+            return self.purchase_value
         return self._cached_nav * self.units
 
     @property
     def index_ratio(self) -> Decimal:
         return Decimal(
-            round(CII[get_fin_year(self.sell_date)] / CII[get_fin_year(self.buy_date)], 2)
+            round(CII[get_fin_year(self.sale_date)] / CII[get_fin_year(self.purchase_date)], 2)
         )
 
     @property
     def coa(self) -> Decimal:
         if self.fund.type == FundType.DEBT.name:
-            return Decimal(round(self.buy_price * self.index_ratio, 2))
-        if self.buy_date < self.__cutoff_date:
-            if self.sell_date < self.__sell_cutoff_date:
-                return self.sell_price
-            return max(self.buy_price, min(self.fmv, self.sell_price))
-        return self.buy_price
+            return Decimal(round(self.purchase_value * self.index_ratio, 2))
+        if self.purchase_date < self.__cutoff_date:
+            if self.sale_date < self.__sell_cutoff_date:
+                return self.sale_value
+            return max(self.purchase_value, min(self.fmv, self.sale_value))
+        return self.purchase_value
 
     @property
     def ltcg_taxable(self) -> Decimal:
         if self.gain_type == GainType.LTCG:
-            return Decimal(round(self.sell_price - self.coa, 2))
+            return Decimal(round(self.sale_value - self.coa, 2))
         return Decimal(0.0)
 
     @property
@@ -211,16 +211,16 @@ class FIFOUnits:
         original_quantity = abs(quantity)
         pending_units = original_quantity
         while pending_units > 0:
-            buy_date, units, buy_nav, buy_tax = self.transactions.popleft()
+            purchase_date, units, purchase_nav, purchase_tax = self.transactions.popleft()
 
             if units <= pending_units:
                 gain_units = units
             else:
                 gain_units = pending_units
 
-            buy_price = round(gain_units * buy_nav, 2)
-            sell_price = round(gain_units * nav, 2)
-            stamp_duty = round(buy_tax * gain_units / units, 2)
+            purchase_value = round(gain_units * purchase_nav, 2)
+            sale_value = round(gain_units * nav, 2)
+            stamp_duty = round(purchase_tax * gain_units / units, 2)
             stt = round(tax * gain_units / original_quantity, 2)
 
             pending_units -= units
@@ -229,19 +229,21 @@ class FIFOUnits:
                 fy=fin_year,
                 fund=self._fund,
                 type=self.fund_type.name,
-                buy_date=buy_date,
-                buy_price=buy_price,
+                purchase_date=purchase_date,
+                purchase_value=purchase_value,
                 stamp_duty=stamp_duty,
-                sell_date=sell_date,
-                sell_price=sell_price,
+                sale_date=sell_date,
+                sale_value=sale_value,
                 stt=stt,
                 units=gain_units,
             )
             self.gains.append(ge)
-            if pending_units < 0 and buy_nav is not None:
+            if pending_units < 0 and purchase_nav is not None:
                 # Sale is partially matched against the last buy transactions
                 # Re-add the remaining units to the FIFO queue
-                self.transactions.appendleft((buy_date, -1 * pending_units, buy_nav, buy_tax))
+                self.transactions.appendleft(
+                    (purchase_date, -1 * pending_units, purchase_nav, purchase_tax)
+                )
 
 
 class CapitalGainsReport:
@@ -254,7 +256,7 @@ class CapitalGainsReport:
 
     @property
     def gains(self) -> List[GainEntry]:
-        return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sell_date)))
+        return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sale_date)))
 
     def process_data(self):
         self._gains = []
@@ -305,12 +307,12 @@ class CapitalGainsReport:
             "ISIN",
             "Type",
             "Units",
-            "Buy Date",
-            "Buy Value",
+            "Purchase Date",
+            "Purchase Value",
             "Stamp Duty",
             "Acquisition Value",
-            "Sell Date",
-            "Sell Value",
+            "Sale Date",
+            "Sale Value",
             "STT",
             "LTCG",
             "LTCG Taxable",
@@ -327,12 +329,12 @@ class CapitalGainsReport:
                         gain.fund.isin,
                         gain.type,
                         gain.units,
-                        gain.buy_date,
-                        gain.buy_price,
+                        gain.purchase_date,
+                        gain.purchase_value,
                         gain.stamp_duty,
                         gain.coa,
-                        gain.sell_date,
-                        gain.sell_price,
+                        gain.sale_date,
+                        gain.sale_value,
                         gain.stt,
                         gain.ltcg,
                         gain.ltcg_taxable,
