@@ -2,7 +2,7 @@
 
 ## 0.5.0 - 2021-07-02
 - Support for calculating capital gains from detailed CAS statements
-
+- support for parsing Tax Deducted at Source (`TDS`) transactions
 
 ## 0.4.8 - 2021-06-27
 - `REVERSAL` TransactionType to indicate reverted/rejected transactions
