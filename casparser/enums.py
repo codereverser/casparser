@@ -27,8 +27,18 @@ class CASFileType(AutoEnum):
     DETAILED = auto()
 
 
-class TransactionType(str, AutoEnum):
+class FundType(AutoEnum):
+    EQUITY = auto()
+    DEBT = auto()
+    UNKNOWN = auto()
 
+
+class GainType(AutoEnum):
+    STCG = auto()
+    LTCG = auto()
+
+
+class TransactionType(str, AutoEnum):
     PURCHASE = auto()
     PURCHASE_SIP = auto()
     REDEMPTION = auto()

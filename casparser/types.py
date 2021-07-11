@@ -45,6 +45,7 @@ class SchemeType(TypedDict, total=False):
     advisor: Optional[str]
     rta_code: str
     rta: str
+    type: Optional[str]
     isin: Optional[str]
     amfi: Optional[str]
     open: Union[Decimal, float]

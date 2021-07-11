@@ -8,6 +8,10 @@
 
 Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTECH
 
+`casparser` also includes a command line tool with the following analysis tools
+- `summary`- print portfolio summary
+- `gains`- Print capital gains report (summary and detailed) 
+
 
 ## Installation
 ```bash
@@ -118,7 +122,7 @@ Notes:
 casparser also comes with a command-line interface that prints summary of parsed 
 portfolio in a wide variety of formats. 
 
-```bash
+```
 Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s] [-a] CAS_PDF_FILE
 
   -o, --output FILE               Output file path. Saves the parsed data as json or csv
@@ -129,7 +133,8 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s] [-a] C
   -p PASSWORD                     CAS password
   -a, --include-all               Include schemes with zero valuation in the
                                   summary output
-  --sort                          Sort transactions by date
+  -g, --gains                     Generate Capital Gains Report (BETA) [Debt fund indexation not 
+                                  considered]
   --force-pdfminer                Force PDFMiner parser even if MuPDF is
                                   detected
 
@@ -137,12 +142,35 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s] [-a] C
   -h, --help                      Show this message and exit.
 ``` 
 
+#### CLI examples
+```
+# Print portfolio summary
+casparser /path/to/cas.pdf -p password 
+
+# Print portfolio and capital gains summary
+casparser /path/to/cas.pdf -p password -g
+
+# Save parsed data as a json file
+casparser /path/to/cas.pdf -p password -o pdf_parsed.json
+
+# Save parsed data as a csv file
+casparser /path/to/cas.pdf -p password -o pdf_parsed.csv
+
+# Save capital gains transactions in csv files (pdf_parsed-gains-summary.csv and 
+# pdf_parsed-gains-detailed.csv)
+casparser /path/to/cas.pdf -p password -g -o pdf_parsed.csv
+
+```
+
 **Note:** `casparser cli` supports two special output file formats [-o _file.json_ / _file.csv_]
 1. `json` - complete parsed data is exported in json format (including investor info)
 2. `csv` - Summary info is exported in csv format if the input file is a summary statement or if 
    a summary flag (`-s/--summary`) is passed as argument to the CLI. Otherwise, full 
    transaction history is included in the export. 
+   If `-g` flag is present, two additional files '{basename}-gains-summary.csv', 
+   '{basename}-gains-detailed.csv' are created with the capital-gains data.
 3. any other extension - The summary table is saved in the file. 
+
 
 #### Demo
 

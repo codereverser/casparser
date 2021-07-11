@@ -59,7 +59,7 @@ class TestMuPDF(BaseTestClass):
                 "-o",
                 fpath.strpath,
                 "-s",
-                "--sort",
+                "-g",
             ],
         )
         assert result.exit_code != 1
@@ -71,6 +71,10 @@ class TestMuPDF(BaseTestClass):
         result = runner.invoke(cli, [self.kfintech_file_name, "-p", self.cams_password])
         assert result.exit_code != 0
         assert "Incorrect PDF password!" in result.output
+
+        result = runner.invoke(cli, [self.cams_file_name, "-p", self.cams_password, "-g"])
+        assert result.exit_code == 2
+        assert "CAS is incomplete!" in result.output
 
         result = runner.invoke(cli, [self.bad_file_name, "-p", "", "-a"])
         assert result.exit_code == 0

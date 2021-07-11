@@ -10,7 +10,7 @@ def read_cas_pdf(
     filename: Union[str, io.IOBase],
     password,
     output="dict",
-    sort_transactions=False,
+    sort_transactions=True,
     force_pdfminer=False,
 ):
     """

@@ -1,7 +1,9 @@
 from decimal import Decimal
+import itertools
 import os
 import re
 import sys
+from typing import Union
 
 import click
 from rich.console import Console
@@ -12,12 +14,22 @@ from rich.table import Table
 from .__version__ import __version__
 
 from . import read_cas_pdf
+from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
-from .exceptions import ParserException
+from .exceptions import ParserException, IncompleteCASError
 from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 console = Console()
+
+
+def get_color(amount: Union[Decimal, float, int]):
+    """Coloured printing"""
+    if amount >= 1e-3:
+        return "green"
+    elif amount <= -1e-3:
+        return "red"
+    return "white"
 
 
 def print_summary(data, output_filename=None, include_zero_folios=False):
@@ -134,6 +146,55 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         console.print(f"File saved : [bold]{output_filename}[/]")
 
 
+def print_gains(data, output_file_path=None):
+    cg = CapitalGainsReport(data)
+    summary = cg.get_summary()
+    table = Table(title="Capital Gains statement (Realised)", show_lines=True)
+    table.add_column("FY", no_wrap=True)
+    table.add_column("Fund")
+    table.add_column("LTCG")
+    table.add_column("LTCG (Taxable)")
+    table.add_column("STCG")
+
+    for fy, rows in itertools.groupby(summary, lambda x: x[0]):
+        table.add_row(f"[bold]{fy}[/]", "", "", "")
+        ltcg_total = Decimal(0.0)
+        stcg_total = Decimal(0.0)
+        ltcg_taxable_total = Decimal(0.0)
+        for row in rows:
+            _, fund, _, _, ltcg, ltcg_taxable, stcg = row
+            ltcg_total += ltcg
+            stcg_total += stcg
+            ltcg_taxable_total += ltcg_taxable
+            table.add_row(
+                "",
+                fund,
+                f"₹{round(ltcg, 2)}",
+                f"₹{round(ltcg_taxable, 2)}",
+                f"₹{round(stcg, 2)}",
+            )
+        table.add_row(
+            "",
+            f"[bold]{fy} - Total Gains[/]",
+            f"[bold {get_color(ltcg_total)}]₹{round(ltcg_total, 2)}[/]",
+            f"[bold {get_color(ltcg_taxable_total)}]₹{round(ltcg_taxable_total, 2)}[/]",
+            f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
+        )
+    console.print(table)
+    if isinstance(output_file_path, str):
+        base_path, ext = os.path.splitext(output_file_path)
+        if not ext.lower().endswith("csv"):
+            return
+        fname = f"{base_path}-gains-summary.csv"
+        with open(fname, "w") as fp:
+            fp.write(cg.get_summary_csv_data())
+            console.print(f"Gains summary report saved : [bold]{fname}[/]")
+        fname = f"{base_path}-gains-detailed.csv"
+        with open(fname, "w") as fp:
+            fp.write(cg.get_gains_csv_data())
+            console.print(f"Detailed gains report saved : [bold]{fname}[/]")
+
+
 @click.command(name="casparser", context_settings=CONTEXT_SETTINGS)
 @click.option(
     "-o",
@@ -162,13 +223,13 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
     is_flag=True,
     help="Include schemes with zero valuation in the summary output",
 )
-@click.option("--sort", is_flag=True, help="Sort transactions by date")
+@click.option("-g", "--gains", is_flag=True, help="Generate Capital Gains Report (BETA)")
 @click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
 )
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
-def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
+def cli(output, summary, password, include_all, gains, force_pdfminer, filename):
     """CLI function."""
     output_ext = None
     if output is not None:
@@ -184,9 +245,7 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
             transient=True,
         ) as progress:
             progress.add_task("Reading CAS file", start=False, total=10.0)
-            data = read_cas_pdf(
-                filename, password, force_pdfminer=force_pdfminer, sort_transactions=sort
-            )
+            data = read_cas_pdf(filename, password, force_pdfminer=force_pdfminer)
     except ParserException as exc:
         console.print(f"Error parsing pdf file :: [bold red]{str(exc)}[/]")
         sys.exit(1)
@@ -212,6 +271,12 @@ def cli(output, summary, password, include_all, sort, force_pdfminer, filename):
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
         console.print(f"File saved : [bold]{output}[/]")
+    if gains:
+        try:
+            print_gains(data, output_file_path=output if output_ext == ".csv" else None)
+        except IncompleteCASError:
+            console.print("[bold red]Error![/] - Cannot compute gains. CAS is incomplete!")
+            sys.exit(2)
 
 
 if __name__ == "__main__":

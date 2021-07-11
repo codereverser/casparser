@@ -133,11 +133,12 @@ def process_detailed_text(text):
                     advisor = advisor.strip()
                 rta = m.group(4).strip()
                 rta_code = m.group(1).strip()
-                isin, amfi = isin_search(scheme, rta, rta_code)
+                isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
                 curr_scheme_data: SchemeType = {
                     "scheme": scheme,
                     "advisor": advisor,
                     "rta_code": rta_code,
+                    "type": scheme_type or "N/A",
                     "rta": rta,
                     "isin": isin,
                     "amfi": amfi,
