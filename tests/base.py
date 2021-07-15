@@ -7,7 +7,7 @@ from click.testing import CliRunner
 import pytest
 
 from casparser import read_cas_pdf
-from casparser.exceptions import CASParseError
+from casparser.exceptions import CASParseError, IncorrectPasswordError
 
 
 class BaseTestClass:
@@ -75,7 +75,7 @@ class BaseTestClass:
             assert re.search(r"Error\s+:\s+0\s+schemes", clean_output) is not None
 
     def test_invalid_password(self):
-        with pytest.raises(CASParseError) as exc_info:
+        with pytest.raises(IncorrectPasswordError) as exc_info:
             self.read_pdf(self.cams_file_name, "")
         assert "Incorrect PDF password!" in str(exc_info)
 
