@@ -8,7 +8,7 @@ from typing import List, Iterator, Union, Any
 import fitz
 
 from casparser.enums import FileType
-from casparser.exceptions import CASParseError
+from casparser.exceptions import CASParseError, IncorrectPasswordError
 from .utils import is_close, InvestorInfo, PartialCASData
 
 
@@ -197,7 +197,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
         if doc.needsPass:
             rc = doc.authenticate(password)
             if not rc:
-                raise CASParseError("Incorrect PDF password!")
+                raise IncorrectPasswordError("Incorrect PDF password!")
 
         pages = []
         investor_info = None
