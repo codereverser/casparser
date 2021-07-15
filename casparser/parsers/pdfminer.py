@@ -11,7 +11,7 @@ from pdfminer.pdfpage import PDFPage
 from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
 
 from casparser.enums import FileType
-from casparser.exceptions import CASParseError
+from casparser.exceptions import CASParseError, IncorrectPasswordError
 from .utils import is_close, InvestorInfo, PartialCASData
 
 
@@ -122,7 +122,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
         try:
             document = PDFDocument(pdf_parser, password=password)
         except PDFPasswordIncorrect:
-            raise CASParseError("Incorrect PDF password!")
+            raise IncorrectPasswordError("Incorrect PDF password!")
         except PDFSyntaxError:
             raise CASParseError("Unhandled error while opening file")
 

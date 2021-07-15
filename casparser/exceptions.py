@@ -10,6 +10,10 @@ class CASParseError(ParserException):
     """Error while parsing pdf file."""
 
 
+class IncorrectPasswordError(CASParseError):
+    """Incorrect password error."""
+
+
 class CASIntegrityError(ParserException):
     """Error while processing transactions"""
 
