@@ -187,7 +187,7 @@ class FIFOUnits:
                 TransactionType.STAMP_DUTY_TAX.name,
             ):
                 merged_transactions[dt].tax += txn["amount"]
-            else:
+            elif txn["units"] is not None:
                 merged_transactions[dt].nav = txn["nav"]
                 merged_transactions[dt].units += txn["units"]
                 merged_transactions[dt].amount += txn["amount"]
