@@ -58,7 +58,7 @@ def get_transaction_type(
         else:
             txn_type = TransactionType.PURCHASE
     elif units < 0:
-        if re.search("reversal|rejection|dishonoured", description, re.I):
+        if re.search("reversal|rejection|dishonoured|mismatch", description, re.I):
             txn_type = TransactionType.REVERSAL
         elif "switch" in description:
             if "merger" in description:
