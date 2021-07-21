@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "casparser"
-version = "0.5.0"
+version = "0.5.1"
 description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
 authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
 homepage = "https://github.com/codereverser/casparser"
@@ -17,7 +17,7 @@ include = [ "CHANGELOG.md" ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-casparser-isin = ">=2021.7.1"
+casparser-isin = ">=2021.7.21"
 click = "^8.0.1"
 colorama = "^0.4.4"
 "pdfminer.six" = "20201018"

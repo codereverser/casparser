@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2021-07-21
+- gains: PnL report
+- support for migration of Franklin Templeton funds to CAMS RTA
+- various bug fixes
+
 ## 0.5.0 - 2021-07-02
 - Support for calculating capital gains from detailed CAS statements
 - support for parsing Tax Deducted at Source (`TDS`) transactions
