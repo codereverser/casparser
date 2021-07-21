@@ -162,6 +162,8 @@ class FIFOUnits:
         self._merged_transactions = self.merge_transactions()
 
         self.transactions = deque()
+        self.invested = Decimal(0.0)
+        self.balance = Decimal(0.0)
         self.gains: List[GainEntry] = []
 
         self.process()
@@ -205,6 +207,8 @@ class FIFOUnits:
 
     def buy(self, txn_date: date, quantity: Decimal, nav: Decimal, tax: Decimal):
         self.transactions.append((txn_date, quantity, nav, tax))
+        self.invested += quantity * nav
+        self.balance += quantity
 
     def sell(self, sell_date: date, quantity: Decimal, nav: Decimal, tax: Decimal):
         fin_year = get_fin_year(sell_date)
@@ -223,8 +227,6 @@ class FIFOUnits:
             stamp_duty = round(purchase_tax * gain_units / units, 2)
             stt = round(tax * gain_units / original_quantity, 2)
 
-            pending_units -= units
-
             ge = GainEntry(
                 fy=fin_year,
                 fund=self._fund,
@@ -238,6 +240,11 @@ class FIFOUnits:
                 units=gain_units,
             )
             self.gains.append(ge)
+
+            self.balance -= gain_units
+            self.invested -= purchase_value
+
+            pending_units -= units
             if pending_units < 0 and purchase_nav is not None:
                 # Sale is partially matched against the last buy transactions
                 # Re-add the remaining units to the FIFO queue
@@ -252,6 +259,8 @@ class CapitalGainsReport:
     def __init__(self, data: CASParserDataType):
         self._data: CASParserDataType = data
         self._gains: List[GainEntry] = []
+        self.invested_amount = Decimal(0.0)
+        self.current_value = Decimal(0.0)
         self.process_data()
 
     @property
@@ -273,6 +282,8 @@ class CapitalGainsReport:
                     fifo = FIFOUnits(
                         Fund(name=name, isin=scheme["isin"], type=scheme["type"]), transactions
                     )
+                    self.invested_amount += fifo.invested
+                    self.current_value += scheme["valuation"]["value"]
                     self._gains.extend(fifo.gains)
 
     def get_summary(self):

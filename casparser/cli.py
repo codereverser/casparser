@@ -194,6 +194,12 @@ def print_gains(data, output_file_path=None):
             fp.write(cg.get_gains_csv_data())
             console.print(f"Detailed gains report saved : [bold]{fname}[/]")
 
+    console.print(f"\n[bold]PnL[/] as of [bold]{data['statement_period']['to']}[/]")
+    console.print(f"{'Total Invested':20s}: [bold]₹{cg.invested_amount:,.2f}[/]")
+    console.print(f"{'Current Valuation':20s}: [bold]₹{cg.current_value:,.2f}[/]")
+    pnl = cg.current_value - cg.invested_amount
+    console.print(f"{'Absolute PnL':20s}: [bold {get_color(pnl)}]₹{pnl:,.2f}[/]")
+
 
 @click.command(name="casparser", context_settings=CONTEXT_SETTINGS)
 @click.option(
@@ -235,7 +241,7 @@ def cli(output, summary, password, include_all, gains, force_pdfminer, filename)
     if output is not None:
         output_ext = os.path.splitext(output)[-1].lower()
 
-    if not (summary or output_ext in (".csv", ".json")):
+    if not (summary or gains or output_ext in (".csv", ".json")):
         summary = True
     try:
         with Progress(
