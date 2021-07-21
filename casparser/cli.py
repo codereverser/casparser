@@ -186,11 +186,11 @@ def print_gains(data, output_file_path=None):
         if not ext.lower().endswith("csv"):
             return
         fname = f"{base_path}-gains-summary.csv"
-        with open(fname, "w") as fp:
+        with open(fname, "w", newline="", encoding="utf-8") as fp:
             fp.write(cg.get_summary_csv_data())
             console.print(f"Gains summary report saved : [bold]{fname}[/]")
         fname = f"{base_path}-gains-detailed.csv"
-        with open(fname, "w") as fp:
+        with open(fname, "w", newline="", encoding="utf-8") as fp:
             fp.write(cg.get_gains_csv_data())
             console.print(f"Detailed gains report saved : [bold]{fname}[/]")
 
