@@ -199,9 +199,9 @@ class FIFOUnits:
         self.gains = []
         for dt in sorted(self._merged_transactions.keys()):
             txn = self._merged_transactions[dt]
-            if txn.amount > 0:
+            if txn.units > 0:
                 self.buy(dt, txn.units, txn.nav, txn.tax)
-            elif txn.amount < 0:
+            elif txn.units < 0:
                 self.sell(dt, txn.units, txn.nav, txn.tax)
         return self.gains
 
