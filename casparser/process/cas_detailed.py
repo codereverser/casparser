@@ -63,7 +63,11 @@ def get_transaction_type(
                 txn_type = TransactionType.SWITCH_IN
         elif "segregat" in description:
             txn_type = TransactionType.SEGREGATION
-        elif "sip" in description or "systematic" in description:
+        elif (
+            "sip" in description
+            or "systematic" in description
+            or re.search("sys.+?invest", description, re.I | re.DOTALL)
+        ):
             txn_type = TransactionType.PURCHASE_SIP
         else:
             txn_type = TransactionType.PURCHASE
