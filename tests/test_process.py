@@ -5,6 +5,7 @@ import pytest
 from casparser.exceptions import CASParseError, HeaderParseError
 from casparser.process import process_cas_text
 from casparser.process.cas_detailed import parse_header, get_transaction_type
+from casparser.process.cas_detailed import ParsedTransaction, parse_transaction
 from casparser.process.cas_summary import parse_header as parse_summary_header
 from casparser.process.utils import isin_search
 from casparser.enums import TransactionType
@@ -47,7 +48,7 @@ class TestProcessClass:
             None,
         )
         assert get_transaction_type("*** TDS on Above ***", None) == (TransactionType.TDS_TAX, None)
-        assert get_transaction_type("Creation of units - Segregated portfolio", None) == (
+        assert get_transaction_type("Creation of units - Segregated portfolio", Decimal(1.0)) == (
             TransactionType.SEGREGATION,
             None,
         )
@@ -59,6 +60,17 @@ class TestProcessClass:
         assert get_transaction_type(
             "Purchase SIPCheque Dishonoured - Instalment No 108", Decimal(-1.0)
         ) == (TransactionType.REVERSAL, None)
+
+        assert parse_transaction(
+            "01-Jan-2021\t\tCreation of units - Segregated Portfolio\t\t1.000\t\t12,601.184"
+        ) == ParsedTransaction(
+            date="01-Jan-2021",
+            description="Creation of units - Segregated Portfolio",
+            units="1.000",
+            balance="12,601.184",
+            nav=None,
+            amount=None,
+        )
 
     def test_isin_search(self):
         isin, amfi, scheme_type = isin_search(
