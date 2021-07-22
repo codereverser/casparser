@@ -1,3 +1,4 @@
+from collections import namedtuple
 from decimal import Decimal
 import re
 from typing import Dict, Optional, Tuple
@@ -7,10 +8,19 @@ from dateutil import parser as date_parser
 from ..enums import TransactionType, CASFileType
 from ..exceptions import HeaderParseError, CASParseError
 from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
-from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE
-from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2, DESCRIPTION_TAIL_RE
+from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE, DESCRIPTION_TAIL_RE
+from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3
 from ..types import FolioType, SchemeType
 from .utils import isin_search
+
+ParsedTransaction = namedtuple(
+    "ParsedTransaction", ("date", "description", "amount", "units", "nav", "balance")
+)
+
+
+def str_to_decimal(value: Optional[str]) -> Decimal:
+    if isinstance(value, str):
+        return Decimal(value.replace(",", "_").replace("(", "-"))
 
 
 def parse_header(text):
@@ -41,8 +51,6 @@ def get_transaction_type(
             txn_type = TransactionType.STT_TAX
         elif "stamp" in description:
             txn_type = TransactionType.STAMP_DUTY_TAX
-        elif "segregat" in description:
-            txn_type = TransactionType.SEGREGATION
         elif "tds" in description:
             txn_type = TransactionType.TDS_TAX
         else:
@@ -53,6 +61,8 @@ def get_transaction_type(
                 txn_type = TransactionType.SWITCH_IN_MERGER
             else:
                 txn_type = TransactionType.SWITCH_IN
+        elif "segregat" in description:
+            txn_type = TransactionType.SEGREGATION
         elif "sip" in description or "systematic" in description:
             txn_type = TransactionType.PURCHASE_SIP
         else:
@@ -78,10 +88,22 @@ def get_transaction_type(
     return txn_type, dividend_rate
 
 
-def parse_transaction(line):
-    for regex in (TRANSACTION_RE1, TRANSACTION_RE2):
+def parse_transaction(line) -> Optional[ParsedTransaction]:
+    for regex in (TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3):
         if m := re.search(regex, line, re.DOTALL | re.MULTILINE | re.I):
-            return m
+            groups = m.groups()
+            date = description = amount = units = nav = balance = None
+            if groups.count(None) == 3:
+                # Tax entries
+                date, description, amount, *_ = groups
+            elif groups.count(None) == 2:
+                # Segregated Portfolio Entries
+                date, description, units, balance, *_ = groups
+            elif groups.count(None) == 0:
+                # Normal entries
+                date, description, amount, units, nav, balance = groups
+            if date is not None:
+                return ParsedTransaction(date, description, amount, units, nav, balance)
 
 
 def process_detailed_text(text):
@@ -172,24 +194,16 @@ def process_detailed_text(text):
         if m := re.search(DESCRIPTION_TAIL_RE, line):
             description_tail = m.group(1).strip()
             line = line.replace(m.group(1), "")
-        if m := parse_transaction(line):
-            date = date_parser.parse(m.group(1)).date()
-            desc = m.group(2).strip()
+        if parsed_txn := parse_transaction(line):
+            date = date_parser.parse(parsed_txn.date).date()
+            desc = parsed_txn.description.strip()
             if description_tail != "":
                 desc = " ".join([desc, description_tail])
-            amt = Decimal(m.group(3).replace(",", "_").replace("(", "-"))
-            if m.group(4) is None:
-                units = None
-                nav = None
-            else:
-                units = Decimal(m.group(4).replace(",", "_").replace("(", "-"))
-                nav = Decimal(m.group(5).replace(",", "_"))
-                balance = Decimal(m.group(6).replace(",", "_").replace("(", "-"))
+            amt = str_to_decimal(parsed_txn.amount)
+            units = str_to_decimal(parsed_txn.units)
+            nav = str_to_decimal(parsed_txn.nav)
+            balance = str_to_decimal(parsed_txn.balance)
             txn_type, dividend_rate = get_transaction_type(desc, units)
-            if txn_type == TransactionType.SEGREGATION:
-                units = balance = amt
-                amt = Decimal(0.0)
-                nav = Decimal(0.0)
             if units is not None:
                 curr_scheme_data["close_calculated"] += units
             curr_scheme_data["transactions"].append(
