@@ -72,6 +72,28 @@ class TestProcessClass:
             amount=None,
         )
 
+    def test_dividend_transactions(self):
+        assert get_transaction_type("IDCW Reinvestment @ Rs.2.00 per unit", Decimal(1.0)) == (
+            TransactionType.DIVIDEND_REINVEST,
+            Decimal("2.00"),
+        )
+        assert get_transaction_type("IDCW Reinvested @ Rs.0.0241 per unit", Decimal(1.0)) == (
+            TransactionType.DIVIDEND_REINVEST,
+            Decimal("0.0241"),
+        )
+        assert get_transaction_type("IDCW Paid @ Rs.0.06 per unit", Decimal(1.0)) == (
+            TransactionType.DIVIDEND_PAYOUT,
+            Decimal("0.06"),
+        )
+        # assert get_transaction_type("***IDCW Payout***", None) == (
+        #     TransactionType.DIVIDEND_PAYOUT,
+        #     None,
+        # )
+        assert get_transaction_type("Div. Reinvested @ Rs.0.0241 per unit", Decimal(1.0)) == (
+            TransactionType.DIVIDEND_REINVEST,
+            Decimal("0.0241"),
+        )
+
     def test_isin_search(self):
         isin, amfi, scheme_type = isin_search(
             "Axis Long Term Equity Fund - Direct Growth", "KFINTECH", "128TSDGG"
