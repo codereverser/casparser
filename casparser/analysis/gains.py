@@ -246,7 +246,7 @@ class FIFOUnits:
         fin_year = get_fin_year(sell_date)
         original_quantity = abs(quantity)
         pending_units = original_quantity
-        while pending_units > 0:
+        while pending_units >= 1e-3:
             purchase_date, units, purchase_nav, purchase_tax = self.transactions.popleft()
 
             if units <= pending_units:
@@ -332,7 +332,7 @@ class CapitalGainsReport:
 
     def get_summary_csv_data(self) -> str:
         """Return summary data as a csv string."""
-        headers = ["FY", "Fund", "ISIN", "Type", "LTCG", "LTCG(Taxable)", "STCG"]
+        headers = ["FY", "Fund", "ISIN", "Type", "LTCG(Realized)", "LTCG(Taxable)", "STCG"]
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)
@@ -357,7 +357,7 @@ class CapitalGainsReport:
             "Sale Date",
             "Sale Value",
             "STT",
-            "LTCG",
+            "LTCG Realized",
             "LTCG Taxable",
             "STCG",
         ]
