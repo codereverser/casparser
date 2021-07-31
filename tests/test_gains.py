@@ -1,9 +1,10 @@
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
 from casparser.enums import TransactionType
-from casparser.analysis.gains import get_fund_type, FundType
+from casparser.analysis.gains import get_fund_type, FundType, MergedTransaction
 from casparser.analysis.utils import CII, get_fin_year
 
 
@@ -66,3 +67,40 @@ class TestGainsClass:
             }
         )
         assert get_fund_type(transactions) == FundType.EQUITY
+
+    def test_merge_transaction(self):
+        dt = date(2000, 1, 1)
+        mt = MergedTransaction(dt)
+
+        mt.add(
+            {
+                "date": dt,
+                "description": "Segregation",
+                "amount": None,
+                "units": Decimal("1000.000"),
+                "nav": None,
+                "balance": Decimal("1000.000"),
+                "type": TransactionType.SEGREGATION.value,
+                "dividend_rate": None,
+            }
+        )
+        assert mt.sale_units == Decimal("0.00")
+        assert mt.purchase_units == Decimal("1000.000")
+        assert mt.nav == Decimal("0.00")
+        assert mt.purchase == Decimal("0.00")
+        assert mt.sale == Decimal("0.00")
+        assert mt.tds == Decimal("0.00")
+
+        mt.add(
+            {
+                "date": dt,
+                "description": "***TDS on above***",
+                "amount": Decimal("1.25"),
+                "units": None,
+                "nav": None,
+                "balance": Decimal("1000.000"),
+                "type": TransactionType.TDS_TAX.value,
+                "dividend_rate": None,
+            }
+        )
+        assert mt.tds == Decimal("1.25")

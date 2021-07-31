@@ -15,16 +15,56 @@ from casparser.enums import FundType, GainType, TransactionType
 from casparser.types import CASParserDataType, TransactionDataType
 from .utils import CII, get_fin_year, nav_search
 
+PURCHASE_TXNS = {
+    TransactionType.DIVIDEND_REINVEST.name,
+    TransactionType.PURCHASE.name,
+    TransactionType.PURCHASE_SIP.name,
+    TransactionType.REVERSAL.name,
+    TransactionType.SWITCH_IN.name,
+    TransactionType.SWITCH_IN_MERGER.name,
+}
+
+SALE_TXNS = {
+    TransactionType.REDEMPTION.name,
+    TransactionType.SWITCH_OUT.name,
+    TransactionType.SWITCH_OUT_MERGER.name,
+}
+
 
 @dataclass
 class MergedTransaction:
     """Represent net transaction on a given date"""
 
     dt: date
-    units: Decimal = Decimal(0.0)
     nav: Decimal = Decimal(0.0)
-    amount: Decimal = Decimal(0.0)
-    tax: Decimal = Decimal(0.0)
+    purchase: Decimal = Decimal(0.0)
+    purchase_units: Decimal = Decimal(0.0)
+    sale: Decimal = Decimal(0.0)
+    sale_units: Decimal = Decimal(0.0)
+    stamp_duty: Decimal = Decimal(0.0)
+    stt: Decimal = Decimal(0.0)
+    tds: Decimal = Decimal(0.0)
+
+    def add(self, txn: TransactionDataType):
+        txn_type = txn["type"]
+        if txn_type in PURCHASE_TXNS and txn["units"] is not None:
+            self.nav = txn["nav"]
+            self.purchase_units += txn["units"]
+            self.purchase += txn["amount"]
+        elif txn_type in SALE_TXNS and txn["units"] is not None:
+            self.nav = txn["nav"]
+            self.sale_units += txn["units"]
+            self.sale += txn["amount"]
+        elif txn_type == TransactionType.STT_TAX.name:
+            self.stt += txn["amount"]
+        elif txn_type == TransactionType.STAMP_DUTY_TAX.name:
+            self.stamp_duty += txn["amount"]
+        elif txn_type == TransactionType.TDS_TAX.name:
+            self.tds += txn["amount"]
+        elif txn_type == TransactionType.SEGREGATION.name:
+            self.nav = Decimal(0.0)
+            self.purchase_units += txn["units"]
+            self.purchase = Decimal(0.0)
 
 
 @dataclass
@@ -184,25 +224,17 @@ class FIFOUnits:
 
             if dt not in merged_transactions:
                 merged_transactions[dt] = MergedTransaction(dt)
-            if txn["type"] in (
-                TransactionType.STT_TAX.name,
-                TransactionType.STAMP_DUTY_TAX.name,
-            ):
-                merged_transactions[dt].tax += txn["amount"]
-            elif txn["units"] is not None:
-                merged_transactions[dt].nav = txn["nav"]
-                merged_transactions[dt].units += txn["units"]
-                merged_transactions[dt].amount += txn["amount"]
+            merged_transactions[dt].add(txn)
         return merged_transactions
 
     def process(self):
         self.gains = []
         for dt in sorted(self._merged_transactions.keys()):
             txn = self._merged_transactions[dt]
-            if txn.units > 0:
-                self.buy(dt, txn.units, txn.nav, txn.tax)
-            elif txn.units < 0:
-                self.sell(dt, txn.units, txn.nav, txn.tax)
+            if txn.purchase_units > 0:
+                self.buy(dt, txn.purchase_units, txn.nav, txn.stamp_duty)
+            if txn.sale_units < 0:
+                self.sell(dt, txn.sale_units, txn.nav, txn.stt)
         return self.gains
 
     def buy(self, txn_date: date, quantity: Decimal, nav: Decimal, tax: Decimal):

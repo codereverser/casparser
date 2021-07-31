@@ -21,7 +21,7 @@ class TransactionDataType(TypedDict):
 
     date: Union[date, str]
     description: str
-    amount: Union[Decimal, float]
+    amount: Union[Decimal, float, None]
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
     balance: Union[Decimal, float]
