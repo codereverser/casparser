@@ -24,7 +24,7 @@ class TransactionDataType(TypedDict):
     amount: Union[Decimal, float, None]
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
-    balance: Union[Decimal, float]
+    balance: Union[Decimal, float, None]
     type: str
     dividend_rate: Union[Decimal, float, None]
 
