@@ -12,6 +12,7 @@ SUMMARY_ROW_RE = (
 )
 SCHEME_TAIL_RE = r"(\n.+?)\t\t"
 
+AMC_RE = r"^(.+?\s+(MF|Mutual\s*Fund)|franklin\s+templeton\s+investments)$"
 FOLIO_RE = (
     r"Folio\s+No\s*:\s+([\d/\s]+)\s*.*?(?:PAN\s*:\s*([A-Z]{5}\d{4}[A-Z])\s+)?.*?"
     r"(?:KYC\s*:\s*(OK|NOT\s+OK))?\s*.*?(?:PAN\s*:\s*(OK|NOT\s+OK))?$"
