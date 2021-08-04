@@ -7,7 +7,7 @@ from dateutil import parser as date_parser
 
 from ..enums import TransactionType, CASFileType
 from ..exceptions import HeaderParseError, CASParseError
-from .regex import DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
+from .regex import AMC_RE, DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
 from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE, DESCRIPTION_TAIL_RE
 from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3
 from ..types import FolioType, SchemeType
@@ -130,7 +130,7 @@ def process_detailed_text(text):
         # "Registrar" column to the previous line
         if re.search(REGISTRAR_RE, line):
             line = "\t\t".join([lines[idx + 1], line])
-        if amc_match := re.search(r"^(.+?)\s+(MF|Mutual\s+Fund)$", line, re.I | re.DOTALL):
+        if amc_match := re.search(AMC_RE, line, re.I | re.DOTALL):
             current_amc = amc_match.group(0)
         elif m := re.search(FOLIO_RE, line, re.I | re.DOTALL):
             folio = m.group(1).strip()
