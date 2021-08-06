@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 - 2021-08-07
+- fix crash while generating capital gains reports on dividend payout funds
+- rework capital gains algorithm
+- various bug fixes
+
 ## 0.5.1 - 2021-07-21
 - gains: PnL report
 - support for migration of Franklin Templeton funds to CAMS RTA
