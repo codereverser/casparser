@@ -16,7 +16,7 @@ from .__version__ import __version__
 from . import read_cas_pdf
 from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
-from .exceptions import ParserException, IncompleteCASError
+from .exceptions import ParserException, IncompleteCASError, GainsError
 from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -147,7 +147,11 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
 
 
 def print_gains(data, output_file_path=None):
-    cg = CapitalGainsReport(data)
+    try:
+        cg = CapitalGainsReport(data)
+    except GainsError as exc:
+        console.print(exc)
+        return
     summary = cg.get_summary()
     table = Table(title="Capital Gains statement (Realised)", show_lines=True)
     table.add_column("FY", no_wrap=True)

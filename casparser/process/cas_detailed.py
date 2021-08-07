@@ -66,6 +66,7 @@ def get_transaction_type(
         elif (
             "sip" in description
             or "systematic" in description
+            or re.search("instal+ment", description, re.I)
             or re.search("sys.+?invest", description, re.I | re.DOTALL)
         ):
             txn_type = TransactionType.PURCHASE_SIP

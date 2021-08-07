@@ -20,3 +20,7 @@ class CASIntegrityError(ParserException):
 
 class IncompleteCASError(ParserException):
     """CAS is not complete for running analysis modules"""
+
+
+class GainsError(ParserException):
+    """Unhandled Error computing gains"""

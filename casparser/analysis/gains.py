@@ -10,7 +10,7 @@ from typing import List
 from dateutil.parser import parse as dateparse
 from dateutil.relativedelta import relativedelta
 
-from casparser.exceptions import IncompleteCASError
+from casparser.exceptions import IncompleteCASError, GainsError
 from casparser.enums import FundType, GainType, TransactionType
 from casparser.types import CASParserDataType, TransactionDataType
 from .utils import CII, get_fin_year, nav_search
@@ -247,7 +247,12 @@ class FIFOUnits:
         original_quantity = abs(quantity)
         pending_units = original_quantity
         while pending_units >= 1e-3:
-            purchase_date, units, purchase_nav, purchase_tax = self.transactions.popleft()
+            try:
+                purchase_date, units, purchase_nav, purchase_tax = self.transactions.popleft()
+            except IndexError:
+                raise GainsError(
+                    f"Error computing gains for {self._fund.name}. Please contact support."
+                )
 
             if units <= pending_units:
                 gain_units = units

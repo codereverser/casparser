@@ -4,7 +4,8 @@ from decimal import Decimal
 import pytest
 
 from casparser.enums import TransactionType
-from casparser.analysis.gains import get_fund_type, FundType, MergedTransaction
+from casparser.exceptions import GainsError
+from casparser.analysis.gains import get_fund_type, FundType, MergedTransaction, FIFOUnits, Fund
 from casparser.analysis.utils import CII, get_fin_year
 
 
@@ -38,7 +39,7 @@ class TestGainsClass:
                 "dividend_rate": None,
             },
         ]
-        assert get_fund_type([]) == FundType.UNKNOWN
+        assert get_fund_type(transactions) == FundType.UNKNOWN
 
         transactions.append(
             {
@@ -104,3 +105,21 @@ class TestGainsClass:
             }
         )
         assert mt.tds == Decimal("1.25")
+
+    def test_gains_error(self):
+        test_fund = Fund("demo fund", "INF123456789", "EQUITY")
+        dt = date(2000, 1, 1)
+        transactions = [
+            {
+                "date": dt,
+                "description": "***Redemption***",
+                "amount": Decimal("-5000.00"),
+                "units": Decimal("-100.000"),
+                "nav": Decimal("50.000"),
+                "balance": Decimal("500.00"),
+                "type": TransactionType.REDEMPTION.value,
+                "dividend_rate": None,
+            }
+        ]
+        with pytest.raises(GainsError):
+            FIFOUnits(test_fund, transactions)
