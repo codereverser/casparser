@@ -38,7 +38,7 @@ class _CII(UserDict):
         self._max_year = self.years[-1]
 
     def __missing__(self, key):
-        if not re.search(r"FY\d{4}-\d{2}", key):
+        if not re.search(r"FY\d{4}-\d{2,4}", key):
             raise ValueError("Invalid FY year format.")
         elif key <= self._min_year:
             return self.data[self._min_year]
@@ -65,4 +65,4 @@ def get_fin_year(dt: date):
     if year1 % 100 != 99:
         year2 %= 100
 
-    return f"FY{year1}-{year2}"
+    return f"FY{year1}-{year2:02d}"
