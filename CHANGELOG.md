@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.5.2 - 2021-08-07
+## 0.5.2 - 2021-08-11
 - fix crash while generating capital gains reports on dividend payout funds
 - rework capital gains algorithm
+- add `advisor` column in transactions csv
 - various bug fixes
 
 ## 0.5.1 - 2021-07-21
