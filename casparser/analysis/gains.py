@@ -246,14 +246,13 @@ class FIFOUnits:
         fin_year = get_fin_year(sell_date)
         original_quantity = abs(quantity)
         pending_units = original_quantity
-        while pending_units >= 1e-3:
+        while pending_units >= 1e-2:
             try:
                 purchase_date, units, purchase_nav, purchase_tax = self.transactions.popleft()
             except IndexError:
                 raise GainsError(
-                    f"Error computing gains for {self._fund.name}. Please contact support."
+                    f"FIFOUnits mismatch for {self._fund.name}. Please contact support."
                 )
-
             if units <= pending_units:
                 gain_units = units
             else:

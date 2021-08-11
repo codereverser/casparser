@@ -147,11 +147,7 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
 
 
 def print_gains(data, output_file_path=None):
-    try:
-        cg = CapitalGainsReport(data)
-    except GainsError as exc:
-        console.print(exc)
-        return
+    cg = CapitalGainsReport(data)
     summary = cg.get_summary()
     table = Table(title="Capital Gains statement (Realised)", show_lines=True)
     table.add_column("FY", no_wrap=True)
@@ -287,6 +283,8 @@ def cli(output, summary, password, include_all, gains, force_pdfminer, filename)
         except IncompleteCASError:
             console.print("[bold red]Error![/] - Cannot compute gains. CAS is incomplete!")
             sys.exit(2)
+        except GainsError as exc:
+            console.print(exc)
 
 
 if __name__ == "__main__":
