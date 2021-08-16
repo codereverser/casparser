@@ -20,6 +20,8 @@ PURCHASE_TXNS = {
     TransactionType.PURCHASE.name,
     TransactionType.PURCHASE_SIP.name,
     TransactionType.REVERSAL.name,
+    # Segregated folios are not supported
+    # TransactionType.SEGREGATION.name,
     TransactionType.SWITCH_IN.name,
     TransactionType.SWITCH_IN_MERGER.name,
 }
@@ -295,6 +297,7 @@ class CapitalGainsReport:
     def __init__(self, data: CASParserDataType):
         self._data: CASParserDataType = data
         self._gains: List[GainEntry] = []
+        self.errors = []
         self.invested_amount = Decimal(0.0)
         self.current_value = Decimal(0.0)
         self.process_data()
@@ -302,6 +305,9 @@ class CapitalGainsReport:
     @property
     def gains(self) -> List[GainEntry]:
         return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sale_date)))
+
+    def has_error(self) -> bool:
+        return len(self.errors) > 0
 
     def process_data(self):
         self._gains = []
@@ -315,12 +321,15 @@ class CapitalGainsReport:
                             "Incomplete CAS found. For gains computation, "
                             "all folios should have zero opening balance"
                         )
-                    fifo = FIFOUnits(
-                        Fund(name=name, isin=scheme["isin"], type=scheme["type"]), transactions
-                    )
-                    self.invested_amount += fifo.invested
-                    self.current_value += scheme["valuation"]["value"]
-                    self._gains.extend(fifo.gains)
+                    try:
+                        fifo = FIFOUnits(
+                            Fund(name=name, isin=scheme["isin"], type=scheme["type"]), transactions
+                        )
+                        self.invested_amount += fifo.invested
+                        self.current_value += scheme["valuation"]["value"]
+                        self._gains.extend(fifo.gains)
+                    except GainsError as exc:
+                        self.errors.append((name, str(exc)))
 
     def get_summary(self):
         """Calculate capital gains summary"""

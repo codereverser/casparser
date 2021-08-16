@@ -7,6 +7,7 @@ from typing import Union
 
 import click
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.progress import BarColumn, TextColumn, SpinnerColumn, Progress
 from rich.table import Table
@@ -193,6 +194,13 @@ def print_gains(data, output_file_path=None):
         with open(fname, "w", newline="", encoding="utf-8") as fp:
             fp.write(cg.get_gains_csv_data())
             console.print(f"Detailed gains report saved : [bold]{fname}[/]")
+
+    if cg.has_error():
+        console.print("[bold red]WARNING[/] Failed to calculate gains for the following funds.")
+        md_txt = []
+        for scheme, _ in cg.errors:
+            md_txt.append(f"- {scheme}")
+        console.print(Markdown("\n".join(md_txt)))
 
     console.print(f"\n[bold]PnL[/] as of [bold]{data['statement_period']['to']}[/]")
     console.print(f"{'Total Invested':20s}: [bold]₹{cg.invested_amount:,.2f}[/]")

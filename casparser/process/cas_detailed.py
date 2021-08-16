@@ -152,6 +152,7 @@ def process_detailed_text(text):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
             scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
+            scheme = re.sub(r"\s+", " ", scheme).strip()
             if curr_scheme_data.get("scheme") != scheme:
                 if curr_scheme_data:
                     folios[current_folio]["schemes"].append(curr_scheme_data)
