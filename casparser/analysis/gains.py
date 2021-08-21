@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import date
 import io
 import itertools
-from typing import List
+from typing import List, Optional
 
 from dateutil.parser import parse as dateparse
 from dateutil.relativedelta import relativedelta
@@ -31,6 +31,46 @@ SALE_TXNS = {
     TransactionType.SWITCH_OUT.name,
     TransactionType.SWITCH_OUT_MERGER.name,
 }
+
+
+@dataclass
+class GainEntry112A:
+    """GainEntry for schedule 112A of ITR."""
+
+    acquired: str  # AE, BE
+    isin: str
+    name: str
+    units: Decimal
+    sale_nav: Decimal
+    sale_value: Decimal
+    purchase_value: Decimal
+    fmv_nav: Decimal
+    fmv: Decimal
+    stt: Decimal
+    stamp_duty: Decimal
+
+    @property
+    def consideration_value(self):
+        if self.acquired == "BE":
+            return min(self.fmv, self.sale_value)
+        else:
+            return Decimal("0.00")  # FMV not considered
+
+    @property
+    def actual_coa(self):
+        return max(self.purchase_value, self.consideration_value)
+
+    @property
+    def expenditure(self):
+        return self.stt + self.stamp_duty
+
+    @property
+    def deductions(self):
+        return self.actual_coa + self.expenditure
+
+    @property
+    def balance(self):
+        return self.sale_value - self.deductions
 
 
 @dataclass
@@ -73,12 +113,17 @@ class MergedTransaction:
 class Fund:
     """Fund details"""
 
-    name: str
+    scheme: str
+    folio: str
     isin: str
     type: str
 
+    @property
+    def name(self):
+        return f"{self.scheme} [{self.folio}]"
+
     def __lt__(self, other: "Fund"):
-        return self.name < other.name
+        return self.scheme < other.scheme
 
 
 @dataclass
@@ -89,9 +134,11 @@ class GainEntry:
     fund: Fund
     type: str
     purchase_date: date
+    purchase_nav: Decimal
     purchase_value: Decimal
     stamp_duty: Decimal
     sale_date: date
+    sale_nav: Decimal
     sale_value: Decimal
     stt: Decimal
     units: Decimal
@@ -120,12 +167,16 @@ class GainEntry:
         return Decimal(round(self.sale_value - self.purchase_value, 2))
 
     @property
-    def fmv(self) -> Decimal:
+    def fmv_nav(self) -> Decimal:
         if self.fund.isin != self._cached_isin:
             self.__update_nav()
-        if self._cached_nav is None:
+        return self._cached_nav
+
+    @property
+    def fmv(self) -> Decimal:
+        if self.fmv_nav is None:
             return self.purchase_value
-        return self._cached_nav * self.units
+        return self.fmv_nav * self.units
 
     @property
     def index_ratio(self) -> Decimal:
@@ -270,9 +321,11 @@ class FIFOUnits:
                 fund=self._fund,
                 type=self.fund_type.name,
                 purchase_date=purchase_date,
+                purchase_nav=purchase_nav,
                 purchase_value=purchase_value,
                 stamp_duty=stamp_duty,
                 sale_date=sell_date,
+                sale_nav=nav,
                 sale_value=sale_value,
                 stt=stt,
                 units=gain_units,
@@ -306,15 +359,26 @@ class CapitalGainsReport:
     def gains(self) -> List[GainEntry]:
         return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sale_date)))
 
+    def has_gains(self) -> bool:
+        return len(self.gains) > 0
+
     def has_error(self) -> bool:
         return len(self.errors) > 0
+
+    def get_fy_list(self) -> List[str]:
+        return list(sorted(set([f.fy for f in self.gains]), reverse=True))
 
     def process_data(self):
         self._gains = []
         for folio in self._data.get("folios", []):
             for scheme in folio.get("schemes", []):
-                name = f"{scheme['scheme']} [{folio['folio']}]"
                 transactions = scheme["transactions"]
+                fund = Fund(
+                    scheme=scheme["scheme"],
+                    folio=folio["folio"],
+                    isin=scheme["isin"],
+                    type=scheme["type"],
+                )
                 if len(transactions) > 0:
                     if scheme["open"] >= 0.01:
                         raise IncompleteCASError(
@@ -322,14 +386,12 @@ class CapitalGainsReport:
                             "all folios should have zero opening balance"
                         )
                     try:
-                        fifo = FIFOUnits(
-                            Fund(name=name, isin=scheme["isin"], type=scheme["type"]), transactions
-                        )
+                        fifo = FIFOUnits(fund, transactions)
                         self.invested_amount += fifo.invested
                         self.current_value += scheme["valuation"]["value"]
                         self._gains.extend(fifo.gains)
                     except GainsError as exc:
-                        self.errors.append((name, str(exc)))
+                        self.errors.append((fund.name, str(exc)))
 
     def get_summary(self):
         """Calculate capital gains summary"""
@@ -395,6 +457,103 @@ class CapitalGainsReport:
                         gain.ltcg,
                         gain.ltcg_taxable,
                         gain.stcg,
+                    ]
+                )
+            csv_fp.seek(0)
+            csv_data = csv_fp.read()
+            return csv_data
+
+    def generate_112a(self, fy) -> List[GainEntry112A]:
+        fy_transactions = sorted(
+            list(filter(lambda x: x.fy == fy and x.fund.type == "EQUITY", self.gains)),
+            key=lambda x: x.fund,
+        )
+        rows: List[GainEntry112A] = []
+        for fund, txns in itertools.groupby(fy_transactions, key=lambda x: x.fund):
+            consolidated_entry: Optional[GainEntry112A] = None
+            entries = []
+            for txn in txns:
+                if txn.purchase_date <= date(2018, 1, 31):
+                    entries.append(
+                        GainEntry112A(
+                            "BE",
+                            fund.isin,
+                            fund.scheme,
+                            txn.units,
+                            txn.sale_nav,
+                            txn.sale_value,
+                            txn.purchase_value,
+                            txn.fmv_nav,
+                            txn.fmv,
+                            txn.stt,
+                            txn.stamp_duty,
+                        )
+                    )
+                else:
+                    if consolidated_entry is None:
+                        consolidated_entry = GainEntry112A(
+                            "AE",
+                            fund.isin,
+                            fund.scheme,
+                            txn.units,
+                            txn.sale_nav,
+                            txn.sale_value,
+                            txn.purchase_value,
+                            Decimal(0.0),
+                            Decimal(0.0),
+                            txn.stt,
+                            txn.stamp_duty,
+                        )
+                    else:
+                        consolidated_entry.purchase_value += txn.purchase_value
+                        consolidated_entry.stt += txn.stt
+                        consolidated_entry.stamp_duty += txn.stamp_duty
+                        consolidated_entry.units += txn.units
+                        consolidated_entry.sale_value += txn.sale_value
+                        consolidated_entry.sale_nav = Decimal(round(txn.sale_value / txn.units, 3))
+            rows.extend(entries)
+            if consolidated_entry is not None:
+                rows.append(consolidated_entry)
+        return rows
+
+    def generate_112a_csv_data(self, fy):
+        headers = [
+            "Share/Unit acquired(1a)",
+            "ISIN Code(2)",
+            "Name of the Share/Unit(3)",
+            "No. of Shares/Units(4)",
+            "Sale-price per Share/Unit(5)",
+            "Full Value of Consideration(Total Sale Value)(6) = 4 * 5",
+            "Cost of acquisition without indexation(7)",
+            "Cost of acquisition(8)",
+            "If the long term capital asset was acquired before 01.02.2018(9)",
+            "Fair Market Value per share/unit as on 31st January 2018(10)",
+            "Total Fair Market Value of capital asset as per section 55(2)(ac)(11) = 4 * 10",
+            "Expenditure wholly and exclusively in connection with transfer(12)",
+            "Total deductions(13) = 7 + 12",
+            "Balance(14) = 6 - 13",
+        ]
+        with io.StringIO() as csv_fp:
+            writer = csv.writer(csv_fp)
+            writer.writerow(headers)
+
+            for row in self.generate_112a(fy):
+                writer.writerow(
+                    [
+                        row.acquired,
+                        row.isin,
+                        row.name,
+                        str(row.units),
+                        str(row.sale_nav),
+                        str(row.sale_value),
+                        str(row.actual_coa),
+                        str(row.purchase_value),
+                        str(row.consideration_value),
+                        str(row.fmv_nav),
+                        str(row.fmv),
+                        str(row.expenditure),
+                        str(row.deductions),
+                        str(row.balance),
                     ]
                 )
             csv_fp.seek(0)

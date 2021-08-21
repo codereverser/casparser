@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.progress import BarColumn, TextColumn, SpinnerColumn, Progress
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from .__version__ import __version__
@@ -22,6 +23,10 @@ from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 console = Console()
+
+
+def validate_fy(ctx, param, value):
+    return re.search(r"FY\d{4}-\d{2,4}", value, re.I) is not None
 
 
 def get_color(amount: Union[Decimal, float, int]):
@@ -147,8 +152,13 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         console.print(f"File saved : [bold]{output_filename}[/]")
 
 
-def print_gains(data, output_file_path=None):
+def print_gains(data, output_file_path=None, gains_112a=""):
     cg = CapitalGainsReport(data)
+
+    if not cg.has_gains():
+        console.print("[bold yellow]Warning:[/] No capital gains info found in CAS")
+        return
+
     summary = cg.get_summary()
     table = Table(title="Capital Gains statement (Realised)", show_lines=True)
     table.add_column("FY", no_wrap=True)
@@ -182,6 +192,17 @@ def print_gains(data, output_file_path=None):
             f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
         )
     console.print(table)
+
+    if gains_112a != "":
+        if output_file_path is None:
+            console.print(
+                "[bold yellow]Warning:[/] `gains_112a` option requires an output "
+                "csv file path via `-o` argument. Cannot continue..."
+            )
+            return
+
+        save_gains_112a(cg, gains_112a, output_file_path)
+
     if isinstance(output_file_path, str):
         base_path, ext = os.path.splitext(output_file_path)
         if not ext.lower().endswith("csv"):
@@ -207,6 +228,27 @@ def print_gains(data, output_file_path=None):
     console.print(f"{'Current Valuation':20s}: [bold]₹{cg.current_value:,.2f}[/]")
     pnl = cg.current_value - cg.invested_amount
     console.print(f"{'Absolute PnL':20s}: [bold {get_color(pnl)}]₹{pnl:,.2f}[/]")
+
+
+def save_gains_112a(capital_gains: CapitalGainsReport, fy, output_path):
+    fy = fy.upper()
+    fy_list = capital_gains.get_fy_list()
+    if fy == "ASK":
+        fy = Prompt.ask("Enter FY year: ", choices=fy_list, default=fy_list[0])
+    else:
+        if fy.upper() not in fy_list:
+            console.print(
+                f"[bold red]Warning:[/] No capital gains found for {fy}. "
+                f"Please try with `--gains112a ask` option"
+            )
+            return
+    base_path, ext = os.path.splitext(output_path)
+    csv_data = capital_gains.generate_112a_csv_data(fy.upper())
+    fname = f"{base_path}-{fy}-gains-112a.csv"
+
+    with open(fname, "w", newline="", encoding="utf-8") as fp:
+        fp.write(csv_data)
+        console.print(f"gains report (112a) saved : [bold]{fname}[/]")
 
 
 @click.command(name="casparser", context_settings=CONTEXT_SETTINGS)
@@ -239,11 +281,18 @@ def print_gains(data, output_file_path=None):
 )
 @click.option("-g", "--gains", is_flag=True, help="Generate Capital Gains Report (BETA)")
 @click.option(
+    "--gains-112a",
+    help="Generate Capital Gains Report - 112A format for a financial year - "
+    "Use 'ask' for a prompt from available options (BETA)",
+    default="",
+    metavar="ask|FY2020-21",
+)
+@click.option(
     "--force-pdfminer", is_flag=True, help="Force PDFMiner parser even if MuPDF is detected"
 )
 @click.version_option(__version__, prog_name="casparser-cli")
 @click.argument("filename", type=click.Path(exists=True), metavar="CAS_PDF_FILE")
-def cli(output, summary, password, include_all, gains, force_pdfminer, filename):
+def cli(output, summary, password, include_all, gains, gains_112a, force_pdfminer, filename):
     """CLI function."""
     output_ext = None
     if output is not None:
@@ -285,9 +334,13 @@ def cli(output, summary, password, include_all, gains, force_pdfminer, filename)
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
         console.print(f"File saved : [bold]{output}[/]")
-    if gains:
+    if gains or gains_112a:
         try:
-            print_gains(data, output_file_path=output if output_ext == ".csv" else None)
+            print_gains(
+                data,
+                output_file_path=output if output_ext == ".csv" else None,
+                gains_112a=gains_112a,
+            )
         except IncompleteCASError:
             console.print("[bold red]Error![/] - Cannot compute gains. CAS is incomplete!")
             sys.exit(2)

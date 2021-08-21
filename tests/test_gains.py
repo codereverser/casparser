@@ -107,7 +107,7 @@ class TestGainsClass:
         assert mt.tds == Decimal("1.25")
 
     def test_gains_error(self):
-        test_fund = Fund("demo fund", "INF123456789", "EQUITY")
+        test_fund = Fund("demo fund", "123", "INF123456789", "EQUITY")
         dt = date(2000, 1, 1)
         transactions = [
             {

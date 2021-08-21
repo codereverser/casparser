@@ -60,6 +60,8 @@ class TestMuPDF(BaseTestClass):
                 fpath.strpath,
                 "-s",
                 "-g",
+                "--gains-112a",
+                "FY2020-21",
             ],
         )
         assert result.exit_code != 1
