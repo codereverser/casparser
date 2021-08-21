@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3 - 2021-08-21
+- support for generating csv files for capital gains in 112A format for income tax filing
+- various bug fixes
+
 ## 0.5.2 - 2021-08-11
 - fix crash while generating capital gains reports on dividend payout funds
 - rework capital gains algorithm

@@ -10,7 +10,8 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 
 `casparser` also includes a command line tool with the following analysis tools
 - `summary`- print portfolio summary
-- `gains`- Print capital gains report (summary and detailed) 
+- (**BETA**) `gains` - Print capital gains report (summary and detailed)
+  - with option to generate csv files for ITR in schedule 112A format
 
 
 ## Installation
@@ -133,8 +134,10 @@ Usage: casparser [-o output_file.json|output_file.csv] [-p password] [-s] [-a] C
   -p PASSWORD                     CAS password
   -a, --include-all               Include schemes with zero valuation in the
                                   summary output
-  -g, --gains                     Generate Capital Gains Report (BETA) [Debt fund indexation not 
-                                  considered]
+  -g, --gains                     Generate Capital Gains Report (BETA)
+  --gains-112a ask|FY2020-21      Generate Capital Gains Report - 112A format for
+                                  a given financial year - Use 'ask' for a prompt 
+                                  from available options (BETA)
   --force-pdfminer                Force PDFMiner parser even if MuPDF is
                                   detected
 

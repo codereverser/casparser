@@ -228,6 +228,10 @@ def print_gains(data, output_file_path=None, gains_112a=""):
     console.print(f"{'Current Valuation':20s}: [bold]₹{cg.current_value:,.2f}[/]")
     pnl = cg.current_value - cg.invested_amount
     console.print(f"{'Absolute PnL':20s}: [bold {get_color(pnl)}]₹{pnl:,.2f}[/]")
+    console.print(
+        "\n[bold yellow]Warning:[/] Capital gains module is in beta stage. "
+        "Please verify the generated data manually."
+    )
 
 
 def save_gains_112a(capital_gains: CapitalGainsReport, fy, output_path):
