@@ -17,14 +17,14 @@ include = [ "CHANGELOG.md" ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-casparser-isin = ">=2021.7.21"
-click = "^8.0.1"
+casparser-isin = ">=2021.9.1"
+click = ">=7.0,<9.0"
 colorama = "^0.4.4"
 "pdfminer.six" = "20201018"
 python-dateutil = "^2.8.1"
 rich = "^10.1.0"
 typing-extensions = "^3.10"
-PyMuPDF = {version = "^1.18.14", optional = true}
+PyMuPDF = {version = "^1.18.17", optional = true}
 
 [tool.poetry.extras]
 mupdf = ["PyMuPDF"]
@@ -33,6 +33,7 @@ mupdf = ["PyMuPDF"]
 coverage = {version = "^5.5", extras=["toml"]}
 pytest = "^6.2.3"
 pytest-cov = "^2.11.1"
+pre-commit = "*"
 
 [tool.poetry.scripts]
 casparser = 'casparser.cli:cli'
