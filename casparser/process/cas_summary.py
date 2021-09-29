@@ -31,7 +31,6 @@ def process_summary_text(text):
     folios = {}
     current_folio = None
     current_amc = "N/A"
-    curr_scheme_data = {}
     lines = text.split("\u2029")
     for line in lines:
         if len(folios) > 0 and re.search("Total", line, re.I):
@@ -49,31 +48,27 @@ def process_summary_text(text):
                     "schemes": [],
                 }
             scheme = re.sub(r"\(formerly.+?\)", "", m.group(3), flags=re.I | re.DOTALL).strip()
-            if curr_scheme_data.get("scheme") != scheme:
-                if curr_scheme_data:
-                    folios[current_folio]["schemes"].append(curr_scheme_data)
-                rta = m.group(8).strip()
-                rta_code = m.group(2).strip()
-                isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
-                curr_scheme_data = {
-                    "scheme": scheme,
-                    "advisor": "N/A",
-                    "rta_code": rta_code,
-                    "rta": rta,
-                    "isin": isin,
-                    "amfi": amfi,
-                    "type": scheme_type or "N/A",
-                    "open": Decimal(m.group(4).replace(",", "_")),
-                    "close": Decimal(m.group(4).replace(",", "_")),
-                    "valuation": {
-                        "date": date_parser.parse(m.group(5)).date(),
-                        "nav": Decimal(m.group(6).replace(",", "_")),
-                        "value": Decimal(m.group(7).replace(",", "_")),
-                    },
-                    "transactions": [],
-                }
-    if curr_scheme_data:
-        folios[current_folio]["schemes"].append(curr_scheme_data)
+            rta = m.group(8).strip()
+            rta_code = m.group(2).strip()
+            isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
+            scheme_data = {
+                "scheme": scheme,
+                "advisor": "N/A",
+                "rta_code": rta_code,
+                "rta": rta,
+                "isin": isin,
+                "amfi": amfi,
+                "type": scheme_type or "N/A",
+                "open": Decimal(m.group(4).replace(",", "_")),
+                "close": Decimal(m.group(4).replace(",", "_")),
+                "valuation": {
+                    "date": date_parser.parse(m.group(5)).date(),
+                    "nav": Decimal(m.group(6).replace(",", "_")),
+                    "value": Decimal(m.group(7).replace(",", "_")),
+                },
+                "transactions": [],
+            }
+            folios[current_folio]["schemes"].append(scheme_data)
     return {
         "cas_type": CASFileType.SUMMARY.name,
         "statement_period": statement_period,
