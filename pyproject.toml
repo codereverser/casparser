@@ -33,7 +33,8 @@ mupdf = ["PyMuPDF"]
 coverage = {version = "^5.5", extras=["toml"]}
 pytest = "^6.2.3"
 pytest-cov = "^2.11.1"
-pre-commit = "*"
+pre-commit = "2.15.0"
+virtualenv = "<20.8.0"
 
 [tool.poetry.scripts]
 casparser = 'casparser.cli:cli'
