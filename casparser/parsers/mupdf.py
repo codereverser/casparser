@@ -194,7 +194,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
         except Exception as e:
             raise CASParseError("Unhandled error while opening file :: %s" % (str(e)))
 
-        if doc.needsPass:
+        if doc.needs_pass:
             rc = doc.authenticate(password)
             if not rc:
                 raise IncorrectPasswordError("Incorrect PDF password!")
@@ -203,7 +203,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
         investor_info = None
 
         for page in doc:
-            text_page = page.getTextPage()
+            text_page = page.get_textpage()
             page_dict = text_page.extractDICT()
             blocks = extract_blocks(page_dict)
             if file_type == FileType.UNKNOWN:

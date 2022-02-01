@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.4 - 2022-02-01
+- bug fix in CAS summary statement parser
+
 ## 0.5.3 - 2021-08-21
 - support for generating csv files for capital gains in 112A format for income tax filing
 - various bug fixes
@@ -29,11 +32,11 @@
 - Minor bug fixes in summary-statement parser.
 - cli now uses [rich](http://rich.readthedocs.io/) for console output.
 - Use poetry for dependency management and deployment.
-- **BREAKING CHANGE**: Table output choices have been removed. 
+- **BREAKING CHANGE**: Table output choices have been removed.
   `-s/--summary` is a flag and doesn't accept any additional arguments.
 - Support for folios without PAN (#28).
-- add support for new style dividend transactions after IDCW renaming. 
-- improved parser for transaction entries. 
+- add support for new style dividend transactions after IDCW renaming.
+- improved parser for transaction entries.
 
 ## 0.4.6 - 2021-04-04
 
@@ -49,7 +52,7 @@
 
 - CSV output fixes
   - better csv output format for summary CAS statements.
-  - option to output only summary information for detailed statements 
+  - option to output only summary information for detailed statements
     (`-s fancy_grid -o output.csv`)
 
 ## 0.4.3 - 2021-01-30
@@ -62,11 +65,11 @@
 - supports negative scheme balances
 - better scheme name parsing
 - fixes dividend transaction parsing
-   
+
 
 ## 0.4.1 - 2021-01-13
 
-- hotfix for parsing folios without KYC details 
+- hotfix for parsing folios without KYC details
 
 ## 0.4.0 - 2021-01-08
 
@@ -112,13 +115,13 @@
 
 ## 0.3.1 - 2020-10-26
 
-- re-release 0.3.0 : Minor bug fix 
+- re-release 0.3.0 : Minor bug fix
 
 ## 0.3.0 - 2020-10-25
 
-- **Breaking Change**: In order to preserve the order of entries, during format 
-  conversion to other data types like json., `folios` is a list instead of dict.  
-- Added a second parser based on [PyMuPDF](https://github.com/pymupdf/PyMuPDF) / 
+- **Breaking Change**: In order to preserve the order of entries, during format
+  conversion to other data types like json., `folios` is a list instead of dict.
+- Added a second parser based on [PyMuPDF](https://github.com/pymupdf/PyMuPDF) /
 [MuPDF](https://mupdf.com/) - ~15-20x faster compared to pure-python pdfminer.
 - Added AMC detection (accessible via `amc` property of folio)
 - CLI summary now includes the number of transactions processed.
@@ -137,7 +140,7 @@
 
 ## 0.1.2 - 2020-10-14
 
-- Support for parsing investor info 
+- Support for parsing investor info
 
 ## 0.1.1 - 2020-10-14
 
