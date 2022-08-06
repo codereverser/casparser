@@ -1,5 +1,6 @@
 import re
 
+import fitz
 from click.testing import CliRunner
 import pytest
 
@@ -87,7 +88,7 @@ class TestMuPDF(BaseTestClass):
         from casparser.parsers.mupdf import parse_investor_info
 
         with pytest.raises(CASParseError) as exc_info:
-            parse_investor_info({"width": 0, "height": 0, "blocks": []})
+            parse_investor_info({"width": 0, "height": 0, "blocks": []}, fitz.Rect())
         assert "Unable to parse investor data" in str(exc_info)
 
     def test_bad_file_type(self):

@@ -1,4 +1,3 @@
-from decimal import Decimal
 from typing import Optional, Tuple
 
 from casparser_isin import MFISINDb

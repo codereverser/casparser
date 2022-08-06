@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.5 - 2022-08-06
+- bug fix with MuPDF parser
+
 ## 0.5.4 - 2022-02-01
 - bug fix in CAS summary statement parser
 

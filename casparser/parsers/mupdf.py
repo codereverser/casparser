@@ -95,10 +95,10 @@ def parse_file_type(blocks):
     return FileType.UNKNOWN
 
 
-def parse_investor_info(page_dict) -> InvestorInfo:
+def parse_investor_info(page_dict, page_rect: fitz.Rect) -> InvestorInfo:
     """Parse investor info."""
-    width = max(page_dict["width"], 600)
-    height = max(page_dict["height"], 800)
+    width = max(page_rect.width, 600)
+    height = max(page_rect.height, 800)
 
     blocks = sorted(
         [x for x in page_dict["blocks"] if x["bbox"][1] < height / 2], key=lambda x: x["bbox"][1]
@@ -190,7 +190,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
 
     with fp:
         try:
-            doc = fitz.open(stream=fp.read(), filetype="pdf")
+            doc = fitz.Document(stream=fp.read(), filetype="pdf")
         except Exception as e:
             raise CASParseError("Unhandled error while opening file :: %s" % (str(e)))
 
@@ -210,7 +210,7 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
                 file_type = parse_file_type(blocks)
             sorted_blocks = sorted(blocks, key=itemgetter(1, 0))
             if investor_info is None:
-                investor_info = parse_investor_info(page_dict)
+                investor_info = parse_investor_info(page_dict, page.rect)
             pages.append(sorted_blocks)
         lines = group_similar_rows(pages)
         return PartialCASData(file_type=file_type, investor_info=investor_info, lines=lines)
