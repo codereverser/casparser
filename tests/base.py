@@ -13,7 +13,7 @@ from casparser.exceptions import CASParseError, IncorrectPasswordError
 class BaseTestClass:
     """Common test cases for all available parsers."""
 
-    ansi_cleaner = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    ansi_cleaner = re.compile(r"\x1b\[([0-9,A-Z]{1,2}(;[0-9]{1,2})?(;[0-9]{3})?)?[m|K]?")
 
     @classmethod
     def setup_class(cls):

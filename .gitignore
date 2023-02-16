@@ -131,6 +131,7 @@ dmypy.json
 .idea
 
 tests/files/**
+tests/files.tar
 .DS_Store
 
 casparser.code-workspace
