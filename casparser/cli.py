@@ -1,25 +1,25 @@
-from decimal import Decimal
 import itertools
 import os
 import re
 import sys
+from decimal import Decimal
 from typing import Union
 
 import click
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.padding import Padding
-from rich.progress import BarColumn, TextColumn, SpinnerColumn, Progress
-from rich.prompt import Confirm, Prompt
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
 from rich.table import Table
 
-from .__version__ import __version__
-
 from . import read_cas_pdf
+from .__version__ import __version__
 from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
-from .exceptions import ParserException, IncompleteCASError, GainsError
-from .parsers.utils import is_close, cas2json, cas2csv, cas2csv_summary
+from .exceptions import GainsError, IncompleteCASError, ParserException
+from .parsers.utils import cas2csv, cas2csv_summary, cas2json, is_close
+from .types import CASData
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 console = Console()
@@ -38,11 +38,12 @@ def get_color(amount: Union[Decimal, float, int]):
     return "white"
 
 
-def print_summary(data, output_filename=None, include_zero_folios=False):
+def print_summary(parsed_data: CASData, output_filename=None, include_zero_folios=False):
     """Print summary of parsed data."""
     count = 0
     err = 0
 
+    data = parsed_data.dict(by_alias=True)
     is_summary = data["cas_type"] == CASFileType.SUMMARY.name
 
     # Print CAS header stuff
@@ -92,7 +93,6 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
             folio_header_added = False
             current_amc = folio["amc"]
         for scheme in folio["schemes"]:
-
             if scheme["close"] < 1e-3 and not include_zero_folios:
                 continue
 
@@ -130,7 +130,7 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
             count += 1
 
     table = Table(title="Portfolio Summary", show_lines=True)
-    for (hdr, align) in zip(console_header.values(), console_col_align):
+    for hdr, align in zip(console_header.values(), console_col_align):
         # noinspection PyTypeChecker
         table.add_column(hdr, justify=align)
     for row in console_rows:
@@ -152,9 +152,9 @@ def print_summary(data, output_filename=None, include_zero_folios=False):
         console.print(f"File saved : [bold]{output_filename}[/]")
 
 
-def print_gains(data, output_file_path=None, gains_112a=""):
-    cg = CapitalGainsReport(data)
-
+def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
+    cg = CapitalGainsReport(parsed_data)
+    data = parsed_data.dict(by_alias=True)
     if not cg.has_gains():
         console.print("[bold yellow]Warning:[/] No capital gains info found in CAS")
         return
@@ -325,7 +325,7 @@ def cli(output, summary, password, include_all, gains, gains_112a, force_pdfmine
 
     if output_ext in (".csv", ".json"):
         if output_ext == ".csv":
-            if summary or data["cas_type"] == CASFileType.SUMMARY.name:
+            if summary or data.cas_type == CASFileType.SUMMARY.name:
                 description = "Generating summary CSV file..."
                 conv_fn = cas2csv_summary
             else:

@@ -1,29 +1,30 @@
 import csv
-from collections import deque
-from dataclasses import dataclass
-from decimal import Decimal
-from datetime import date
 import io
 import itertools
+from collections import deque
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
 from dateutil.parser import parse as dateparse
 from dateutil.relativedelta import relativedelta
 
-from casparser.exceptions import IncompleteCASError, GainsError
 from casparser.enums import FundType, GainType, TransactionType
-from casparser.types import CASParserDataType, TransactionDataType
+from casparser.exceptions import GainsError, IncompleteCASError
+from casparser.types import CASData, TransactionData
+
 from .utils import CII, get_fin_year, nav_search
 
 PURCHASE_TXNS = {
-    TransactionType.DIVIDEND_REINVEST.name,
-    TransactionType.PURCHASE.name,
-    TransactionType.PURCHASE_SIP.name,
-    TransactionType.REVERSAL.name,
+    TransactionType.DIVIDEND_REINVEST,
+    TransactionType.PURCHASE,
+    TransactionType.PURCHASE_SIP,
+    TransactionType.REVERSAL,
     # Segregated folios are not supported
     # TransactionType.SEGREGATION.name,
-    TransactionType.SWITCH_IN.name,
-    TransactionType.SWITCH_IN_MERGER.name,
+    TransactionType.SWITCH_IN,
+    TransactionType.SWITCH_IN_MERGER,
 }
 
 SALE_TXNS = {
@@ -87,25 +88,25 @@ class MergedTransaction:
     stt: Decimal = Decimal(0.0)
     tds: Decimal = Decimal(0.0)
 
-    def add(self, txn: TransactionDataType):
-        txn_type = txn["type"]
-        if txn_type in PURCHASE_TXNS and txn["units"] is not None:
-            self.nav = txn["nav"]
-            self.purchase_units += txn["units"]
-            self.purchase += txn["amount"]
-        elif txn_type in SALE_TXNS and txn["units"] is not None:
-            self.nav = txn["nav"]
-            self.sale_units += txn["units"]
-            self.sale += txn["amount"]
-        elif txn_type == TransactionType.STT_TAX.name:
-            self.stt += txn["amount"]
-        elif txn_type == TransactionType.STAMP_DUTY_TAX.name:
-            self.stamp_duty += txn["amount"]
-        elif txn_type == TransactionType.TDS_TAX.name:
-            self.tds += txn["amount"]
-        elif txn_type == TransactionType.SEGREGATION.name:
+    def add(self, txn: TransactionData):
+        txn_type = txn.type
+        if txn_type in PURCHASE_TXNS and txn.units is not None:
+            self.nav = txn.nav
+            self.purchase_units += txn.units
+            self.purchase += txn.amount
+        elif txn_type in SALE_TXNS and txn.units is not None:
+            self.nav = txn.nav
+            self.sale_units += txn.units
+            self.sale += txn.amount
+        elif txn_type == TransactionType.STT_TAX:
+            self.stt += txn.amount
+        elif txn_type == TransactionType.STAMP_DUTY_TAX:
+            self.stamp_duty += txn.amount
+        elif txn_type == TransactionType.TDS_TAX:
+            self.tds += txn.amount
+        elif txn_type == TransactionType.SEGREGATION:
             self.nav = Decimal(0.0)
-            self.purchase_units += txn["units"]
+            self.purchase_units += txn.units
             self.purchase = Decimal(0.0)
 
 
@@ -186,7 +187,7 @@ class GainEntry:
 
     @property
     def coa(self) -> Decimal:
-        if self.fund.type == FundType.DEBT.name:
+        if self.fund.type == FundType.DEBT:
             return Decimal(round(self.purchase_value * self.index_ratio, 2))
         if self.purchase_date < self.__cutoff_date:
             if self.sale_date < self.__sell_cutoff_date:
@@ -213,7 +214,7 @@ class GainEntry:
         return Decimal(0.0)
 
 
-def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
+def get_fund_type(transactions: List[TransactionData]) -> FundType:
     """
     Detect Fund Type.
     - UNKNOWN if there are no redemption transactions
@@ -225,7 +226,7 @@ def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
     """
     valid = any(
         [
-            x["units"] is not None and x["units"] < 0 and x["type"] != TransactionType.REVERSAL.name
+            x.units is not None and x.units < 0 and x.type != TransactionType.REVERSAL
             for x in transactions
         ]
     )
@@ -233,7 +234,7 @@ def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
         return FundType.UNKNOWN
     return (
         FundType.EQUITY
-        if any([x["type"] == TransactionType.STT_TAX.name for x in transactions])
+        if any([x.type == TransactionType.STT_TAX for x in transactions])
         else FundType.DEBT
     )
 
@@ -241,7 +242,7 @@ def get_fund_type(transactions: List[TransactionDataType]) -> FundType:
 class FIFOUnits:
     """First-In First-Out units calculator."""
 
-    def __init__(self, fund: Fund, transactions: List[TransactionDataType]):
+    def __init__(self, fund: Fund, transactions: List[TransactionData]):
         """
         :param fund: name of fund, mainly for reporting purposes.
         :param transactions: list of transactions for the fund
@@ -264,13 +265,13 @@ class FIFOUnits:
     @property
     def clean_transactions(self):
         """remove redundant transactions, without amount"""
-        return filter(lambda x: x["amount"] is not None, self._original_transactions)
+        return filter(lambda x: x.amount is not None, self._original_transactions)
 
     def merge_transactions(self):
         """Group transactions by date with taxes and investments/redemptions separated."""
         merged_transactions = {}
-        for txn in sorted(self.clean_transactions, key=lambda x: (x["date"], -x["amount"])):
-            dt = txn["date"]
+        for txn in sorted(self.clean_transactions, key=lambda x: (x.date, -x.amount)):
+            dt = txn.date
 
             if isinstance(dt, str):
                 dt = dateparse(dt).date()
@@ -347,8 +348,8 @@ class FIFOUnits:
 class CapitalGainsReport:
     """Generate Capital Gains Report from the parsed CAS data"""
 
-    def __init__(self, data: CASParserDataType):
-        self._data: CASParserDataType = data
+    def __init__(self, data: CASData):
+        self._data: CASData = data
         self._gains: List[GainEntry] = []
         self.errors = []
         self.invested_amount = Decimal(0.0)
@@ -370,17 +371,17 @@ class CapitalGainsReport:
 
     def process_data(self):
         self._gains = []
-        for folio in self._data.get("folios", []):
-            for scheme in folio.get("schemes", []):
-                transactions = scheme["transactions"]
+        for folio in self._data.folios:
+            for scheme in folio.schemes:
+                transactions = scheme.transactions
                 fund = Fund(
-                    scheme=scheme["scheme"],
-                    folio=folio["folio"],
-                    isin=scheme["isin"],
-                    type=scheme["type"],
+                    scheme=scheme.scheme,
+                    folio=folio.folio,
+                    isin=scheme.isin,
+                    type=scheme.type,
                 )
                 if len(transactions) > 0:
-                    if scheme["open"] >= 0.01:
+                    if scheme.open >= 0.01:
                         raise IncompleteCASError(
                             "Incomplete CAS found. For gains computation, "
                             "all folios should have zero opening balance"
@@ -388,7 +389,7 @@ class CapitalGainsReport:
                     try:
                         fifo = FIFOUnits(fund, transactions)
                         self.invested_amount += fifo.invested
-                        self.current_value += scheme["valuation"]["value"]
+                        self.current_value += scheme.valuation.value
                         self._gains.extend(fifo.gains)
                     except GainsError as exc:
                         self.errors.append((fund.name, str(exc)))

@@ -3,10 +3,11 @@ import json
 import os
 import re
 
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
 from casparser import read_cas_pdf
+from casparser.enums import CASFileType
 from casparser.exceptions import CASParseError, IncorrectPasswordError
 
 
@@ -50,13 +51,13 @@ class BaseTestClass:
 
     def test_read_summary(self):
         data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
-        assert len(data.get("folios", [])) == 4
-        for folio in data["folios"]:
-            for scheme in folio.get("schemes", []):
-                assert scheme["isin"] is not None
-                assert scheme["amfi"] is not None
-        assert data.get("investor_info", {}).get("mobile") not in (None, "")
-        assert data["cas_type"] == "SUMMARY"
+        assert len(data.folios) == 4
+        for folio in data.folios:
+            for scheme in folio.schemes:
+                assert scheme.isin is not None
+                assert scheme.amfi is not None
+        assert data.investor_info.mobile not in (None, "")
+        assert data.cas_type == CASFileType.SUMMARY
 
     def test_read_dict(self):
         from casparser.cli import cli

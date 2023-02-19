@@ -2,6 +2,7 @@ import re
 
 from ..enums import CASFileType
 from ..exceptions import CASParseError
+from ..types import ProcessedCASData
 from .cas_detailed import process_detailed_text
 from .cas_summary import process_summary_text
 from .regex import CAS_TYPE_RE
@@ -17,7 +18,7 @@ def detect_cas_type(text):
     return CASFileType.UNKNOWN
 
 
-def process_cas_text(text):
+def process_cas_text(text) -> ProcessedCASData:
     """
     Process the text version of a CAS pdf and return the detailed summary.
     :param text:
