@@ -1,16 +1,37 @@
+import re
 from collections import namedtuple
 from decimal import Decimal
-import re
 from typing import Dict, Optional, Tuple
 
 from dateutil import parser as date_parser
 
-from ..enums import TransactionType, CASFileType
-from ..exceptions import HeaderParseError, CASParseError
-from .regex import AMC_RE, DETAILED_DATE_RE, FOLIO_RE, SCHEME_RE, REGISTRAR_RE
-from .regex import CLOSE_UNITS_RE, NAV_RE, OPEN_UNITS_RE, VALUATION_RE, DESCRIPTION_TAIL_RE
-from .regex import DIVIDEND_RE, TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3
-from ..types import FolioType, SchemeType
+from casparser.enums import CASFileType, TransactionType
+from casparser.exceptions import CASParseError, HeaderParseError
+from casparser.types import (
+    Folio,
+    ProcessedCASData,
+    Scheme,
+    SchemeValuation,
+    StatementPeriod,
+    TransactionData,
+)
+
+from .regex import (
+    AMC_RE,
+    CLOSE_UNITS_RE,
+    DESCRIPTION_TAIL_RE,
+    DETAILED_DATE_RE,
+    DIVIDEND_RE,
+    FOLIO_RE,
+    NAV_RE,
+    OPEN_UNITS_RE,
+    REGISTRAR_RE,
+    SCHEME_RE,
+    TRANSACTION_RE1,
+    TRANSACTION_RE2,
+    TRANSACTION_RE3,
+    VALUATION_RE,
+)
 from .utils import isin_search
 
 ParsedTransaction = namedtuple(
@@ -118,12 +139,12 @@ def process_detailed_text(text):
     :return:
     """
     hdr_data = parse_header(text[:1000])
-    statement_period = {"from": hdr_data["from"], "to": hdr_data["to"]}
+    statement_period = StatementPeriod(from_=hdr_data["from"], to=hdr_data["to"])
 
-    folios: Dict[str, FolioType] = {}
+    folios: Dict[str, Folio] = {}
     current_folio = None
     current_amc = None
-    curr_scheme_data = {}
+    curr_scheme_data: Optional[Scheme] = None
     balance = Decimal(0.0)
     lines = text.split("\u2029")
     for idx, line in enumerate(lines):
@@ -137,64 +158,62 @@ def process_detailed_text(text):
             folio = m.group(1).strip()
             if current_folio is None or current_folio != folio:
                 if curr_scheme_data and current_folio is not None:
-                    folios[current_folio]["schemes"].append(curr_scheme_data)
-                    curr_scheme_data = {}
+                    folios[current_folio].schemes.append(curr_scheme_data)
+                    curr_scheme_data = None
                 current_folio = folio
-                folios[folio] = {
-                    "folio": current_folio,
-                    "amc": current_amc,
-                    "PAN": (m.group(2) or "").strip(),
-                    "KYC": None if m.group(3) is None else m.group(3).strip(),
-                    "PANKYC": None if m.group(4) is None else m.group(4).strip(),
-                    "schemes": [],
-                }
+                folios[folio] = Folio(
+                    folio=current_folio,
+                    amc=current_amc,
+                    PAN=(m.group(2) or "").strip(),
+                    KYC=None if m.group(3) is None else m.group(3).strip(),
+                    PANKYC=None if m.group(4) is None else m.group(4).strip(),
+                    schemes=[],
+                )
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
             scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
             scheme = re.sub(r"\s+", " ", scheme).strip()
-            if curr_scheme_data.get("scheme") != scheme:
+            if curr_scheme_data is None or curr_scheme_data.scheme != scheme:
                 if curr_scheme_data:
-                    folios[current_folio]["schemes"].append(curr_scheme_data)
+                    folios[current_folio].schemes.append(curr_scheme_data)
                 advisor = m.group(3)
                 if advisor is not None:
                     advisor = advisor.strip()
                 rta = m.group(4).strip()
                 rta_code = m.group(1).strip()
                 isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
-                curr_scheme_data: SchemeType = {
-                    "scheme": scheme,
-                    "advisor": advisor,
-                    "rta_code": rta_code,
-                    "type": scheme_type or "N/A",
-                    "rta": rta,
-                    "isin": isin,
-                    "amfi": amfi,
-                    "open": Decimal(0.0),
-                    "close": Decimal(0.0),
-                    "close_calculated": Decimal(0.0),
-                    "valuation": {"date": None, "value": Decimal(0.0), "nav": Decimal(0.0)},
-                    "transactions": [],
-                }
+                curr_scheme_data = Scheme(
+                    scheme=scheme,
+                    advisor=advisor,
+                    rta_code=rta_code,
+                    type=scheme_type or "N/A",
+                    rta=rta,
+                    isin=isin,
+                    amfi=amfi,
+                    open=Decimal(0.0),
+                    close=Decimal(0.0),
+                    close_calculated=Decimal(0.0),
+                    valuation=SchemeValuation(
+                        date=statement_period.to, value=Decimal(0.0), nav=Decimal(0.0)
+                    ),
+                    transactions=[],
+                )
         if not curr_scheme_data:
             continue
         if m := re.search(OPEN_UNITS_RE, line):
-            curr_scheme_data["open"] = Decimal(m.group(1).replace(",", "_"))
-            curr_scheme_data["close_calculated"] = curr_scheme_data["open"]
-            balance = curr_scheme_data["open"]
+            curr_scheme_data.open = Decimal(m.group(1).replace(",", "_"))
+            curr_scheme_data.close_calculated = curr_scheme_data.open
+            balance = curr_scheme_data.open
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
-            curr_scheme_data["close"] = Decimal(m.group(1).replace(",", "_"))
+            curr_scheme_data.close = Decimal(m.group(1).replace(",", "_"))
         if m := re.search(VALUATION_RE, line, re.I):
-            curr_scheme_data["valuation"].update(
-                date=date_parser.parse(m.group(1)).date(),
-                value=Decimal(m.group(2).replace(",", "_")),
-            )
+            curr_scheme_data.valuation.date = date_parser.parse(m.group(1)).date()
+            curr_scheme_data.valuation.value = Decimal(m.group(2).replace(",", "_"))
         if m := re.search(NAV_RE, line, re.I):
-            curr_scheme_data["valuation"].update(
-                date=date_parser.parse(m.group(1)).date(),
-                nav=Decimal(m.group(2).replace(",", "_")),
-            )
+            curr_scheme_data.valuation.date = date_parser.parse(m.group(1)).date()
+            curr_scheme_data.valuation.nav = Decimal(m.group(2).replace(",", "_"))
             continue
         description_tail = ""
         if m := re.search(DESCRIPTION_TAIL_RE, line):
@@ -211,23 +230,23 @@ def process_detailed_text(text):
             balance = str_to_decimal(parsed_txn.balance)
             txn_type, dividend_rate = get_transaction_type(desc, units)
             if units is not None:
-                curr_scheme_data["close_calculated"] += units
-            curr_scheme_data["transactions"].append(
-                {
-                    "date": date,
-                    "description": desc,
-                    "amount": amt,
-                    "units": units,
-                    "nav": nav,
-                    "balance": balance,
-                    "type": txn_type.name,
-                    "dividend_rate": dividend_rate,
-                }
+                curr_scheme_data.close_calculated += units
+            curr_scheme_data.transactions.append(
+                TransactionData(
+                    date=date,
+                    description=desc,
+                    amount=amt,
+                    units=units,
+                    nav=nav,
+                    balance=balance,
+                    type=txn_type.name,
+                    dividend_rate=dividend_rate,
+                )
             )
     if curr_scheme_data:
-        folios[current_folio]["schemes"].append(curr_scheme_data)
-    return {
-        "cas_type": CASFileType.DETAILED.name,
-        "statement_period": statement_period,
-        "folios": list(folios.values()),
-    }
+        folios[current_folio].schemes.append(curr_scheme_data)
+    return ProcessedCASData(
+        cas_type=CASFileType.DETAILED,
+        statement_period=statement_period,
+        folios=list(folios.values()),
+    )

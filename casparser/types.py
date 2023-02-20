@@ -1,13 +1,22 @@
 from datetime import date
 from decimal import Decimal
-from typing import Optional, List, Union
-from typing_extensions import TypedDict
+from typing import List, Optional, Union
+
+from pydantic import BaseModel
+
+from .enums import CASFileType, FileType, TransactionType
 
 
-StatementPeriod = TypedDict("StatementPeriod", {"from": str, "to": str})
+class StatementPeriod(BaseModel):
+    from_: str
+    to: str
+
+    class Config:
+        allow_population_by_field_name = True
+        fields = {"from_": "from"}
 
 
-class InvestorInfoType(TypedDict):
+class InvestorInfo(BaseModel):
     """Investor Info data structure."""
 
     name: str
@@ -16,7 +25,7 @@ class InvestorInfoType(TypedDict):
     mobile: str
 
 
-class TransactionDataType(TypedDict):
+class TransactionData(BaseModel):
     """Mutual fund scheme transaction."""
 
     date: Union[date, str]
@@ -25,11 +34,11 @@ class TransactionDataType(TypedDict):
     units: Union[Decimal, float, None]
     nav: Union[Decimal, float, None]
     balance: Union[Decimal, float, None]
-    type: str
+    type: TransactionType
     dividend_rate: Union[Decimal, float, None]
 
 
-class SchemeValuationType(TypedDict):
+class SchemeValuation(BaseModel):
     """Scheme valuation as of a given date."""
 
     date: Union[date, str]
@@ -37,10 +46,9 @@ class SchemeValuationType(TypedDict):
     value: Union[Decimal, float]
 
 
-class SchemeType(TypedDict, total=False):
+class Scheme(BaseModel):
     """Mutual Fund Scheme data structure."""
 
-    scheme_id: int
     scheme: str
     advisor: Optional[str]
     rta_code: str
@@ -51,28 +59,40 @@ class SchemeType(TypedDict, total=False):
     open: Union[Decimal, float]
     close: Union[Decimal, float]
     close_calculated: Union[Decimal, float]
-    valuation: SchemeValuationType
-    transactions: List[TransactionDataType]
+    valuation: SchemeValuation
+    transactions: List[TransactionData]
 
 
-class FolioType(TypedDict, total=False):
+class Folio(BaseModel):
     """Mutual Fund Folio data structure."""
 
-    folio_id: int
     folio: str
     amc: str
-    amc_id: int
-    PAN: str
-    KYC: str
-    PANKYC: str
-    schemes: List[SchemeType]
+    PAN: Optional[str]
+    KYC: Optional[str]
+    PANKYC: Optional[str]
+    schemes: List[Scheme]
 
 
-class CASParserDataType(TypedDict):
+class CASData(BaseModel):
     """CAS Parser return data type."""
 
     statement_period: StatementPeriod
-    folios: List[FolioType]
-    investor_info: InvestorInfoType
-    cas_type: str
-    file_type: str
+    folios: List[Folio]
+    investor_info: InvestorInfo
+    cas_type: CASFileType
+    file_type: FileType
+
+
+class PartialCASData(BaseModel):
+    """CAS Parser return data type."""
+
+    investor_info: InvestorInfo
+    file_type: FileType
+    lines: List[str]
+
+
+class ProcessedCASData(BaseModel):
+    cas_type: CASFileType
+    folios: List[Folio]
+    statement_period: StatementPeriod

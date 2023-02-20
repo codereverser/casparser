@@ -3,10 +3,17 @@ from decimal import Decimal
 
 import pytest
 
+from casparser.analysis.gains import (
+    FIFOUnits,
+    Fund,
+    FundType,
+    MergedTransaction,
+    get_fund_type,
+)
+from casparser.analysis.utils import CII, get_fin_year
 from casparser.enums import TransactionType
 from casparser.exceptions import GainsError
-from casparser.analysis.gains import get_fund_type, FundType, MergedTransaction, FIFOUnits, Fund
-from casparser.analysis.utils import CII, get_fin_year
+from casparser.types import TransactionData
 
 
 class TestGainsClass:
@@ -28,44 +35,44 @@ class TestGainsClass:
 
     def test_fund_type(self):
         transactions = [
-            {
-                "date": "2020-01-01",
-                "description": "Purchase",
-                "amount": 10000.00,
-                "units": 1000,
-                "nav": 10,
-                "balance": 1000.00,
-                "type": TransactionType.PURCHASE.name,
-                "dividend_rate": None,
-            },
+            TransactionData(
+                date="2020-01-01",
+                description="Purchase",
+                amount=10000.00,
+                units=1000,
+                nav=10,
+                balance=1000.00,
+                type=TransactionType.PURCHASE,
+                dividend_rate=None,
+            )
         ]
         assert get_fund_type(transactions) == FundType.UNKNOWN
 
         transactions.append(
-            {
-                "date": "2020-01-01",
-                "description": "Redemption",
-                "amount": -5100.00,
-                "units": -100,
-                "nav": 11,
-                "balance": 900.00,
-                "type": TransactionType.REDEMPTION.name,
-                "dividend_rate": None,
-            },
+            TransactionData(
+                date="2020-01-01",
+                description="Redemption",
+                amount=-5100.00,
+                units=-100,
+                nav=11,
+                balance=900.00,
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
         )
         assert get_fund_type(transactions) == FundType.DEBT
 
         transactions.append(
-            {
-                "date": "2020-02-01",
-                "description": "***STT paid***",
-                "amount": 0.26,
-                "units": None,
-                "nav": None,
-                "balance": None,
-                "type": TransactionType.STT_TAX.name,
-                "dividend_rate": None,
-            }
+            TransactionData(
+                date="2020-02-01",
+                description="***STT paid***",
+                amount=0.26,
+                units=None,
+                nav=None,
+                balance=None,
+                type=TransactionType.STT_TAX,
+                dividend_rate=None,
+            )
         )
         assert get_fund_type(transactions) == FundType.EQUITY
 
@@ -74,16 +81,16 @@ class TestGainsClass:
         mt = MergedTransaction(dt)
 
         mt.add(
-            {
-                "date": dt,
-                "description": "Segregation",
-                "amount": None,
-                "units": Decimal("1000.000"),
-                "nav": None,
-                "balance": Decimal("1000.000"),
-                "type": TransactionType.SEGREGATION.value,
-                "dividend_rate": None,
-            }
+            TransactionData(
+                date=dt,
+                description="Segregation",
+                amount=None,
+                units=Decimal("1000.000"),
+                nav=None,
+                balance=Decimal("1000.000"),
+                type=TransactionType.SEGREGATION.value,
+                dividend_rate=None,
+            )
         )
         assert mt.sale_units == Decimal("0.00")
         assert mt.purchase_units == Decimal("1000.000")
@@ -93,16 +100,16 @@ class TestGainsClass:
         assert mt.tds == Decimal("0.00")
 
         mt.add(
-            {
-                "date": dt,
-                "description": "***TDS on above***",
-                "amount": Decimal("1.25"),
-                "units": None,
-                "nav": None,
-                "balance": Decimal("1000.000"),
-                "type": TransactionType.TDS_TAX.value,
-                "dividend_rate": None,
-            }
+            TransactionData(
+                date=dt,
+                description="***TDS on above***",
+                amount=Decimal("1.25"),
+                units=None,
+                nav=None,
+                balance=Decimal("1000.000"),
+                type=TransactionType.TDS_TAX,
+                dividend_rate=None,
+            )
         )
         assert mt.tds == Decimal("1.25")
 
@@ -110,16 +117,16 @@ class TestGainsClass:
         test_fund = Fund("demo fund", "123", "INF123456789", "EQUITY")
         dt = date(2000, 1, 1)
         transactions = [
-            {
-                "date": dt,
-                "description": "***Redemption***",
-                "amount": Decimal("-5000.00"),
-                "units": Decimal("-100.000"),
-                "nav": Decimal("50.000"),
-                "balance": Decimal("500.00"),
-                "type": TransactionType.REDEMPTION.value,
-                "dividend_rate": None,
-            }
+            TransactionData(
+                date=dt,
+                description="***Redemption***",
+                amount=Decimal("-5000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("50.000"),
+                balance=Decimal("500.00"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            )
         ]
         with pytest.raises(GainsError):
             FIFOUnits(test_fund, transactions)

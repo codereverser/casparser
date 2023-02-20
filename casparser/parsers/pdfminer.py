@@ -1,18 +1,19 @@
 import io
 import re
-from typing import List, Optional, Iterator, Union
+from typing import Iterator, List, Optional, Union
 
-from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect, PDFSyntaxError
-from pdfminer.layout import LAParams
 from pdfminer.converter import PDFPageAggregator
-from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.layout import LAParams, LTTextBoxHorizontal, LTTextBoxVertical
+from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect, PDFSyntaxError
+from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
-from pdfminer.layout import LTTextBoxHorizontal, LTTextBoxVertical
+from pdfminer.pdfparser import PDFParser
 
 from casparser.enums import FileType
 from casparser.exceptions import CASParseError, IncorrectPasswordError
-from .utils import is_close, InvestorInfo, PartialCASData
+from casparser.types import InvestorInfo, PartialCASData
+
+from .utils import is_close
 
 
 def parse_investor_info(layout, width, height) -> InvestorInfo:

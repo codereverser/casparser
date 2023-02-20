@@ -1,15 +1,17 @@
 import copy
 import io
-from operator import itemgetter
 import re
-from typing import List, Iterator, Union, Any
+from operator import itemgetter
+from typing import Any, Iterator, List, Union
 
 # noinspection PyPackageRequirements
 import fitz
 
 from casparser.enums import FileType
 from casparser.exceptions import CASParseError, IncorrectPasswordError
-from .utils import is_close, InvestorInfo, PartialCASData
+from casparser.types import InvestorInfo, PartialCASData
+
+from .utils import is_close
 
 
 def merge_bbox(bbox1, bbox2):
