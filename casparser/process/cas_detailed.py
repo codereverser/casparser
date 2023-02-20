@@ -5,9 +5,9 @@ from typing import Dict, Optional, Tuple
 
 from dateutil import parser as date_parser
 
-from ..enums import CASFileType, TransactionType
-from ..exceptions import CASParseError, HeaderParseError
-from ..types import (
+from casparser.enums import CASFileType, TransactionType
+from casparser.exceptions import CASParseError, HeaderParseError
+from casparser.types import (
     Folio,
     ProcessedCASData,
     Scheme,
@@ -15,6 +15,7 @@ from ..types import (
     StatementPeriod,
     TransactionData,
 )
+
 from .regex import (
     AMC_RE,
     CLOSE_UNITS_RE,

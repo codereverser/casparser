@@ -3,9 +3,16 @@ from decimal import Decimal
 
 from dateutil import parser as date_parser
 
-from ..enums import CASFileType
-from ..exceptions import HeaderParseError
-from ..types import Folio, ProcessedCASData, Scheme, SchemeValuation, StatementPeriod
+from casparser.enums import CASFileType
+from casparser.exceptions import HeaderParseError
+from casparser.types import (
+    Folio,
+    ProcessedCASData,
+    Scheme,
+    SchemeValuation,
+    StatementPeriod,
+)
+
 from .regex import SUMMARY_DATE_RE, SUMMARY_ROW_RE
 from .utils import isin_search
 

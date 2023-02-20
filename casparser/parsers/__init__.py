@@ -2,8 +2,8 @@ import io
 from typing import Union
 
 from casparser.process import process_cas_text
+from casparser.types import CASData
 
-from ..types import CASData, Folio
 from .utils import cas2csv, cas2json
 
 
@@ -36,7 +36,6 @@ def read_cas_pdf(
     processed_data = process_cas_text("\u2029".join(partial_cas_data.lines))
 
     if sort_transactions:
-        folio: Folio
         for folio in processed_data.folios:
             for idx, scheme in enumerate(folio.schemes):
                 dates = [x.date for x in scheme.transactions]

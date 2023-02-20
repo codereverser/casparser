@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.0 - 2023-02-20
+- use pydantic models for better data validation
+
 ## 0.5.5 - 2022-08-06
 - bug fix with MuPDF parser
 

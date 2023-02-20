@@ -1,7 +1,7 @@
 import csv
 import io
 
-from ..types import CASData
+from casparser.types import CASData
 
 
 def is_close(a0, a1, tol=1.0e-4):
