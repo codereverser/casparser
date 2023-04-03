@@ -7,7 +7,7 @@ CAS_TYPE_RE = r"consolidated\s+account\s+(statement|summary)"
 DETAILED_DATE_RE = r"(?P<from>\d{2}-[a-zA-Z]{3}-\d{4})\s+to\s+(?P<to>\d{2}-[a-zA-Z]{3}-\d{4})"
 SUMMARY_DATE_RE = r"as\s+on\s+(?P<date>\d{2}-[a-zA-Z]{3}-\d{4})"
 SUMMARY_ROW_RE = (
-    r"([\d/\s]+)\s+([\s\w]+)-\s*\d*\s*(.+?)\s*([\d,.]+)\s*"
+    r"([\d/\s]+?)(?=\s.)\s+([\s\w]+)-\s*\d*\s*(.+?)\s*([\d,.]+)\s*"
     r"(\d{2}-[A-Za-z]{3}-\d{4})\s*([\d,.]+)\s*([\d,.]+)\s*(\w+)\s*$"
 )
 SCHEME_TAIL_RE = r"(\n.+?)\t\t"
