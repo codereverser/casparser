@@ -1,7 +1,7 @@
+import re
 from collections import UserDict
 from datetime import date
 from decimal import Decimal
-import re
 from typing import Optional
 
 from casparser_isin import MFISINDb
@@ -27,6 +27,8 @@ CII_DATA = {
     "FY2018-19": 280,
     "FY2019-20": 289,
     "FY2020-21": 301,
+    "FY2021-22": 317,
+    "FY2022-23": 331,
 }
 
 
