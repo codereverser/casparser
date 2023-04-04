@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 - 2023-04-04
+- update CII data till FY2022-23
+- bug fixes
+
 ## 0.6.0 - 2023-02-20
 - use pydantic models for better data validation
 
