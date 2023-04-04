@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "casparser"
-version = "0.6.0"
+version = "0.6.1"
 description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
 authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
 homepage = "https://github.com/codereverser/casparser"
@@ -40,6 +40,9 @@ virtualenv = "^20.19.0"
 
 [tool.poetry.scripts]
 casparser = 'casparser.cli:cli'
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
