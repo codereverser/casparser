@@ -2,18 +2,15 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from .enums import CASFileType, FileType, TransactionType
 
 
 class StatementPeriod(BaseModel):
-    from_: str
+    from_: str = Field(alias="from")
     to: str
-
-    class Config:
-        allow_population_by_field_name = True
-        fields = {"from_": "from"}
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class InvestorInfo(BaseModel):
@@ -30,12 +27,12 @@ class TransactionData(BaseModel):
 
     date: Union[date, str]
     description: str
-    amount: Union[Decimal, float, None]
-    units: Union[Decimal, float, None]
-    nav: Union[Decimal, float, None]
-    balance: Union[Decimal, float, None]
+    amount: Union[Decimal, float, None] = None
+    units: Union[Decimal, float, None] = None
+    nav: Union[Decimal, float, None] = None
+    balance: Union[Decimal, float, None] = None
     type: TransactionType
-    dividend_rate: Union[Decimal, float, None]
+    dividend_rate: Union[Decimal, float, None] = None
 
 
 class SchemeValuation(BaseModel):
@@ -50,12 +47,12 @@ class Scheme(BaseModel):
     """Mutual Fund Scheme data structure."""
 
     scheme: str
-    advisor: Optional[str]
+    advisor: Optional[str] = None
     rta_code: str
     rta: str
-    type: Optional[str]
-    isin: Optional[str]
-    amfi: Optional[str]
+    type: Optional[str] = None
+    isin: Optional[str] = None
+    amfi: Optional[str] = None
     open: Union[Decimal, float]
     close: Union[Decimal, float]
     close_calculated: Union[Decimal, float]
@@ -68,9 +65,9 @@ class Folio(BaseModel):
 
     folio: str
     amc: str
-    PAN: Optional[str]
-    KYC: Optional[str]
-    PANKYC: Optional[str]
+    PAN: Optional[str] = None
+    KYC: Optional[str] = None
+    PANKYC: Optional[str] = None
     schemes: List[Scheme]
 
 

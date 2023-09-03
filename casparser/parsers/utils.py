@@ -17,7 +17,7 @@ def is_close(a0, a1, tol=1.0e-4):
 
 
 def cas2json(data: CASData) -> str:
-    return data.json(by_alias=True)
+    return data.model_dump_json(by_alias=True)
 
 
 def cas2csv_summary(data: CASData) -> str:

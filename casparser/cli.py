@@ -154,7 +154,7 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
 
 def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
     cg = CapitalGainsReport(parsed_data)
-    data = parsed_data.dict(by_alias=True)
+    data = parsed_data.model_dump(by_alias=True)
     if not cg.has_gains():
         console.print("[bold yellow]Warning:[/] No capital gains info found in CAS")
         return
