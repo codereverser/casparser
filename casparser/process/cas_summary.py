@@ -44,7 +44,7 @@ def process_summary_text(text):
         if len(folios) > 0 and re.search("Total", line, re.I):
             break
         if m := re.search(SUMMARY_ROW_RE, line, re.DOTALL | re.MULTILINE | re.I):
-            folio = m.group(1).strip()
+            folio = m.group("folio").strip()
             if current_folio is None or current_folio != folio:
                 current_folio = folio
                 folios[folio] = Folio(
@@ -55,10 +55,11 @@ def process_summary_text(text):
                     PANKYC="N/A",
                     schemes=[],
                 )
-            scheme = re.sub(r"\(formerly.+?\)", "", m.group(3), flags=re.I | re.DOTALL).strip()
-            rta = m.group(8).strip()
-            rta_code = m.group(2).strip()
-            isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
+            scheme = re.sub(r"\(formerly.+?\)", "", m.group("name"), flags=re.I | re.DOTALL).strip()
+            rta = m.group("rta").strip()
+            rta_code = m.group("code").strip()
+            isin_ = m.group("isin")
+            isin, amfi, scheme_type = isin_search(scheme, rta, rta_code, isin=isin_)
             scheme_data = Scheme(
                 scheme=scheme,
                 advisor="N/A",
@@ -67,16 +68,19 @@ def process_summary_text(text):
                 isin=isin,
                 amfi=amfi,
                 type=scheme_type or "N/A",
-                open=Decimal(m.group(4).replace(",", "_")),
-                close=Decimal(m.group(4).replace(",", "_")),
-                close_calculated=Decimal(m.group(4).replace(",", "_")),
+                open=Decimal(m.group("balance").replace(",", "_")),
+                close=Decimal(m.group("balance").replace(",", "_")),
+                close_calculated=Decimal(m.group("balance").replace(",", "_")),
                 valuation=SchemeValuation(
-                    date=date_parser.parse(m.group(5)).date(),
-                    nav=Decimal(m.group(6).replace(",", "_")),
-                    value=Decimal(m.group(7).replace(",", "_")),
+                    date=date_parser.parse(m.group("date")).date(),
+                    nav=Decimal(m.group("nav").replace(",", "_")),
+                    value=Decimal(m.group("value").replace(",", "_")),
                 ),
                 transactions=[],
             )
+            cost = m.group("cost")
+            if cost is not None:
+                scheme_data.valuation.cost = Decimal(cost.replace(",", "_"))
             folios[current_folio].schemes.append(scheme_data)
     return ProcessedCASData(
         cas_type=CASFileType.SUMMARY,

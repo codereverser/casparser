@@ -106,14 +106,14 @@ uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
 name = "casparser-isin"
-version = "2023.8.18"
+version = "2023.9.3"
 description = "ISIN database for casparser"
 category = "main"
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "casparser_isin-2023.8.18-py3-none-any.whl", hash = "sha256:e2540d2bae3fb913135ee656d3d0e0daa10f99ea8059443eb3b5eb74b05b6eb4"},
-    {file = "casparser_isin-2023.8.18.tar.gz", hash = "sha256:04c69d8384a4049453aacfbba1271692135f2b36eb6d4086f99e39b8ad97fb1b"},
+    {file = "casparser_isin-2023.9.3-py3-none-any.whl", hash = "sha256:f9cdebeb30accf1a058bb1a226830667b50efe266144268531ab5c3fd872df73"},
+    {file = "casparser_isin-2023.9.3.tar.gz", hash = "sha256:79a30856f22f706fb865e4e72b731981e79df6f7eb79b75fb7db81b11b20e706"},
 ]
 
 [package.dependencies]
@@ -1445,4 +1445,4 @@ mupdf = ["PyMuPDF"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "9a6c62b54ae10b7e1fb81f786236e3f67777f748fc34d577c2d82bc09c2fecda"
+content-hash = "4d038102b775878f7145425a2e691df1912adf4ea579995372bc5db38d274a8d"

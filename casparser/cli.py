@@ -43,7 +43,7 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
     count = 0
     err = 0
 
-    data = parsed_data.dict(by_alias=True)
+    data = parsed_data.model_dump(by_alias=True)
     is_summary = data["cas_type"] == CASFileType.SUMMARY.name
 
     # Print CAS header stuff
@@ -80,12 +80,13 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
         console_header.update(close="Balance")
         console_header.pop("open")
         console_header.pop("txns")
-        console_col_align = ["left"] + ["right"] * (len(console_header) - 4) + ["center"]
+        console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
     else:
         console_col_align = ["left"] + ["right"] * (len(console_header) - 2) + ["center"]
 
     current_amc = None
     value = Decimal(0)
+    cost = Decimal(0)
 
     folio_header_added = False
     for folio in data["folios"]:
@@ -111,6 +112,8 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
             folio_number = re.sub(r"\s+", "", folio["folio"])
             scheme_name = f"{scheme['scheme']}\nFolio: {folio_number}"
             value += valuation["value"]
+            if valuation["cost"] is not None:
+                cost += valuation["cost"]
 
             if not (is_summary or folio_header_added):
                 console_rows.append(
@@ -136,8 +139,13 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
     for row in console_rows:
         table.add_row(*[str(row[key]) for key in console_header.keys()])
     console.print(table)
+    if cost > 0:
+        console.print(f"Portfolio Cost Value : [bold green]₹{cost:,.2f}[/]")
+        gains = value - cost
+        color = "red" if gains < 0 else "green"
+        console.print(f"Portfolio Gains      : [bold {color}]₹{gains:,.2f}[/]")
     console.print(
-        f"Portfolio Valuation : [bold green]₹{value:,.2f}[/] "
+        f"Portfolio Valuation  : [bold green]₹{value:,.2f}[/] "
         f"[As of {data['statement_period']['to']}]"
     )
     console.print("[bold]Summary[/]")

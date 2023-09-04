@@ -20,15 +20,20 @@ class BaseTestClass:
     def setup_class(cls):
         cls.mode = "mupdf"
         cls.cams_file_name = os.getenv("CAMS_CAS_FILE")
+        cls.new_cams_file_name = os.getenv("CAMS_CAS_FILE_NEW")
         cls.cams_summary_file_name = os.getenv("CAMS_CAS_SUMMARY")
+        cls.kfintech_summary_file_name = os.getenv("KFINTECH_CAS_SUMMARY")
         cls.kfintech_file_name = os.getenv("KFINTECH_CAS_FILE")
+        cls.new_kfintech_file_name = os.getenv("KFINTECH_CAS_FILE_NEW")
         cls.bad_file_name = os.getenv("BAD_CAS_FILE")
         cls.cams_password = os.getenv("CAMS_CAS_PASSWORD")
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
         cls.pdf_files = [
             (cls.cams_file_name, cls.cams_password, 10, 8),
+            (cls.new_cams_file_name, cls.cams_password, 14, 13),
             (cls.kfintech_file_name, cls.kfintech_password, 17, 19),
+            (cls.new_kfintech_file_name, cls.kfintech_password, 14, 13),
         ]
 
     def read_pdf(self, filename, password, output="dict"):
@@ -47,17 +52,26 @@ class BaseTestClass:
                     assert scheme["isin"] is not None
                     assert scheme["amfi"] is not None
             assert data.get("investor_info", {}).get("mobile") not in (None, "")
-            assert data["cas_type"] == "DETAILED"
+            assert data["cas_type"] == CASFileType.DETAILED.value
 
     def test_read_summary(self):
-        data = self.read_pdf(self.cams_summary_file_name, self.cams_password)
-        assert len(data.folios) == 4
-        for folio in data.folios:
-            for scheme in folio.schemes:
-                assert scheme.isin is not None
-                assert scheme.amfi is not None
-        assert data.investor_info.mobile not in (None, "")
-        assert data.cas_type == CASFileType.SUMMARY
+        summary_files = (
+            (self.cams_summary_file_name, self.cams_password, 4),
+            (
+                self.kfintech_summary_file_name,
+                self.kfintech_password,
+                9,
+            ),
+        )
+        for filename, password, num_folios in summary_files:
+            data = self.read_pdf(filename, password)
+            assert len(data.folios) == num_folios
+            for folio in data.folios:
+                for scheme in folio.schemes:
+                    assert scheme.isin is not None
+                    assert scheme.amfi is not None
+            assert data.investor_info.mobile not in (None, "")
+            assert data.cas_type == CASFileType.SUMMARY.value
 
     def test_read_dict(self):
         from casparser.cli import cli
