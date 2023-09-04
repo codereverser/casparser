@@ -135,3 +135,5 @@ tests/files.tar
 .DS_Store
 
 casparser.code-workspace
+.ruff_cache/
+.vscode/

@@ -40,6 +40,7 @@ class SchemeValuation(BaseModel):
 
     date: Union[date, str]
     nav: Union[Decimal, float]
+    cost: Union[Decimal, float, None] = None
     value: Union[Decimal, float]
 
 
@@ -79,6 +80,10 @@ class CASData(BaseModel):
     investor_info: InvestorInfo
     cas_type: CASFileType
     file_type: FileType
+    model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=True,
+    )
 
 
 class PartialCASData(BaseModel):

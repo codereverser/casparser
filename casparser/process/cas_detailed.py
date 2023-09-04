@@ -19,6 +19,7 @@ from casparser.types import (
 from .regex import (
     AMC_RE,
     CLOSE_UNITS_RE,
+    COST_RE,
     DESCRIPTION_TAIL_RE,
     DETAILED_DATE_RE,
     DIVIDEND_RE,
@@ -27,6 +28,7 @@ from .regex import (
     OPEN_UNITS_RE,
     REGISTRAR_RE,
     SCHEME_RE,
+    SCHEME_KV_RE,
     TRANSACTION_RE1,
     TRANSACTION_RE2,
     TRANSACTION_RE3,
@@ -145,7 +147,6 @@ def process_detailed_text(text):
     current_folio = None
     current_amc = None
     curr_scheme_data: Optional[Scheme] = None
-    balance = Decimal(0.0)
     lines = text.split("\u2029")
     for idx, line in enumerate(lines):
         # Parse schemes with long names (single line) effectively pushing
@@ -172,42 +173,46 @@ def process_detailed_text(text):
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
-            scheme = re.sub(r"\(formerly.+?\)", "", m.group(2), flags=re.I | re.DOTALL).strip()
+            scheme = re.sub(r"\(formerly.+?\)", "", m.group("name"), flags=re.I | re.DOTALL).strip()
             scheme = re.sub(r"\s+", " ", scheme).strip()
             if curr_scheme_data is None or curr_scheme_data.scheme != scheme:
                 if curr_scheme_data:
                     folios[current_folio].schemes.append(curr_scheme_data)
-                advisor = m.group(3)
-                if advisor is not None:
-                    advisor = advisor.strip()
-                rta = m.group(4).strip()
-                rta_code = m.group(1).strip()
-                isin, amfi, scheme_type = isin_search(scheme, rta, rta_code)
-                curr_scheme_data = Scheme(
-                    scheme=scheme,
-                    advisor=advisor,
-                    rta_code=rta_code,
-                    type=scheme_type or "N/A",
-                    rta=rta,
-                    isin=isin,
-                    amfi=amfi,
-                    open=Decimal(0.0),
-                    close=Decimal(0.0),
-                    close_calculated=Decimal(0.0),
-                    valuation=SchemeValuation(
-                        date=statement_period.to, value=Decimal(0.0), nav=Decimal(0.0)
-                    ),
-                    transactions=[],
-                )
+
+            match_pairs = re.findall(SCHEME_KV_RE, line, re.DOTALL | re.MULTILINE | re.I)
+            metadata: Dict[str, str] = {}
+            for key, value in match_pairs:
+                metadata[key.strip().lower()] = value.strip()
+            isin_ = metadata.get("isin")
+            rta_code = m.group("code").strip()
+            rta = m.group("rta").strip()
+            isin, amfi, scheme_type = isin_search(scheme, rta, rta_code, isin=isin_)
+            curr_scheme_data = Scheme(
+                scheme=scheme,
+                advisor=metadata.get("advisor"),
+                rta=rta,
+                rta_code=rta_code,
+                isin=isin,
+                type=scheme_type or "N/A",
+                amfi=amfi,
+                open=Decimal(0.0),
+                close=Decimal(0.0),
+                close_calculated=Decimal(0.0),
+                valuation=SchemeValuation(
+                    date=statement_period.to, value=Decimal(0.0), nav=Decimal(0.0)
+                ),
+                transactions=[],
+            )
         if not curr_scheme_data:
             continue
         if m := re.search(OPEN_UNITS_RE, line):
             curr_scheme_data.open = Decimal(m.group(1).replace(",", "_"))
             curr_scheme_data.close_calculated = curr_scheme_data.open
-            balance = curr_scheme_data.open
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
             curr_scheme_data.close = Decimal(m.group(1).replace(",", "_"))
+        if m := re.search(COST_RE, line, re.I):
+            curr_scheme_data.valuation.cost = Decimal(m.group(1).replace(",", "_"))
         if m := re.search(VALUATION_RE, line, re.I):
             curr_scheme_data.valuation.date = date_parser.parse(m.group(1)).date()
             curr_scheme_data.valuation.value = Decimal(m.group(2).replace(",", "_"))
