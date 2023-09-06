@@ -1,5 +1,8 @@
 # Changelog
 
+# 0.7.1 - 2023-09-06
+- fix bug where long scheme names were getting truncated
+
 ## 0.7.0 - 2023-09-03
 - update pydantic to v2
 
