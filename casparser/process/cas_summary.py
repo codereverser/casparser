@@ -43,11 +43,11 @@ def process_summary_text(text):
     for line in lines:
         if len(folios) > 0 and re.search("Total", line, re.I):
             break
-        scheme_tail = ""
-        if m := re.search(SCHEME_TAIL_RE, line, re.DOTALL | re.MULTILINE):
-            scheme_tail = m.group(1).strip()
-            line = line.replace(scheme_tail, "")
-            scheme_tail = re.sub(r"\s+", " ", scheme_tail).strip()
+        scheme_tails = []
+        if m := re.findall(SCHEME_TAIL_RE, line):
+            for txt in m:
+                line = line.replace(txt, "")
+                scheme_tails.append(re.sub(r"\s+", " ", txt).strip())
         if m := re.search(SUMMARY_ROW_RE, line, re.DOTALL | re.MULTILINE | re.I):
             folio = m.group("folio").strip()
             if current_folio is None or current_folio != folio:
@@ -61,8 +61,8 @@ def process_summary_text(text):
                     schemes=[],
                 )
             scheme = m.group("name")
-            if scheme_tail != "":
-                scheme = " ".join([scheme, scheme_tail])
+            if len(scheme_tails) > 0:
+                scheme = " ".join([scheme, *scheme_tails])
             scheme = re.sub(r"\(formerly.+?\)", "", scheme, flags=re.I | re.DOTALL).strip()
             rta = m.group("rta").strip()
             rta_code = m.group("code").strip()
