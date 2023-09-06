@@ -56,20 +56,19 @@ class BaseTestClass:
 
     def test_read_summary(self):
         summary_files = (
-            (self.cams_summary_file_name, self.cams_password, 4),
-            (
-                self.kfintech_summary_file_name,
-                self.kfintech_password,
-                9,
-            ),
+            (self.cams_summary_file_name, self.cams_password, 4, 6),
+            (self.kfintech_summary_file_name, self.kfintech_password, 9, 13),
         )
-        for filename, password, num_folios in summary_files:
+        for filename, password, num_folios, num_schemes in summary_files:
             data = self.read_pdf(filename, password)
             assert len(data.folios) == num_folios
+            schemes_found = 0
             for folio in data.folios:
+                schemes_found += len(folio.schemes)
                 for scheme in folio.schemes:
                     assert scheme.isin is not None
                     assert scheme.amfi is not None
+            assert schemes_found == num_schemes
             assert data.investor_info.mobile not in (None, "")
             assert data.cas_type == CASFileType.SUMMARY.value
 
