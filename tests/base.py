@@ -30,10 +30,10 @@ class BaseTestClass:
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
 
         cls.pdf_files = [
-            (cls.cams_file_name, cls.cams_password, 10, 8),
-            (cls.new_cams_file_name, cls.cams_password, 14, 13),
-            (cls.kfintech_file_name, cls.kfintech_password, 17, 19),
-            (cls.new_kfintech_file_name, cls.kfintech_password, 14, 13),
+            (cls.cams_file_name, cls.cams_password, 10, 14),
+            (cls.new_cams_file_name, cls.cams_password, 14, 30),
+            (cls.kfintech_file_name, cls.kfintech_password, 17, 30),
+            (cls.new_kfintech_file_name, cls.kfintech_password, 14, 29),
         ]
 
     def read_pdf(self, filename, password, output="dict"):
@@ -79,7 +79,7 @@ class BaseTestClass:
         runner = CliRunner()
 
         for pdf_file, pdf_password, _, num_schemes in self.pdf_files:
-            args = [pdf_file, "-p", pdf_password]
+            args = [pdf_file, "-p", pdf_password, "-a"]
             if self.mode != "mupdf":
                 args.append("--force-pdfminer")
             result = runner.invoke(cli, args)

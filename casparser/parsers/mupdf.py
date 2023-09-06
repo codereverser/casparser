@@ -155,13 +155,19 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
     """
     lines = []
     for elements in elements_list:
-        sorted_elements = list(sorted(elements, key=itemgetter(3, 0)))
+        sorted_elements = list(sorted(elements, key=itemgetter(1, 0)))
         if len(sorted_elements) == 0:
             continue
         y0, y1 = sorted_elements[0][1], sorted_elements[0][3]
         items = []
         for el in sorted_elements:
-            if len(items) > 0 and not (is_close(el[3], y1, tol=2) or is_close(el[1], y0, tol=2)):
+            x2, y2, x3, y3 = el[:4]
+            if abs(y3 - y2) > abs(x3 - x2):
+                # Ignore vertical elements. No useful info there.
+                continue
+            if len(items) > 0 and not (
+                is_close(y3, y1, tol=2) or is_close(y2, y0, tol=2) or y0 <= y2 <= y3 <= y1
+            ):
                 line = "\t\t".join(
                     [x[4].strip() for x in sorted(items, key=lambda x: x[0]) if x[4].strip()]
                 )
