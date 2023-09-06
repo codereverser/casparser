@@ -13,7 +13,7 @@ from casparser.types import (
     StatementPeriod,
 )
 
-from .regex import SUMMARY_DATE_RE, SUMMARY_ROW_RE
+from .regex import SCHEME_TAIL_RE, SUMMARY_DATE_RE, SUMMARY_ROW_RE
 from .utils import isin_search
 
 
@@ -43,6 +43,11 @@ def process_summary_text(text):
     for line in lines:
         if len(folios) > 0 and re.search("Total", line, re.I):
             break
+        scheme_tail = ""
+        if m := re.search(SCHEME_TAIL_RE, line, re.DOTALL | re.MULTILINE):
+            scheme_tail = m.group(1).strip()
+            line = line.replace(scheme_tail, "")
+            scheme_tail = re.sub(r"\s+", " ", scheme_tail).strip()
         if m := re.search(SUMMARY_ROW_RE, line, re.DOTALL | re.MULTILINE | re.I):
             folio = m.group("folio").strip()
             if current_folio is None or current_folio != folio:
@@ -55,7 +60,10 @@ def process_summary_text(text):
                     PANKYC="N/A",
                     schemes=[],
                 )
-            scheme = re.sub(r"\(formerly.+?\)", "", m.group("name"), flags=re.I | re.DOTALL).strip()
+            scheme = m.group("name")
+            if scheme_tail != "":
+                scheme = " ".join([scheme, scheme_tail])
+            scheme = re.sub(r"\(formerly.+?\)", "", scheme, flags=re.I | re.DOTALL).strip()
             rta = m.group("rta").strip()
             rta_code = m.group("code").strip()
             isin_ = m.group("isin")
