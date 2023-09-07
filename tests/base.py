@@ -33,7 +33,7 @@ class BaseTestClass:
             (cls.cams_file_name, cls.cams_password, 10, 14),
             (cls.new_cams_file_name, cls.cams_password, 14, 30),
             (cls.kfintech_file_name, cls.kfintech_password, 17, 30),
-            (cls.new_kfintech_file_name, cls.kfintech_password, 14, 29),
+            (cls.new_kfintech_file_name, cls.kfintech_password, 14, 30),
         ]
 
     def read_pdf(self, filename, password, output="dict"):

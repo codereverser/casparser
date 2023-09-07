@@ -162,14 +162,15 @@ def process_detailed_text(text):
                     folios[current_folio].schemes.append(curr_scheme_data)
                     curr_scheme_data = None
                 current_folio = folio
-                folios[folio] = Folio(
-                    folio=current_folio,
-                    amc=current_amc,
-                    PAN=(m.group(2) or "").strip(),
-                    KYC=None if m.group(3) is None else m.group(3).strip(),
-                    PANKYC=None if m.group(4) is None else m.group(4).strip(),
-                    schemes=[],
-                )
+                if folio not in folios:
+                    folios[folio] = Folio(
+                        folio=current_folio,
+                        amc=current_amc,
+                        PAN=(m.group(2) or "").strip(),
+                        KYC=None if m.group(3) is None else m.group(3).strip(),
+                        PANKYC=None if m.group(4) is None else m.group(4).strip(),
+                        schemes=[],
+                    )
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
