@@ -52,14 +52,15 @@ def process_summary_text(text):
             folio = m.group("folio").strip()
             if current_folio is None or current_folio != folio:
                 current_folio = folio
-                folios[folio] = Folio(
-                    folio=current_folio,
-                    amc=current_amc,
-                    PAN="N/A",
-                    KYC="N/A",
-                    PANKYC="N/A",
-                    schemes=[],
-                )
+                if folio not in folios:
+                    folios[folio] = Folio(
+                        folio=current_folio,
+                        amc=current_amc,
+                        PAN="N/A",
+                        KYC="N/A",
+                        PANKYC="N/A",
+                        schemes=[],
+                    )
             scheme = m.group("name")
             if len(scheme_tails) > 0:
                 scheme = " ".join([scheme, *scheme_tails])
