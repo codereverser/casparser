@@ -117,7 +117,10 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
 
             if not (is_summary or folio_header_added):
                 console_rows.append(
-                    {k: current_amc if k == "scheme" else "" for k in console_header.keys()}
+                    {
+                        k: f"[bold]{current_amc}[/]" if k == "scheme" else ""
+                        for k in console_header.keys()
+                    }
                 )
                 folio_header_added = True
 
