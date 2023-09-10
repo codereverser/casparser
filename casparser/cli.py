@@ -25,6 +25,20 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 console = Console()
 
 
+def formatINR(number):
+    """format a number as INR
+    credit: https://stackoverflow.com/a/68484491"""
+    prefix = {True: "-", False: ""}
+    number = float(number)
+    number = round(number, 2)
+    is_negative = number < 0
+    number = abs(number)
+    s, *d = str(number).partition(".")
+    r = ",".join([s[x - 2 : x] for x in range(-3, -len(s), -2)][::-1] + [s[-3:]])
+    value = "".join([r] + d)
+    return f"{prefix[is_negative]}₹{value}"
+
+
 def validate_fy(ctx, param, value):
     return re.search(r"FY\d{4}-\d{2,4}", value, re.I) is not None
 
@@ -128,7 +142,7 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
                 "scheme": scheme_name,
                 "open": scheme["open"],
                 "close": scheme["close"] if is_summary else f"{scheme['close']}\n/\n{calc_close}",
-                "value": f"₹{valuation['value']:,.2f}\n@\n₹{valuation['nav']:,.2f}",
+                "value": f"{formatINR(valuation['value'])}\n@\n{formatINR(valuation['nav'])}",
                 "txns": len(scheme["transactions"]),
                 "status": status,
             }
@@ -143,12 +157,12 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
         table.add_row(*[str(row[key]) for key in console_header.keys()])
     console.print(table)
     if cost > 0:
-        console.print(f"Portfolio Cost Value : [bold green]₹{cost:,.2f}[/]")
+        console.print(f"Portfolio Cost Value : [bold green]{formatINR(cost)}[/]")
         gains = value - cost
         color = "red" if gains < 0 else "green"
-        console.print(f"Portfolio Gains      : [bold {color}]₹{gains:,.2f}[/]")
+        console.print(f"Portfolio Gains      : [bold {color}]{formatINR(gains)}[/]")
     console.print(
-        f"Portfolio Valuation  : [bold green]₹{value:,.2f}[/] "
+        f"Portfolio Valuation  : [bold green]{formatINR(value)}[/] "
         f"[As of {data['statement_period']['to']}]"
     )
     console.print("[bold]Summary[/]")
@@ -191,16 +205,16 @@ def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
             table.add_row(
                 "",
                 fund,
-                f"₹{round(ltcg, 2)}",
-                f"₹{round(ltcg_taxable, 2)}",
-                f"₹{round(stcg, 2)}",
+                f"{formatINR(ltcg)}",
+                f"{formatINR(ltcg_taxable)}",
+                f"{formatINR(stcg)}",
             )
         table.add_row(
             "",
             f"[bold]{fy} - Total Gains[/]",
-            f"[bold {get_color(ltcg_total)}]₹{round(ltcg_total, 2)}[/]",
-            f"[bold {get_color(ltcg_taxable_total)}]₹{round(ltcg_taxable_total, 2)}[/]",
-            f"[bold {get_color(stcg_total)}]₹{round(stcg_total, 2)}[/]",
+            f"[bold {get_color(ltcg_total)}]{formatINR(ltcg_total)}[/]",
+            f"[bold {get_color(ltcg_taxable_total)}]{formatINR(ltcg_taxable_total)}[/]",
+            f"[bold {get_color(stcg_total)}]{formatINR(stcg_total)}[/]",
         )
     console.print(table)
 
@@ -235,10 +249,10 @@ def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
         console.print(Markdown("\n".join(md_txt)))
 
     console.print(f"\n[bold]PnL[/] as of [bold]{data['statement_period']['to']}[/]")
-    console.print(f"{'Total Invested':20s}: [bold]₹{cg.invested_amount:,.2f}[/]")
-    console.print(f"{'Current Valuation':20s}: [bold]₹{cg.current_value:,.2f}[/]")
+    console.print(f"{'Total Invested':20s}: [bold]{formatINR(cg.invested_amount)}[/]")
+    console.print(f"{'Current Valuation':20s}: [bold]{formatINR(cg.current_value)}[/]")
     pnl = cg.current_value - cg.invested_amount
-    console.print(f"{'Absolute PnL':20s}: [bold {get_color(pnl)}]₹{pnl:,.2f}[/]")
+    console.print(f"{'Absolute PnL':20s}: [bold {get_color(pnl)}]{formatINR(pnl)}[/]")
     console.print(
         "\n[bold yellow]Warning:[/] Capital gains module is in beta stage. "
         "Please verify the generated data manually."
