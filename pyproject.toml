@@ -29,6 +29,7 @@ PyMuPDF = {version = "^1.23.0", optional = true}
 
 [tool.poetry.extras]
 mupdf = ["PyMuPDF"]
+fast = ["PyMuPDF"]
 
 [tool.poetry.dev-dependencies]
 coverage = {version = "^7.1", extras=["toml"]}
