@@ -44,7 +44,11 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
             name = txt
         else:
             if (
-                re.search(r"Date\s+Transaction|Folio\s+No|^Date\s*$", txt, re.I | re.MULTILINE)
+                re.search(
+                    r"Portfolio\s+Summary|Mutual\s+Fund|Date\s+Transaction|Folio\s+No|^Date\s*$",
+                    txt,
+                    re.I | re.MULTILINE,
+                )
                 or mobile is not None
             ):
                 return InvestorInfo(
