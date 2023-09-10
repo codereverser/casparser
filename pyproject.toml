@@ -53,7 +53,7 @@ target-version = ['py38']
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "--cov=casparser --cov-report=xml --cov-report=html --cov-config=tox.ini"
+addopts = "--cov=casparser --cov-report=xml --cov-report=html"
 testpaths = [
     "tests",
 ]
@@ -61,3 +61,14 @@ testpaths = [
 [tool.ruff]
 line-length = 100
 target-version = "py38"
+
+[tool.coverage.report]
+omit = [
+    "casparser/cli.py"
+]
+precision = 3
+
+[tool.coverage.run]
+omit = [
+    "casparser/cli.py"
+]
