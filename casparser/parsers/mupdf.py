@@ -129,7 +129,7 @@ def parse_investor_info(page_dict, page_rect: fitz.Rect) -> InvestorInfo:
                 else:
                     if (
                         re.search(
-                            r"Date\s+Transaction|Folio\s+No|^Date\s*$",
+                            r"Mutual\s+Fund|Date\s+Transaction|Folio\s+No|^Date\s*$",
                             txt,
                             re.I | re.MULTILINE,
                         )
