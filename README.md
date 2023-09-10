@@ -21,7 +21,7 @@ pip install -U casparser
 
 ### with faster PyMuPDF parser
 ```bash
-pip install -U 'casparser[mupdf]'
+pip install -U 'casparser[fast]'
 ```
 
 **Note:** Enabling this dependency could result in licensing changes. Check the
@@ -195,7 +195,7 @@ failing scheme name(s).
 ## License
 
 CASParser is distributed under MIT license by default. However enabling the optional dependency
-`mupdf` would imply the use of [PyMuPDF](https://github.com/pymupdf/PyMuPDF) /
+`mupdf/fast` would imply the use of [PyMuPDF](https://github.com/pymupdf/PyMuPDF) /
 [MuPDF](https://mupdf.com/license.html) and hence the licenses GNU GPL v3 and GNU Affero GPL v3
 would apply. Copies of all licenses have been included in this repository. - _IANAL_
 
