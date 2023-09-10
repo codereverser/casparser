@@ -23,7 +23,8 @@ FOLIO_RE = (
 )
 
 SCHEME_RE = (
-    r"(?P<code>[\s\w]+-*[gdp]?)-\s*\d*\s*(?P<name>.+?)\(.+?\s+Registrar\s*:\s*(?P<rta>.*)\s*$"
+    r"(?P<code>[\s\w]+-*[gdp]?)-\s*\d*\s*(?P<name>.+?)(?:\t\t|\(|ISIN).*?"
+    r"Registrar\s*:\s*(?P<rta>.*)\s*$"
 )
 SCHEME_KV_RE = r"""(\w+)\s*:\s*(\w+)"""
 
