@@ -15,24 +15,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install poetry
+      run: pipx install poetry
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'poetry'
     - name: Extract test files
       run: ./.github/scripts/extract_files.sh
       env:
         FILES_PASSPHRASE: ${{ secrets.FILES_PASSPHRASE }}
-    - name: Install and configure poetry
-      uses: snok/install-poetry@v1
-      with:
-        virtualenvs-create: false
     - name: Install dependencies
       run: poetry install -E mupdf
-      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
     - name: Test with pytest
-      run: |
-        pytest
+      run: poetry run pytest
       env:
         BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
         CAMS_CAS_FILE: ${{ secrets.CAMS_CAS_FILE }}
