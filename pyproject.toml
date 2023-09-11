@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "casparser"
-version = "0.7.1"
+version = "0"  # Fetched from casparser.__init__
 description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
 authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
 homepage = "https://github.com/codereverser/casparser"
@@ -48,20 +48,12 @@ black = "^23.3.0"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
-line-length = 100
-target-version = ['py38']
-
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "--cov=casparser --cov-report=xml --cov-report=html"
 testpaths = [
     "tests",
 ]
-
-[tool.ruff]
-line-length = 100
-target-version = "py38"
 
 [tool.coverage.report]
 omit = [
@@ -73,3 +65,14 @@ precision = 3
 omit = [
     "casparser/cli.py"
 ]
+
+[tool.poetry-version-plugin]
+source = "init"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"

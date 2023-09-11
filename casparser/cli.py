@@ -13,8 +13,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.table import Table
 
-from . import read_cas_pdf
-from .__version__ import __version__
+from . import read_cas_pdf, __version__
 from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
 from .exceptions import GainsError, IncompleteCASError, ParserException
