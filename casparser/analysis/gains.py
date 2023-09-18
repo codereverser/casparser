@@ -466,7 +466,14 @@ class CapitalGainsReport:
 
     def generate_112a(self, fy) -> List[GainEntry112A]:
         fy_transactions = sorted(
-            list(filter(lambda x: x.fy == fy and x.fund.type == "EQUITY", self.gains)),
+            list(
+                filter(
+                    lambda x: x.fy == fy
+                    and x.fund.type == "EQUITY"
+                    and x.gain_type == GainType.LTCG,
+                    self.gains,
+                )
+            ),
             key=lambda x: x.fund,
         )
         rows: List[GainEntry112A] = []
