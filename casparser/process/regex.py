@@ -26,7 +26,7 @@ SCHEME_RE = (
     r"(?P<code>[\s\w]+-*[gdp]?)-\s*\d*\s*(?P<name>.+?)(?:\t\t|\(|ISIN).*?"
     r"Registrar\s*:\s*(?P<rta>.*)\s*$"
 )
-SCHEME_KV_RE = r"""(\w+)\s*:\s*(\w+)"""
+SCHEME_KV_RE = r"""(\w+)\s*:\s*([-\w]+)"""
 
 REGISTRAR_RE = r"^\s*Registrar\s*:\s*(.*)\s*$"
 OPEN_UNITS_RE = r"Opening\s+Unit\s+Balance.+?([\d,.]+)"
