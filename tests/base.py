@@ -51,6 +51,7 @@ class BaseTestClass:
                 for scheme in folio.get("schemes", []):
                     assert scheme["isin"] is not None
                     assert scheme["amfi"] is not None
+                    assert scheme["advisor"] not in (None, "ARN")
             assert data.get("investor_info", {}).get("mobile") not in (None, "")
             assert data["cas_type"] == CASFileType.DETAILED.value
 

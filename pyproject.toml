@@ -50,7 +50,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "--cov=casparser --cov-report=xml --cov-report=html"
+addopts = "--cov=casparser --cov-report=xml --cov-report=html --exitfirst"
 testpaths = [
     "tests",
 ]
