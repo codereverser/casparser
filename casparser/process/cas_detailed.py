@@ -24,7 +24,9 @@ from .regex import (
     DETAILED_DATE_RE,
     DIVIDEND_RE,
     FOLIO_RE,
+    FOLIO_KV_RE,
     NAV_RE,
+    NOMINEE_RE,
     OPEN_UNITS_RE,
     REGISTRAR_RE,
     SCHEME_RE,
@@ -155,20 +157,33 @@ def process_detailed_text(text):
             line = "\t\t".join([lines[idx + 1], line])
         if amc_match := re.search(AMC_RE, line, re.I | re.DOTALL):
             current_amc = amc_match.group(0)
-        elif m := re.search(FOLIO_RE, line, re.I | re.DOTALL):
+        elif m := re.search(FOLIO_RE, line):
             folio = m.group(1).strip()
             if current_folio is None or current_folio != folio:
                 if curr_scheme_data and current_folio is not None:
                     folios[current_folio].schemes.append(curr_scheme_data)
                     curr_scheme_data = None
                 current_folio = folio
+
+                pan = ""
+                kyc = None
+                pankyc = None
+                for k, v in re.findall(FOLIO_KV_RE, line):
+                    v = v.strip()
+                    if k == "KYC":
+                        kyc = v
+                    elif len(v) == 10:
+                        pan = v
+                    else:
+                        pankyc = v
+
                 if folio not in folios:
                     folios[folio] = Folio(
                         folio=current_folio,
                         amc=current_amc,
-                        PAN=(m.group(2) or "").strip(),
-                        KYC=None if m.group(3) is None else m.group(3).strip(),
-                        PANKYC=None if m.group(4) is None else m.group(4).strip(),
+                        PAN=pan,
+                        KYC=kyc,
+                        PANKYC=pankyc,
                         schemes=[],
                     )
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
@@ -207,6 +222,8 @@ def process_detailed_text(text):
             )
         if not curr_scheme_data:
             continue
+        if m := re.search(NOMINEE_RE, line, re.I | re.DOTALL):
+            curr_scheme_data.nominees.extend([x.strip() for x in m.groups() if x.strip()])
         if m := re.search(OPEN_UNITS_RE, line):
             curr_scheme_data.open = Decimal(m.group(1).replace(",", "_"))
             curr_scheme_data.close_calculated = curr_scheme_data.open

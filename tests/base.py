@@ -48,6 +48,7 @@ class BaseTestClass:
                 len(data.get("folios", [])) == num_folios
             ), f"Expected : {num_folios} :: Got {len(data.get('folios', []))}"
             for folio in data["folios"]:
+                assert isinstance(folio["PAN"], str) and len(folio["PAN"]) == 10
                 for scheme in folio.get("schemes", []):
                     assert scheme["isin"] is not None
                     assert scheme["amfi"] is not None

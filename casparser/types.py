@@ -54,6 +54,7 @@ class Scheme(BaseModel):
     type: Optional[str] = None
     isin: Optional[str] = None
     amfi: Optional[str] = None
+    nominees: List[str] = []
     open: Union[Decimal, float]
     close: Union[Decimal, float]
     close_calculated: Union[Decimal, float]
