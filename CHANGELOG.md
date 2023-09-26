@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.3 - 2023-09-26
+- (new) Add support for parsing nominee details (available in `Folio.nominees`)
+- (fix) fix empty PAN in certain cases
+
+## 0.7.2 - 2023-09-19
+- Bug fixes
+  - Exclude short term capital gains (STCG) from 112A reports
+  - Fix advisor code parsing
+
 # 0.7.1 - 2023-09-06
 - fix bug where long scheme names were getting truncated
 
