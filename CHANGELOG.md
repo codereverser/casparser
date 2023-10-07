@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.4 - 2023-10-04
+- (fix) fix broken scheme names
+
 ## 0.7.3 - 2023-09-26
 - (new) Add support for parsing nominee details (available in `Folio.nominees`)
 - (fix) fix empty PAN in certain cases

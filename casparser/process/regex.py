@@ -23,7 +23,7 @@ FOLIO_KV_RE = r"(PAN|KYC)\s*:\s*([A-Z]{5}\d{4}[A-Z]|OK|NOT OK)"
 NOMINEE_RE = r"\s*Nominee\s+[1-3]\s*:\s*(.*?)" * 3 + r"$"
 
 SCHEME_RE = (
-    r"(?P<code>[\s\w]+-*[gdp]?)-\s*\d*\s*(?P<name>.+?)(?:\t\t|\(|ISIN).*?"
+    r"(?P<code>[\s\w]+-*[gdp]?)-\s*\d*\s*(?P<name>.+?)(?:\t\t|\(\s*Advis|ISIN).*?"
     r"Registrar\s*:\s*(?P<rta>.*)\s*$"
 )
 SCHEME_KV_RE = r"""(\w+)\s*:\s*([-\w]+)"""
