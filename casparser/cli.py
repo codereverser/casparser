@@ -38,6 +38,10 @@ def formatINR(number):
     return f"{prefix[is_negative]}₹{value}"
 
 
+def format_number(number):
+    return f"{number:,}"
+
+
 def validate_fy(ctx, param, value):
     return re.search(r"FY\d{4}-\d{2,4}", value, re.I) is not None
 
@@ -137,10 +141,13 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
                 )
                 folio_header_added = True
 
+            scheme_close = scheme["close"]
+
             console_row = {
                 "scheme": scheme_name,
                 "open": scheme["open"],
-                "close": scheme["close"] if is_summary else f"{scheme['close']}\n/\n{calc_close}",
+                "close": format_number(scheme_close) if is_summary
+                            else f"{format_number(scheme_close)}\n/\n{calc_close}",
                 "value": f"{formatINR(valuation['value'])}\n@\n{formatINR(valuation['nav'])}",
                 "txns": len(scheme["transactions"]),
                 "status": status,
