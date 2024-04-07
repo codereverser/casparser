@@ -118,6 +118,13 @@ def get_transaction_type(
     return txn_type, dividend_rate
 
 
+def get_parsed_scheme_name(scheme) -> str:
+    scheme = re.sub(r"\((formerly|erstwhile).+?\)", "", scheme, flags=re.I | re.DOTALL).strip()
+    scheme = re.sub(r"\((Demat|Non-Demat).*", "", scheme, flags=re.I | re.DOTALL).strip()
+    scheme = re.sub(r"\s+", " ", scheme).strip()
+    return re.sub(r"[^a-zA-Z0-9_)]+$", "", scheme).strip()
+
+
 def parse_transaction(line) -> Optional[ParsedTransaction]:
     for regex in (TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3):
         if m := re.search(regex, line, re.DOTALL | re.MULTILINE | re.I):
@@ -189,9 +196,7 @@ def process_detailed_text(text):
         elif m := re.search(SCHEME_RE, line, re.DOTALL | re.MULTILINE | re.I):
             if current_folio is None:
                 raise CASParseError("Layout Error! Scheme found before folio entry.")
-            scheme = re.sub(r"\(formerly.+?\)", "", m.group("name"), flags=re.I | re.DOTALL).strip()
-            scheme = re.sub(r"\s+", " ", scheme).strip()
-            scheme = re.sub(r"\W+$", "", scheme).strip()
+            scheme = get_parsed_scheme_name(m.group("name"))
             if curr_scheme_data is None or curr_scheme_data.scheme != scheme:
                 if curr_scheme_data:
                     folios[current_folio].schemes.append(curr_scheme_data)

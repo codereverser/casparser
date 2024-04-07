@@ -4,7 +4,7 @@ import pytest
 
 from casparser.exceptions import CASParseError, HeaderParseError
 from casparser.process import process_cas_text
-from casparser.process.cas_detailed import parse_header, get_transaction_type
+from casparser.process.cas_detailed import parse_header, get_transaction_type, get_parsed_scheme_name
 from casparser.process.cas_detailed import ParsedTransaction, parse_transaction
 from casparser.process.cas_summary import parse_header as parse_summary_header
 from casparser.process.utils import isin_search
@@ -93,6 +93,23 @@ class TestProcessClass:
             TransactionType.DIVIDEND_REINVEST,
             Decimal("0.0241"),
         )
+
+    def test_parsed_scheme_name(self):
+        assert get_parsed_scheme_name(
+            "Axis Long Term Equity Fund - Direct Growth") == "Axis Long Term Equity Fund - Direct Growth"
+        assert get_parsed_scheme_name(
+            "Axis Bluechip Fund - Regular Growth ") == "Axis Bluechip Fund - Regular Growth"
+        assert get_parsed_scheme_name(
+            "HSBC Corporate Bond Fund - Regular Growth (Formerly known as L&T Triple Ace Bond Fund - Growth)") == \
+            "HSBC Corporate Bond Fund - Regular Growth"
+        assert get_parsed_scheme_name(
+            "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
+            "(erstwhile Bandhan Tax Advantage ELSS Fund-Growth-Regular Plan)") == \
+               "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
+        assert get_parsed_scheme_name(
+            "Bandhan Liquid Fund-Growth-(Regular Plan) (erstwhile IDFC Cash Fund-Growth-Regular Plan) (Non-Demat) ") == \
+               "Bandhan Liquid Fund-Growth-(Regular Plan)"
+
 
     def test_isin_search(self):
         isin, amfi, scheme_type = isin_search(
