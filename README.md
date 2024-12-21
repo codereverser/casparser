@@ -10,7 +10,7 @@ Parse Consolidated Account Statement (CAS) PDF files generated from CAMS/KFINTEC
 
 `casparser` also includes a command line tool with the following analysis tools
 - `summary`- print portfolio summary
-- (**BETA**) `gains` - Print capital gains report (summary and detailed)
+- `gains` - Print capital gains report (summary and detailed)
   - with option to generate csv files for ITR in schedule 112A format
 
 
@@ -73,13 +73,18 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
                     "advisor": "string",
                     "rta_code": "string",
                     "rta": "string",
+                    "type": "string",
+                    "nominees": [
+                      "string",
+                    ],
                     "open": "number",
                     "close": "number",
                     "close_calculated": "number",
                     "valuation": {
                       "date": "date",
                       "nav": "number",
-                      "value": "number"
+                      "value": "number",
+                      "cost": "number",
                     },
                     "transactions": [
                         {
