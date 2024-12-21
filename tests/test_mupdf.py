@@ -1,11 +1,12 @@
 import re
 
 import fitz
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
-from casparser.exceptions import CASParseError
 from casparser.enums import FileType
+from casparser.exceptions import CASParseError
+
 from .base import BaseTestClass
 
 

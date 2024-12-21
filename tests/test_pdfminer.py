@@ -1,7 +1,8 @@
-from pdfminer.layout import LTTextBoxHorizontal
 import pytest
+from pdfminer.layout import LTTextBoxHorizontal
 
 from casparser.exceptions import CASParseError
+
 from .base import BaseTestClass
 
 
