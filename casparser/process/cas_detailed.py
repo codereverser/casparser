@@ -34,6 +34,7 @@ from .regex import (
     TRANSACTION_RE1,
     TRANSACTION_RE2,
     TRANSACTION_RE3,
+    TRANSACTION_RE4,
     VALUATION_RE,
 )
 from .utils import isin_search
@@ -99,7 +100,7 @@ def get_transaction_type(
             txn_type = TransactionType.PURCHASE
     elif units < 0:
         if re.search(
-            "reversal|rejection|dishonoured|mismatch|insufficient\s+balance", description, re.I
+            r"reversal|rejection|dishonoured|mismatch|insufficient\s+balance", description, re.I
         ):
             txn_type = TransactionType.REVERSAL
         elif "switch" in description:
@@ -128,7 +129,7 @@ def get_parsed_scheme_name(scheme) -> str:
 
 
 def parse_transaction(line) -> Optional[ParsedTransaction]:
-    for regex in (TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3):
+    for regex in (TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3, TRANSACTION_RE4):
         if m := re.search(regex, line, re.DOTALL | re.MULTILINE | re.I):
             groups = m.groups()
             date = description = amount = units = nav = balance = None
@@ -138,6 +139,10 @@ def parse_transaction(line) -> Optional[ParsedTransaction]:
             elif groups.count(None) == 2:
                 # Segregated Portfolio Entries
                 date, description, units, balance, *_ = groups
+            elif groups.count(None) == 1:
+                # Zero unit entries
+                date, description, amount, units, nav, balance = groups
+                units = "0.000"
             elif groups.count(None) == 0:
                 # Normal entries
                 date, description, amount, units, nav, balance = groups
