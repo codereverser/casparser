@@ -52,9 +52,9 @@ def extract_blocks(page_dict):
     for block in grouped_blocks:
         lines = []
         items = []
-        if len(block.get("lines", [])) == 0:
-            continue
-        bbox = block["lines"][0]["bbox"]
+        bbox = [0, 0, 0, 0]
+        if len(block.get("lines", [])) > 0:
+            bbox = block["lines"][0]["bbox"]
         y0, y1 = bbox[1], bbox[3]
         for line in sorted(block["lines"], key=lambda x: x["bbox"][1]):
             if len(items) > 0 and not (
@@ -113,12 +113,10 @@ def parse_investor_info(page_dict, page_rect: fitz.Rect) -> InvestorInfo:
     name = None
     for block in blocks:
         for line in block["lines"]:
-            for span in line["spans"]:
-                if span["bbox"][0] > width / 3:
-                    continue
+            for span in filter(
+                lambda x: x["bbox"][0] <= width / 3 and x["text"].strip() != "", line["spans"]
+            ):
                 txt = span["text"].strip()
-                if txt == "":
-                    continue
                 if not email_found:
                     if m := re.search(r"^\s*email\s+id\s*:\s*(.+?)(?:\s|$)", txt, re.I):
                         email = m.group(1).strip()
@@ -156,9 +154,9 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
     lines = []
     for elements in elements_list:
         sorted_elements = list(sorted(elements, key=itemgetter(1, 0)))
-        if len(sorted_elements) == 0:
-            continue
-        y0, y1 = sorted_elements[0][1], sorted_elements[0][3]
+        y0, y1 = 0, 0
+        if len(sorted_elements) > 0:
+            y0, y1 = sorted_elements[0][1], sorted_elements[0][3]
         items = []
         for el in sorted_elements:
             x2, y2, x3, y3 = el[:4]
