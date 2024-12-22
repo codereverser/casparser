@@ -41,6 +41,6 @@ jobs:
         KFINTECH_CAS_FILE_NEW: ${{ secrets.KFINTECH_CAS_FILE_NEW }}
         KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}
     - name: Upload coverage report to codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         files: ./coverage.xml
