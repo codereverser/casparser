@@ -77,6 +77,17 @@ class TestProcessClass:
             amount=None,
         )
 
+        assert parse_transaction(
+            "01-Jan-2021\t\tIDCW Reinvestment @ Rs.0.003 per unit\t\t0.32\t\t\t\t1001.40\t\t12.34"
+        ) == ParsedTransaction(
+            date="01-Jan-2021",
+            description="IDCW Reinvestment @ Rs.0.003 per unit",
+            units="0.000",
+            balance="12.34",
+            nav="1001.40",
+            amount="0.32",
+        )
+
     def test_dividend_transactions(self):
         assert get_transaction_type("IDCW Reinvestment @ Rs.2.00 per unit", Decimal(1.0)) == (
             TransactionType.DIVIDEND_REINVEST,
