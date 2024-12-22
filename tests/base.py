@@ -18,7 +18,6 @@ class BaseTestClass:
 
     @classmethod
     def setup_class(cls):
-        cls.mode = "mupdf"
         cls.cams_file_name = os.getenv("CAMS_CAS_FILE")
         cls.new_cams_file_name = os.getenv("CAMS_CAS_FILE_NEW")
         cls.cams_summary_file_name = os.getenv("CAMS_CAS_SUMMARY")
@@ -37,8 +36,7 @@ class BaseTestClass:
         ]
 
     def read_pdf(self, filename, password, output="dict"):
-        use_pdfminer = self.mode == "pdfminer"
-        return read_cas_pdf(filename, password, output=output, force_pdfminer=use_pdfminer)
+        return read_cas_pdf(filename, password, output=output)
 
     def test_output_json(self):
         for filename, password, num_folios, _ in self.pdf_files:
@@ -81,8 +79,6 @@ class BaseTestClass:
 
         for pdf_file, pdf_password, _, num_schemes in self.pdf_files:
             args = [pdf_file, "-p", pdf_password, "-a"]
-            if self.mode != "mupdf":
-                args.append("--force-pdfminer")
             result = runner.invoke(cli, args)
             assert result.exit_code == 0
             clean_output = self.ansi_cleaner.sub("", result.output)
