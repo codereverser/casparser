@@ -1,6 +1,6 @@
 # CASParser
 
-[![code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![GitHub](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/codereverser/casparser/run-pytest.yml?branch=main)
 [![codecov](https://codecov.io/gh/codereverser/casparser/branch/main/graph/badge.svg?token=DYZ7TXWRGI)](https://codecov.io/gh/codereverser/casparser)
@@ -73,13 +73,18 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
                     "advisor": "string",
                     "rta_code": "string",
                     "rta": "string",
+                    "type": "string",
+                    "nominees": [
+                      "string",
+                    ],
                     "open": "number",
                     "close": "number",
                     "close_calculated": "number",
                     "valuation": {
                       "date": "date",
                       "nav": "number",
-                      "value": "number"
+                      "value": "number",
+                      "cost": "number",
                     },
                     "transactions": [
                         {

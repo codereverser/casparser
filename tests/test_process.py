@@ -2,13 +2,18 @@ from decimal import Decimal
 
 import pytest
 
+from casparser.enums import TransactionType
 from casparser.exceptions import CASParseError, HeaderParseError
 from casparser.process import process_cas_text
-from casparser.process.cas_detailed import parse_header, get_transaction_type, get_parsed_scheme_name
-from casparser.process.cas_detailed import ParsedTransaction, parse_transaction
+from casparser.process.cas_detailed import (
+    ParsedTransaction,
+    get_parsed_scheme_name,
+    get_transaction_type,
+    parse_header,
+    parse_transaction,
+)
 from casparser.process.cas_summary import parse_header as parse_summary_header
 from casparser.process.utils import isin_search
-from casparser.enums import TransactionType
 
 
 class TestProcessClass:
@@ -72,6 +77,17 @@ class TestProcessClass:
             amount=None,
         )
 
+        assert parse_transaction(
+            "01-Jan-2021\t\tIDCW Reinvestment @ Rs.0.003 per unit\t\t0.32\t\t\t\t1001.40\t\t12.34"
+        ) == ParsedTransaction(
+            date="01-Jan-2021",
+            description="IDCW Reinvestment @ Rs.0.003 per unit",
+            units="0.000",
+            balance="12.34",
+            nav="1001.40",
+            amount="0.32",
+        )
+
     def test_dividend_transactions(self):
         assert get_transaction_type("IDCW Reinvestment @ Rs.2.00 per unit", Decimal(1.0)) == (
             TransactionType.DIVIDEND_REINVEST,
@@ -95,21 +111,35 @@ class TestProcessClass:
         )
 
     def test_parsed_scheme_name(self):
-        assert get_parsed_scheme_name(
-            "Axis Long Term Equity Fund - Direct Growth") == "Axis Long Term Equity Fund - Direct Growth"
-        assert get_parsed_scheme_name(
-            "Axis Bluechip Fund - Regular Growth ") == "Axis Bluechip Fund - Regular Growth"
-        assert get_parsed_scheme_name(
-            "HSBC Corporate Bond Fund - Regular Growth (Formerly known as L&T Triple Ace Bond Fund - Growth)") == \
-            "HSBC Corporate Bond Fund - Regular Growth"
-        assert get_parsed_scheme_name(
-            "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
-            "(erstwhile Bandhan Tax Advantage ELSS Fund-Growth-Regular Plan)") == \
-               "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
-        assert get_parsed_scheme_name(
-            "Bandhan Liquid Fund-Growth-(Regular Plan) (erstwhile IDFC Cash Fund-Growth-Regular Plan) (Non-Demat) ") == \
-               "Bandhan Liquid Fund-Growth-(Regular Plan)"
-
+        assert (
+            get_parsed_scheme_name("Axis Long Term Equity Fund - Direct Growth")
+            == "Axis Long Term Equity Fund - Direct Growth"
+        )
+        assert (
+            get_parsed_scheme_name("Axis Bluechip Fund - Regular Growth ")
+            == "Axis Bluechip Fund - Regular Growth"
+        )
+        assert (
+            get_parsed_scheme_name(
+                "HSBC Corporate Bond Fund - Regular Growth "
+                "(Formerly known as L&T Triple Ace Bond Fund - Growth)"
+            )
+            == "HSBC Corporate Bond Fund - Regular Growth"
+        )
+        assert (
+            get_parsed_scheme_name(
+                "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
+                "(erstwhile Bandhan Tax Advantage ELSS Fund-Growth-Regular Plan)"
+            )
+            == "Bandhan ELSS Tax saver Fund-Growth-(Regular Plan)"
+        )
+        assert (
+            get_parsed_scheme_name(
+                "Bandhan Liquid Fund-Growth-(Regular Plan) "
+                "(erstwhile IDFC Cash Fund-Growth-Regular Plan) (Non-Demat) "
+            )
+            == "Bandhan Liquid Fund-Growth-(Regular Plan)"
+        )
 
     def test_isin_search(self):
         isin, amfi, scheme_type = isin_search(

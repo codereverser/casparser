@@ -13,7 +13,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.table import Table
 
-from . import read_cas_pdf, __version__
+from . import __version__, read_cas_pdf
 from .analysis.gains import CapitalGainsReport
 from .enums import CASFileType
 from .exceptions import GainsError, IncompleteCASError, ParserException
@@ -146,8 +146,9 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
             console_row = {
                 "scheme": scheme_name,
                 "open": scheme["open"],
-                "close": format_number(scheme_close) if is_summary
-                            else f"{format_number(scheme_close)}\n/\n{calc_close}",
+                "close": format_number(scheme_close)
+                if is_summary
+                else f"{format_number(scheme_close)}\n/\n{calc_close}",
                 "value": f"{formatINR(valuation['value'])}\n@\n{formatINR(valuation['nav'])}",
                 "txns": len(scheme["transactions"]),
                 "status": status,

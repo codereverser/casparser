@@ -22,7 +22,10 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
         [
             x
             for x in layout
-            if isinstance(x, LTTextBoxHorizontal) and x.x1 < width / 1.5 and x.y1 > height / 2
+            if isinstance(x, LTTextBoxHorizontal)
+            and x.x1 < width / 1.5
+            and x.y1 > height / 2
+            and x.get_text().strip() != ""
         ],
         key=lambda x: -x.y1,
     )
@@ -33,8 +36,6 @@ def parse_investor_info(layout, width, height) -> InvestorInfo:
     name = None
     for el in text_elements:
         txt = el.get_text().strip()
-        if txt == "":
-            continue
         if not email_found:
             if m := re.search(r"^\s*email\s+id\s*:\s*(.+?)(?:\s|$)", txt, re.I):
                 email = m.group(1).strip()
@@ -88,9 +89,9 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
     lines = []
     for elements in elements_list:
         sorted_elements = list(sorted(elements, key=lambda x: (-x.y1, x.x0)))
-        if len(sorted_elements) == 0:
-            continue
-        y0, y1 = sorted_elements[0].y0, sorted_elements[0].y1
+        y0, y1 = 0, 0
+        if len(sorted_elements) > 0:
+            y0, y1 = sorted_elements[0].y0, sorted_elements[0].y1
         items = []
         for el in sorted_elements:
             if len(items) > 0 and not (
