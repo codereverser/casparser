@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .enums import CASFileType, FileType, TransactionType
 
@@ -99,3 +99,78 @@ class ProcessedCASData(BaseModel):
     cas_type: CASFileType
     folios: List[Folio]
     statement_period: StatementPeriod
+
+
+class DematOwner(BaseModel):
+    name: str
+    PAN: str
+
+
+class Equity(BaseModel):
+    name: Optional[str] = None
+    isin: str
+    num_shares: Decimal
+    price: Decimal
+    value: Decimal
+
+    @model_validator(mode="before")
+    @classmethod
+    def fix_float(cls, data: dict):
+        for k, v in data.items():
+            if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
+                data[k] = v.replace(",", "_").replace("_", "")
+        return data
+
+
+class MutualFund(BaseModel):
+    name: Optional[str] = None
+    isin: str
+    balance: Decimal
+    nav: Decimal
+    value: Decimal
+
+    @model_validator(mode="before")
+    @classmethod
+    def fix_float(cls, data: dict):
+        for k, v in data.items():
+            if (
+                k in cls.__annotations__
+                and issubclass(Decimal, cls.__annotations__[k])
+                and isinstance(v, str)
+            ):
+                data[k] = v.replace(",", "_").replace("_", "")
+        return data
+
+
+class DematAccount(BaseModel):
+    name: str
+    type: str
+    dp_id: Optional[str] = ""
+    client_id: Optional[str] = ""
+    folios: int
+    balance: Decimal
+    owners: List[DematOwner]
+    equities: List[Equity]
+    mutual_funds: List[MutualFund]
+
+    @model_validator(mode="before")
+    @classmethod
+    def fix_float(cls, data: dict):
+        for k, v in data.items():
+            try:
+                if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
+                    data[k] = v.replace(",", "_")
+            except TypeError:
+                pass
+        return data
+
+
+class NSDLCASData(BaseModel):
+    accounts: List[DematAccount]
+    statement_period: StatementPeriod
+    investor_info: Optional[InvestorInfo] = None
+    file_type: Optional[FileType] = None
+    model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=True,
+    )

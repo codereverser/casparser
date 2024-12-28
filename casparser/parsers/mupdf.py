@@ -24,14 +24,26 @@ def merge_bbox(bbox1, bbox2):
     )
 
 
-def group_similar_blocks(blocks):
+def group_similar_blocks(blocks, file_type=FileType.UNKNOWN, mode="vertical"):
     """Group overlapping blocks in a page."""
     grouped_blocks = []
     curr_y0 = -1
+    curr_y1 = -1
     blocks = copy.deepcopy(blocks)
+
+    if mode == "vertical":
+        blocks = sorted(blocks, key=lambda x: (x["bbox"][0], x["bbox"][1]))
+    else:
+        blocks = sorted(blocks, key=lambda x: (x["bbox"][1], x["bbox"][0]))
+
     for block in blocks:
-        y0 = block["bbox"][1]
-        if is_close(y0, curr_y0, 0.1) and len(grouped_blocks) > 0:
+        x0, y0, x1, y1 = block["bbox"]
+        if abs(y1 - y0) > abs(x1 - x0) * 4:
+            # Ignore vertical elements. No useful info there.
+            continue
+        if (is_close(y0, curr_y0, 0.1) or curr_y0 <= y0 <= y1 <= curr_y1) and len(
+            grouped_blocks
+        ) > 0:
             new_block = grouped_blocks.pop()
             new_block["lines"].extend(block["lines"])
             new_block["bbox"] = merge_bbox(new_block["bbox"], block["bbox"])
@@ -39,26 +51,45 @@ def group_similar_blocks(blocks):
             new_block = block
         grouped_blocks.append(new_block)
         curr_y0 = new_block["bbox"][1]
+        curr_y1 = new_block["bbox"][3]
+
+    if mode == "vertical":
+        grouped_blocks = group_similar_blocks(
+            grouped_blocks, file_type=file_type, mode="horizontal"
+        )
+
     return grouped_blocks
 
 
-def extract_blocks(page_dict):
+def extract_blocks(page_dict, file_type=FileType.UNKNOWN):
     """Extract text blocks from page dictionary.
     The logic is similar to `PyMuPDF.TextPage.extractBLOCKS` but with a slightly better text
     arrangement.
     """
+    tolerance = {FileType.CAMS: 3, FileType.KFINTECH: 3, FileType.CDSL: 7, FileType.NSDL: 7}.get(
+        file_type, 3
+    )
+
     blocks = []
-    grouped_blocks = group_similar_blocks(page_dict.get("blocks", []))
-    for block in grouped_blocks:
+    grouped_blocks = group_similar_blocks(page_dict.get("blocks", []), file_type=file_type)
+    for num, block in enumerate(grouped_blocks):
         lines = []
         items = []
         bbox = [0, 0, 0, 0]
         if len(block.get("lines", [])) > 0:
             bbox = block["lines"][0]["bbox"]
         y0, y1 = bbox[1], bbox[3]
-        for line in sorted(block["lines"], key=lambda x: x["bbox"][1]):
+        if file_type in (FileType.NSDL, FileType.CDSL):
+            block["lines"] = sorted(block["lines"], key=lambda x: (x["bbox"][0], x["bbox"][1]))
+        else:
+            block["lines"] = sorted(block["lines"], key=lambda x: x["bbox"][1])
+        for line in block["lines"]:
             if len(items) > 0 and not (
-                is_close(y0, line["bbox"][1], tol=3) or is_close(y1, line["bbox"][3], tol=3)
+                is_close(y0, line["bbox"][1], tol=tolerance)
+                or is_close(y1, line["bbox"][3], tol=tolerance)
+                or is_close(y1, line["bbox"][1], tol=2)
+                or is_close(y0, line["bbox"][3], tol=2)
+                or y0 <= line["bbox"][1] <= line["bbox"][3] <= y1
             ):
                 full_text = "\t\t".join(
                     [x[0].strip() for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
@@ -66,7 +97,8 @@ def extract_blocks(page_dict):
                 if full_text.strip():
                     lines.append(full_text)
                 items = []
-                y0, y1 = line["bbox"][1], line["bbox"][3]
+                # y0, y1 = line["bbox"][1], line["bbox"][3]
+                y0, y1 = min(y0, line["bbox"][1]), max(y1, line["bbox"][3])
             line_text = "\t\t".join(
                 [
                     span["text"].strip()
@@ -89,12 +121,65 @@ def extract_blocks(page_dict):
 
 def parse_file_type(blocks):
     """Parse file type."""
-    for block in sorted(blocks, key=lambda x: -x[1]):
-        if re.search("CAMSCASWS", block[4]):
+    for block in sorted(blocks, key=lambda x: -x["bbox"][1]):
+        block_str = str(block)
+        if re.search("CAMSCASWS", block_str):
             return FileType.CAMS
-        if re.search("KFINCASWS", block[4]):
+        elif re.search("KFINCASWS", block_str):
             return FileType.KFINTECH
+        elif "NSDL Consolidated Account Statement" in block_str or "About NSDL" in block_str:
+            return FileType.NSDL
+        elif "Central Depository Services (India) Limited" in block_str:
+            return FileType.CDSL
     return FileType.UNKNOWN
+
+
+def parse_investor_info_dp(page_dict, page_rect: fitz.Rect) -> InvestorInfo:
+    """Parse investor info."""
+    width = max(page_rect.width, 600)
+    height = max(page_rect.height, 800)
+
+    blocks = sorted(
+        [x for x in page_dict["blocks"] if x["bbox"][1] < height / 2], key=lambda x: x["bbox"][1]
+    )
+
+    address_lines = []
+    email = ""
+    mobile = None
+    name = None
+    cas_id_found = False
+    for block in blocks:
+        for line in block["lines"]:
+            for span in filter(
+                lambda x: x["bbox"][0] <= width / 2 and x["text"].strip() != "", line["spans"]
+            ):
+                txt = span["text"].strip()
+                if not cas_id_found:
+                    if m := re.search(r"[CAS|NSDL]\s+ID\s*:\s*(.+?)(?:\s|$)", txt, re.I):
+                        # email = m.group(1).strip()
+                        cas_id_found = True
+                    continue
+                if name is None:
+                    name = txt
+                else:
+                    if (
+                        re.search(
+                            r"Statement\s+for\s+the\s+period|Your\s+demat\s+account\s+and\s+mutual\s+fund",
+                            txt,
+                            re.I | re.MULTILINE,
+                        )
+                        or mobile is not None
+                    ):
+                        return InvestorInfo(
+                            email=email,
+                            name=name,
+                            mobile=mobile or "",
+                            address="\n".join(address_lines),
+                        )
+                    elif m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
+                        mobile = m.group(1).strip()
+                    address_lines.append(txt)
+    raise CASParseError("Unable to parse investor data")
 
 
 def parse_investor_info(page_dict, page_rect: fitz.Rect) -> InvestorInfo:
@@ -174,6 +259,10 @@ def group_similar_rows(elements_list: List[Iterator[Any]]):
                 items = []
                 y0, y1 = el[1], el[3]
             items.append(el)
+        if len(items) > 0:
+            line = "\t\t".join([x[4].strip() for x in sorted(items, key=lambda x: x[0])])
+            if line.strip():
+                lines.append(line)
     return lines
 
 
@@ -208,15 +297,21 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
         pages = []
         investor_info = None
 
-        for page in doc:
+        for page_num, page in enumerate(doc):
             text_page = page.get_textpage()
-            page_dict = text_page.extractDICT()
-            blocks = extract_blocks(page_dict)
+            page_dict = text_page.extractDICT(sort=True)
             if file_type == FileType.UNKNOWN:
-                file_type = parse_file_type(blocks)
+                file_type = parse_file_type(page_dict["blocks"])
+            blocks = extract_blocks(page_dict, file_type=file_type)
             sorted_blocks = sorted(blocks, key=itemgetter(1, 0))
             if investor_info is None:
-                investor_info = parse_investor_info(page_dict, page.rect)
+                if file_type in (FileType.CAMS, FileType.KFINTECH):
+                    investor_info = parse_investor_info(page_dict, page.rect)
+                elif file_type in (FileType.NSDL, FileType.CDSL) and page_num == 1:
+                    investor_info = parse_investor_info_dp(page_dict, page.rect)
+            if file_type == FileType.NSDL and page_num == 0:
+                # Ignore first page. no useful data
+                continue
             pages.append(sorted_blocks)
         lines = group_similar_rows(pages)
         return PartialCASData(file_type=file_type, investor_info=investor_info, lines=lines)

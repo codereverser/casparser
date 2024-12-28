@@ -17,6 +17,8 @@ class FileType(AutoEnum):
     UNKNOWN = auto()
     CAMS = auto()
     KFINTECH = auto()
+    CDSL = auto()
+    NSDL = auto()
 
 
 class CASFileType(AutoEnum):

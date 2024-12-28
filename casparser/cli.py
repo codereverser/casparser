@@ -15,10 +15,10 @@ from rich.table import Table
 
 from . import __version__, read_cas_pdf
 from .analysis.gains import CapitalGainsReport
-from .enums import CASFileType
+from .enums import CASFileType, FileType
 from .exceptions import GainsError, IncompleteCASError, ParserException
 from .parsers.utils import cas2csv, cas2csv_summary, cas2json, is_close
-from .types import CASData
+from .types import CASData, NSDLCASData
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 console = Console()
@@ -53,6 +53,99 @@ def get_color(amount: Union[Decimal, float, int]):
     elif amount <= -1e-3:
         return "red"
     return "white"
+
+
+def print_nsdl(parsed_data: NSDLCASData):
+    """Print summary of parsed data."""
+
+    count = 0
+    err = 0
+
+    data = parsed_data.model_dump(by_alias=True)
+    # console.print(data)
+
+    summary_table = Table.grid(expand=True)
+    summary_table.add_column(justify="right")
+    summary_table.add_column(justify="left")
+    spacing = (0, 1)
+    summary_table.add_row(
+        Padding("Statement Period :", spacing),
+        f"[bold green]{data['statement_period']['from']}[/] To "
+        f"[bold green]{data['statement_period']['to']}[/]",
+    )
+    summary_table.add_row(Padding("File Type :", spacing), f"[bold]{data['file_type']}[/]")
+    # summary_table.add_row(Padding("CAS Type :", spacing), f"[bold]{data['cas_type']}[/]")
+    for key, value in data["investor_info"].items():
+        summary_table.add_row(
+            Padding(f"{key.capitalize()} :", spacing), re.sub(r"[^\S\r\n]+", " ", value)
+        )
+    console.print(summary_table)
+    console.print("")
+
+    table = Table(title="Portfolio Summary", show_lines=True)
+    table.add_column("Name")
+    table.add_column("ISIN")
+    table.add_column("Units")
+    table.add_column("Price")
+    table.add_column("Value")
+
+    value = Decimal(0)
+
+    for account in parsed_data.accounts:
+        balance = account.balance
+        value += balance
+        running_balance = 0
+        table_rows = []
+        if len(account.equities) > 0:
+            table_rows.append(["[italic]Equities[/]"])
+        for equity in account.equities:
+            running_balance += equity.num_shares * equity.price
+            table_rows.append(
+                [
+                    equity.name,
+                    equity.isin,
+                    format_number(equity.num_shares),
+                    formatINR(equity.price),
+                    formatINR(equity.value),
+                ]
+            )
+        if len(account.mutual_funds) > 0:
+            table_rows.append(["[italic]Mutual Funds[/]"])
+        for mf in account.mutual_funds:
+            running_balance += mf.nav * mf.balance
+            table_rows.append(
+                [
+                    mf.name,
+                    mf.isin,
+                    format_number(mf.balance),
+                    formatINR(mf.nav),
+                    formatINR(mf.value),
+                ]
+            )
+        if is_close(balance, running_balance, tol=float(balance or 1) * 0.01):
+            status = "️✅"
+        else:
+            status = "❗️"
+            err += 1
+        count += 1
+        table.add_row(
+            f"[bold]{account.name}\n{account.dp_id} - {account.client_id}[/]", "", "", "", status
+        )
+
+        for row in table_rows:
+            table.add_row(*row)
+
+    console.print(table)
+
+    console.print(
+        f"Portfolio Valuation  : [bold green]{formatINR(value)}[/] "
+        f"[As of {data['statement_period']['to']}]"
+    )
+
+    console.print("[bold]Summary[/]")
+    console.print(f"{'Total':8s}: [bold white]{count:4d}[/] accounts")
+    console.print(f"{'Matched':8s}: [bold green]{count - err:4d}[/] accounts")
+    console.print(f"{'Error':8s}: [bold red]{err:4d}[/] accounts")
 
 
 def print_summary(parsed_data: CASData, output_filename=None, include_zero_folios=False):
@@ -348,7 +441,9 @@ def cli(output, summary, password, include_all, gains, gains_112a, force_pdfmine
     except ParserException as exc:
         console.print(f"Error parsing pdf file :: [bold red]{str(exc)}[/]")
         sys.exit(1)
-    if summary:
+    if isinstance(data, NSDLCASData):
+        print_nsdl(data)
+    elif summary:
         print_summary(
             data,
             include_zero_folios=include_all,
@@ -356,7 +451,10 @@ def cli(output, summary, password, include_all, gains, gains_112a, force_pdfmine
         )
 
     if output_ext in (".csv", ".json"):
-        if output_ext == ".csv":
+        if output_ext == ".csv" and data.file_type in (
+            FileType.CAMS.value,
+            FileType.KFINTECH.value,
+        ):
             if summary or data.cas_type == CASFileType.SUMMARY.name:
                 description = "Generating summary CSV file..."
                 conv_fn = cas2csv_summary
@@ -370,7 +468,7 @@ def cli(output, summary, password, include_all, gains, gains_112a, force_pdfmine
         with open(output, "w", newline="", encoding="utf-8") as fp:
             fp.write(conv_fn(data))
         console.print(f"File saved : [bold]{output}[/]")
-    if gains or gains_112a:
+    if data.file_type in (FileType.CAMS.value, FileType.KFINTECH.value) and (gains or gains_112a):
         try:
             print_gains(
                 data,

@@ -47,12 +47,12 @@ class TestPDFMiner(BaseTestClass):
         BaseTestClass.setup_class()
 
     def test_bad_investor_info(self):
-        from casparser.parsers.pdfminer import parse_investor_info
+        from casparser.parsers.pdfminer import parse_investor_info_mf
 
         with pytest.raises(CASParseError) as exc_info:
             box = LTTextBoxHorizontal()
             box.get_text()
-            parse_investor_info([], 0, 0)
+            parse_investor_info_mf([], 0, 0)
         assert "Unable to parse investor data" in str(exc_info)
 
     def test_invalid_file_type(self):
