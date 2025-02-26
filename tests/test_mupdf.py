@@ -97,3 +97,14 @@ class TestMuPDF(BaseTestClass):
 
         file_type = parse_file_type([])
         assert file_type == FileType.UNKNOWN
+
+    def test_nsdl_statement(self):
+        from casparser.cli import cli
+
+        runner = CliRunner()
+        result = runner.invoke(cli, [self.nsdl_file_name, "-p", "", "-a"])
+        assert result.exit_code == 0
+        clean_output = self.ansi_cleaner.sub("", result.output)
+
+        assert re.search(r"Matched\s+:\s+3\s+accounts", clean_output) is not None
+        assert re.search(r"Error\s+:\s+0\s+accounts", clean_output) is not None

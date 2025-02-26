@@ -1,49 +1,62 @@
-[tool.poetry]
+[project]
 name = "casparser"
-version = "0"  # Fetched from casparser.__init__
 description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
-authors = ["Sandeep Somasekharan <codereverser@gmail.com>"]
-homepage = "https://github.com/codereverser/casparser"
-license = "MIT License"
-readme= "README.md"
+authors = [{ name = "Sandeep Somasekharan", email = "codereverser@gmail.com" }]
+requires-python = "~=3.10"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "Operating System :: OS Independent"
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
 ]
-include = [ "CHANGELOG.md" ]
+dependencies = [
+    "casparser-isin>=2025.2.28",
+    "click>=7.0,<9.0",
+    "colorama>=0.4.6,<0.5",
+    "pdfminer.six==20240706",
+    "python-dateutil>=2.8.2,<3",
+    "rich>=13.5.2,<14",
+    "pydantic>=2.3.0,<3",
+]
+dynamic = ["version"]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-casparser-isin = ">=2024.5.12"
-click = ">=7.0,<9.0"
-colorama = "^0.4.6"
-"pdfminer.six" = "20240706"
-python-dateutil = "^2.8.2"
-rich = "^13.5.2"
-pydantic = "^2.3.0"
-PyMuPDF = {version = "~1.24.0", optional = true}
+[project.optional-dependencies]
+mupdf = ["PyMuPDF>=1.24.0,<1.25.0"]
+fast = ["PyMuPDF>=1.24.0,<1.25.0"]
 
-[tool.poetry.extras]
-mupdf = ["PyMuPDF"]
-fast = ["PyMuPDF"]
+[project.urls]
+Homepage = "https://github.com/codereverser/casparser"
 
-[tool.poetry.dev-dependencies]
-coverage = {version = "^7.6", extras=["toml"]}
-ipython = "^8.31.0"
-pytest = "~8.3.0"
-pytest-cov = "~6.0.0"
-pre-commit = "^4.0.0"
+[project.scripts]
+casparser = "casparser.cli:cli"
 
-[tool.poetry.scripts]
-casparser = 'casparser.cli:cli'
+[dependency-groups]
+dev = [
+    "coverage[toml]>=7.3.0,<8",
+    "ipython>=8.31.0,<9",
+    "pytest>=8.0.0,<9",
+    "pytest-cov~=6.0.0",
+    "pre-commit>=4.0.0,<5",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["casparser/*"]
+
+[tool.hatch.build.targets.wheel]
+include = ["casparser/*"]
+
+[tool.hatch.version]
+path = "casparser/__init__.py"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -63,13 +76,9 @@ omit = [
     "casparser/cli.py"
 ]
 
-[tool.poetry-version-plugin]
-source = "init"
-
 [tool.ruff]
 line-length = 100
-target-version = "py38"
-
+target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

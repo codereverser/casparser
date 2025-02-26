@@ -3,7 +3,14 @@ import re
 from typing import Iterator, List, Optional, Union
 
 from pdfminer.converter import PDFPageAggregator
-from pdfminer.layout import LAParams, LTTextBoxHorizontal, LTTextBoxVertical
+from pdfminer.layout import (
+    LAParams,
+    LTChar,
+    LTContainer,
+    LTTextBox,
+    LTTextBoxHorizontal,
+    LTTextBoxVertical,
+)
 from pdfminer.pdfdocument import PDFDocument, PDFPasswordIncorrect, PDFSyntaxError
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
@@ -15,8 +22,53 @@ from casparser.types import InvestorInfo, PartialCASData
 
 from .utils import is_close
 
+# def parse_investor_info_nsdl(layout, width, height) -> InvestorInfo:
+#     """Parse investor info."""
+#     text_elements = sorted(
+#         [
+#             x
+#             for x in layout
+#             if isinstance(x, LTTextBoxHorizontal)
+#             # and x.x1 < width / 2
+#             # and x.y1 > height / 2
+#             and x.get_text().strip() != ""
+#         ],
+#         key=lambda x: -x.y1,
+#     )
+#     cas_id_found = False
+#     address_lines = []
+#     email = ""
+#     mobile = None
+#     name = None
+#     for el in text_elements:
+#         txt = el.get_text().strip()
+#         if not cas_id_found:
+#             if m := re.search(r"[CAS|NSDL]\s+ID\s*:\s*(.+?)(?:\s|$)", txt, re.I):
+#                 # email = m.group(1).strip()
+#                 cas_id_found = True
+#             continue
+#         if name is None:
+#             name = txt
+#         else:
+#             if (
+#                 re.search(
+#                     r"Statement\s+for\s+the\s+period|Your\s+demat\s+"
+#                     r"account\s+and\s+mutual\s+fund",
+#                     txt,
+#                     re.I | re.MULTILINE,
+#                 )
+#                 or mobile is not None
+#             ):
+#                 return InvestorInfo(
+#                     email=email, name=name, mobile=mobile or "", address="\n".join(address_lines)
+#                 )
+#             elif m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
+#                 mobile = m.group(1).strip()
+#             address_lines.append(txt)
+#     raise CASParseError("Unable to parse investor data")
 
-def parse_investor_info(layout, width, height) -> InvestorInfo:
+
+def parse_investor_info_mf(layout, width, height) -> InvestorInfo:
     """Parse investor info."""
     text_elements = sorted(
         [
@@ -95,8 +147,8 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
         items = []
         for el in sorted_elements:
             if len(items) > 0 and not (
-                is_close(el.y1, y1, tol=3)
-                or is_close(el.y0, y0, tol=3)
+                is_close(el.y1, y1, tol=5)
+                or is_close(el.y0, y0, tol=5)
                 or is_close(el.y1, y0, tol=2)
                 or is_close(el.y0, y1, tol=2)
             ):
@@ -108,6 +160,10 @@ def group_similar_rows(elements_list: List[Iterator[LTTextBoxHorizontal]]):
                 items = []
                 y0, y1 = el.y0, el.y1
             items.append(el)
+        if len(items) > 0:
+            line = "\t\t".join([x.get_text().strip() for x in sorted(items, key=lambda x: x.x0)])
+            if line.strip():
+                lines.append(line)
     return lines
 
 
@@ -138,30 +194,70 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
             raise CASParseError("Unhandled error while opening file")
 
         line_margin = {FileType.KFINTECH: 0.1, FileType.CAMS: 0.2}.get(
-            detect_pdf_source(document), 0.2
+            detect_pdf_source(document), 0.01
         )
 
         rsrc_mgr = PDFResourceManager()
-        laparams = LAParams(line_margin=line_margin, detect_vertical=True)
+        laparams = LAParams(line_margin=line_margin, detect_vertical=True, all_texts=True)
         device = PDFPageAggregator(rsrc_mgr, laparams=laparams)
         interpreter = PDFPageInterpreter(rsrc_mgr, device)
 
         pages: List[Iterator[LTTextBoxHorizontal]] = []
 
         investor_info = None
-        for page in PDFPage.create_pages(document):
+
+        def remove_non_english_text(textbox: LTContainer):
+            textbox._objs = [
+                obj
+                for obj in textbox._objs
+                if not (isinstance(obj, LTChar) and "Mangal" in obj.fontname)
+            ]
+            for i, obj in enumerate(textbox._objs):
+                if isinstance(obj, LTContainer):
+                    textbox._objs[i] = remove_non_english_text(obj)
+            return textbox
+
+        def extract_text_elements(layout: LTContainer) -> Iterator[LTTextBox]:
+            els = []
+            for el in layout:
+                if isinstance(el, LTTextBox):
+                    els.append(remove_non_english_text(el))
+                elif isinstance(el, LTContainer):
+                    els.extend(extract_text_elements(el))
+            return els
+
+        for page_num, page in enumerate(PDFPage.create_pages(document)):
             interpreter.process_page(page)
             layout = device.get_result()
-            text_elements = filter(lambda x: isinstance(x, LTTextBoxHorizontal), layout)
+            text_elements = extract_text_elements(layout)
             if file_type is None:
-                for el in filter(lambda x: isinstance(x, LTTextBoxVertical), layout):
+                for el in filter(lambda x: isinstance(x, LTTextBoxVertical), text_elements):
                     if re.search("CAMSCASWS", el.get_text()):
                         file_type = FileType.CAMS
+                        break
                     if re.search("KFINCASWS", el.get_text()):
                         file_type = FileType.KFINTECH
+                        break
+                else:
+                    for el in text_elements:
+                        if "NSDL Consolidated Account Statement" in el.get_text():
+                            file_type = FileType.NSDL
+                            break
+                        elif "Central Depository Services (India) Limited" in el.get_text():
+                            file_type = FileType.CDSL
+                            break
+            if file_type in (FileType.CDSL, FileType.NSDL):
+                raise CASParseError(
+                    "pdfminer does not support this file type. Install pymupdf dependency"
+                )
             if investor_info is None:
-                investor_info = parse_investor_info(layout, *page.mediabox[2:])
+                if file_type in (FileType.CAMS, FileType.KFINTECH):
+                    investor_info = parse_investor_info_mf(text_elements, *page.mediabox[2:])
+            #     elif file_type in (FileType.NSDL, FileType.CDSL) and page_num == 1:
+            #         investor_info = parse_investor_info_nsdl(text_elements, *page.mediabox[2:])
+            # if file_type == FileType.NSDL and page_num == 0:
+            #     # Ignore first page. no useful data
+            #     continue
             pages.append(text_elements)
-
         lines = group_similar_rows(pages)
         return PartialCASData(file_type=file_type, investor_info=investor_info, lines=lines)

@@ -48,3 +48,30 @@ TRANSACTION_RE4 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}(?:\t\t{amt_re}\t\t{amt_
 DESCRIPTION_TAIL_RE = r"(\n.+?)(\t\t|$)"
 DIVIDEND_RE = r"(?:div\.|dividend|idcw).+?(reinvest)*.*?@\s*Rs\.\s*([\d\.]+)(?:\s+per\s+unit)?"
 SCHEME_TAIL_RE = r"(\n.+?)(?:\t\t|$)"
+
+
+DEMAT_STATEMENT_PERIOD_RE = (
+    r"for\s+the\s+period\s+from\s+(?P<from>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
+    r"\s+to\s+(?P<to>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
+)
+DEMAT_HEADER_RE = (
+    r"((?:CDSL|NSDL)\s+demat\s+account)\s+(.+?)\s*DP\s*Id\s*:\s*(.+?)"
+    r"\s*Client\s*Id\s*:\s*(\d+)\s+(\d+)\s+([\d,.]+)"
+)
+DEMAT_MF_HEADER_RE = r"Mutual Fund Folios\s+(\d+)\s+folios\s+(\d+)\s+([\d,.]+)"
+DEMAT_AC_TYPE_RE = r"^(NSDL|CDSL)\s+demat\s+account|Mutual\s+Fund\s+Folios\s+\(F\)"
+DEMAT_MF_TYPE_RE = r"^Mutual\s+Fund\s+Folios\s+\(F\)$"
+DEMAT_AC_HOLDER_RE = r"([^\t\n]+?)\s*\(PAN\s*:\s*(.+?)\)"
+DEMAT_DP_ID_RE = r"DP\s*Id\s*:\s*(.+?)\s*Client\s*Id\s*:\s*(\d+).+PAN"
+NSDL_EQ_RE = (
+    rf"^([A-Z]{{2}}[E|9][0-9A-Z]{{8}}[0-9]{{1}})"
+    rf"\s*(.+?)\s*{amt_re}\s+([\d,.]+)\s+{amt_re}\s+{amt_re}$"
+)
+NSDL_MF_RE = rf"^(INF[0-9A-Z]{{8}}[0-9]{{1}})\s*(.*?)\s*{amt_re}\s+{amt_re}\s+{amt_re}$"
+NSDL_CDSL_HOLDINGS_RE = (
+    r"^([A-Z]{2}[0-9A-Z]{9}[0-9]{1})\s*(.+?)\s+" + rf"{amt_re}\s+" * 10 + rf"{amt_re}$"
+)
+NSDL_MF_HOLDINGS_RE = (
+    rf"({isin_re})\n(.+?)[\n\t]+(.+?)\t\t(\w+?)\t\t{amt_re}"
+    rf"\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}(?:\t\t{amt_re})?$"
+)
