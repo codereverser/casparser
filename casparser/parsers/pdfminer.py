@@ -250,9 +250,9 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
                 raise CASParseError(
                     "pdfminer does not support this file type. Install pymupdf dependency"
                 )
-            # if investor_info is None:
-            #     if file_type in (FileType.CAMS, FileType.KFINTECH):
-            #         investor_info = parse_investor_info_mf(text_elements, *page.mediabox[2:])
+            if investor_info is None:
+                if file_type in (FileType.CAMS, FileType.KFINTECH):
+                    investor_info = parse_investor_info_mf(text_elements, *page.mediabox[2:])
             #     elif file_type in (FileType.NSDL, FileType.CDSL) and page_num == 1:
             #         investor_info = parse_investor_info_nsdl(text_elements, *page.mediabox[2:])
             # if file_type == FileType.NSDL and page_num == 0:
