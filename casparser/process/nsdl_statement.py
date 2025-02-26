@@ -1,5 +1,7 @@
 import re
 
+from casparser_isin import ISINDb
+
 from casparser.exceptions import HeaderParseError
 from casparser.types import NSDLCASData, StatementPeriod
 
@@ -196,5 +198,13 @@ def process_nsdl_text(text):
         statement_period=statement_period,
         accounts=list(demat.values()),
     )
+
+    with ISINDb() as isin_db:
+        for account in cas_data.accounts:
+            for equity in account.equities:
+                if equity.name is None:
+                    isin_data = isin_db.isin_lookup(equity.isin)
+                    if isin_data:
+                        equity.name = isin_data.name
 
     return cas_data
