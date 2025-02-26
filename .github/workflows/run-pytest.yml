@@ -2,6 +2,10 @@ name: run-tests
 
 on:
   push:
+    branches:
+      - '*'
+    tags-ignore:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -14,22 +18,21 @@ jobs:
         python-version: ['3.10']
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install poetry
-      run: pipx install poetry
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'poetry'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
     - name: Extract test files
       run: ./.github/scripts/extract_files.sh
       env:
         FILES_PASSPHRASE: ${{ secrets.FILES_PASSPHRASE }}
-    - name: Install dependencies
-      run: poetry install -E mupdf
     - name: Test with pytest
-      run: poetry run pytest
+      run: uv run pytest
       env:
         BAD_CAS_FILE: ${{ secrets.BAD_CAS_FILE }}
         CAMS_CAS_FILE: ${{ secrets.CAMS_CAS_FILE }}
@@ -40,9 +43,9 @@ jobs:
         KFINTECH_CAS_FILE: ${{ secrets.KFINTECH_CAS_FILE }}
         KFINTECH_CAS_FILE_NEW: ${{ secrets.KFINTECH_CAS_FILE_NEW }}
         KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}
+        NSDL_CAS_FILE_1: ${{ secrets.NSDL_CAS_FILE_1 }}
     - name: Upload coverage report to codecov
       uses: codecov/codecov-action@v5
       with:
         files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
-        verbose: true
