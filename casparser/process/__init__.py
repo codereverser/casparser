@@ -25,7 +25,7 @@ def process_cas_text(text, file_type: FileType = FileType.UNKNOWN) -> ProcessedC
     :param text:
     :return:
     """
-    if file_type in (FileType.CDSL, FileType.NSDL):
+    if file_type == FileType.NSDL:
         return process_nsdl_text(text)
     cas_statement_type = detect_cas_type(text[:1000])
     if cas_statement_type == CASFileType.DETAILED:
