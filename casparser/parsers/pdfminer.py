@@ -22,50 +22,50 @@ from casparser.types import InvestorInfo, PartialCASData
 
 from .utils import is_close
 
-
-def parse_investor_info_nsdl(layout, width, height) -> InvestorInfo:
-    """Parse investor info."""
-    text_elements = sorted(
-        [
-            x
-            for x in layout
-            if isinstance(x, LTTextBoxHorizontal)
-            # and x.x1 < width / 2
-            # and x.y1 > height / 2
-            and x.get_text().strip() != ""
-        ],
-        key=lambda x: -x.y1,
-    )
-    cas_id_found = False
-    address_lines = []
-    email = ""
-    mobile = None
-    name = None
-    for el in text_elements:
-        txt = el.get_text().strip()
-        if not cas_id_found:
-            if m := re.search(r"[CAS|NSDL]\s+ID\s*:\s*(.+?)(?:\s|$)", txt, re.I):
-                # email = m.group(1).strip()
-                cas_id_found = True
-            continue
-        if name is None:
-            name = txt
-        else:
-            if (
-                re.search(
-                    r"Statement\s+for\s+the\s+period|Your\s+demat\s+account\s+and\s+mutual\s+fund",
-                    txt,
-                    re.I | re.MULTILINE,
-                )
-                or mobile is not None
-            ):
-                return InvestorInfo(
-                    email=email, name=name, mobile=mobile or "", address="\n".join(address_lines)
-                )
-            elif m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
-                mobile = m.group(1).strip()
-            address_lines.append(txt)
-    raise CASParseError("Unable to parse investor data")
+# def parse_investor_info_nsdl(layout, width, height) -> InvestorInfo:
+#     """Parse investor info."""
+#     text_elements = sorted(
+#         [
+#             x
+#             for x in layout
+#             if isinstance(x, LTTextBoxHorizontal)
+#             # and x.x1 < width / 2
+#             # and x.y1 > height / 2
+#             and x.get_text().strip() != ""
+#         ],
+#         key=lambda x: -x.y1,
+#     )
+#     cas_id_found = False
+#     address_lines = []
+#     email = ""
+#     mobile = None
+#     name = None
+#     for el in text_elements:
+#         txt = el.get_text().strip()
+#         if not cas_id_found:
+#             if m := re.search(r"[CAS|NSDL]\s+ID\s*:\s*(.+?)(?:\s|$)", txt, re.I):
+#                 # email = m.group(1).strip()
+#                 cas_id_found = True
+#             continue
+#         if name is None:
+#             name = txt
+#         else:
+#             if (
+#                 re.search(
+#                     r"Statement\s+for\s+the\s+period|Your\s+demat\s+"
+#                     r"account\s+and\s+mutual\s+fund",
+#                     txt,
+#                     re.I | re.MULTILINE,
+#                 )
+#                 or mobile is not None
+#             ):
+#                 return InvestorInfo(
+#                     email=email, name=name, mobile=mobile or "", address="\n".join(address_lines)
+#                 )
+#             elif m := re.search(r"mobile\s*:\s*([+\d]+)(?:s|$)", txt, re.I):
+#                 mobile = m.group(1).strip()
+#             address_lines.append(txt)
+#     raise CASParseError("Unable to parse investor data")
 
 
 def parse_investor_info_mf(layout, width, height) -> InvestorInfo:
@@ -250,14 +250,14 @@ def cas_pdf_to_text(filename: Union[str, io.IOBase], password) -> PartialCASData
                 raise CASParseError(
                     "pdfminer does not support this file type. Install pymupdf dependency"
                 )
-            if investor_info is None:
-                if file_type in (FileType.CAMS, FileType.KFINTECH):
-                    investor_info = parse_investor_info_mf(text_elements, *page.mediabox[2:])
-                elif file_type in (FileType.NSDL, FileType.CDSL) and page_num == 1:
-                    investor_info = parse_investor_info_nsdl(text_elements, *page.mediabox[2:])
-            if file_type == FileType.NSDL and page_num == 0:
-                # Ignore first page. no useful data
-                continue
+            # if investor_info is None:
+            #     if file_type in (FileType.CAMS, FileType.KFINTECH):
+            #         investor_info = parse_investor_info_mf(text_elements, *page.mediabox[2:])
+            #     elif file_type in (FileType.NSDL, FileType.CDSL) and page_num == 1:
+            #         investor_info = parse_investor_info_nsdl(text_elements, *page.mediabox[2:])
+            # if file_type == FileType.NSDL and page_num == 0:
+            #     # Ignore first page. no useful data
+            #     continue
             pages.append(text_elements)
         lines = group_similar_rows(pages)
         return PartialCASData(file_type=file_type, investor_info=investor_info, lines=lines)

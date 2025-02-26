@@ -32,7 +32,7 @@ def parse_header(text):
     raise HeaderParseError("Error parsing CAS header")
 
 
-def process_depository_text(text):
+def process_nsdl_text(text):
     hdr_data = parse_header(text[:1000])
     statement_period = StatementPeriod(from_=hdr_data["from"], to=hdr_data["to"])
     accounts = re.findall(
@@ -192,7 +192,9 @@ def process_depository_text(text):
                     }
                 )
 
-    return NSDLCASData(
+    cas_data = NSDLCASData(
         statement_period=statement_period,
         accounts=list(demat.values()),
     )
+
+    return cas_data

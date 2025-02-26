@@ -5,7 +5,7 @@ from ..exceptions import CASParseError
 from ..types import ProcessedCASData
 from .cas_detailed import process_detailed_text
 from .cas_summary import process_summary_text
-from .dp_statement import process_depository_text
+from .nsdl_statement import process_nsdl_text
 from .regex import CAS_TYPE_RE
 
 
@@ -26,7 +26,7 @@ def process_cas_text(text, file_type: FileType = FileType.UNKNOWN) -> ProcessedC
     :return:
     """
     if file_type in (FileType.CDSL, FileType.NSDL):
-        return process_depository_text(text)
+        return process_nsdl_text(text)
     cas_statement_type = detect_cas_type(text[:1000])
     if cas_statement_type == CASFileType.DETAILED:
         return process_detailed_text(text)

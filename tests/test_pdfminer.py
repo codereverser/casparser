@@ -59,3 +59,6 @@ class TestPDFMiner(BaseTestClass):
         with pytest.raises(CASParseError) as exc_info:
             read_cas_pdf(1, "", force_pdfminer=True)
         assert "Invalid input" in str(exc_info)
+
+        with pytest.raises(CASParseError) as exc_info:
+            read_cas_pdf(self.nsdl_file_name, "", force_pdfminer=True)

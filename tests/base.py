@@ -27,6 +27,7 @@ class BaseTestClass:
         cls.bad_file_name = os.getenv("BAD_CAS_FILE")
         cls.cams_password = os.getenv("CAMS_CAS_PASSWORD")
         cls.kfintech_password = os.getenv("KFINTECH_CAS_PASSWORD")
+        cls.nsdl_file_name = os.getenv("NSDL_CAS_FILE_1")
 
         cls.pdf_files = [
             (cls.cams_file_name, cls.cams_password, 10, 14),
