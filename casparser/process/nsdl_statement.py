@@ -85,7 +85,10 @@ def process_nsdl_text(text):
             continue
         if current_demat is None:
             if m := re.search(DEMAT_MF_TYPE_RE, line.strip(), flags=re.I):
-                current_demat = demat[(None, None)]
+                if (None, None) in demat:
+                    current_demat = demat[(None, None)]
+                else:
+                    continue
 
             if "ACCOUNT HOLDER" in line.upper():
                 for owner, pan in re.findall(DEMAT_AC_HOLDER_RE, line, re.I):
