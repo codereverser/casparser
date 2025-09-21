@@ -58,7 +58,10 @@ DEMAT_HEADER_RE = (
     r"((?:CDSL|NSDL)\s+demat\s+account)\s+(.+?)\s*DP\s*Id\s*:\s*(.+?)"
     r"\s*Client\s*Id\s*:\s*(\d+)\s+(\d+)\s+([\d,.]+)"
 )
-DEMAT_MF_HEADER_RE = r"Mutual Fund Folios\s+(\d+)\s+folios\s+(\d+)\s+([\d,.]+)"
+DEMAT_MF_HEADER_RE = (
+    r"(Mutual Fund Folios)\s+(\d+)\s+Folios"
+    r"[\s\S]*?Total\s+\d+\s+[\d,.]+\s+[\d,.]+\s+([\d,.]+)"
+)
 DEMAT_AC_TYPE_RE = r"^(NSDL|CDSL)\s+demat\s+account|Mutual\s+Fund\s+Folios\s+\(F\)"
 DEMAT_MF_TYPE_RE = r"^Mutual\s+Fund\s+Folios\s+\(F\)$"
 DEMAT_AC_HOLDER_RE = r"([^\t\n]+?)\s*\(PAN\s*:\s*(.+?)\)"
