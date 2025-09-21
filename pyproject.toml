@@ -23,7 +23,6 @@ dependencies = [
     "python-dateutil>=2.8.2,<3",
     "rich>=13.5.2,<14",
     "pydantic>=2.3.0,<3",
-    "PyMuPDF>=1.24.10,<2",
 ]
 dynamic = ["version"]
 
