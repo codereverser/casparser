@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 - 2025-09-21
+- NSDL parser bug fixes
+
+## 0.8.0 - 2025-02-26
+- NSDL support: first version
+- various bug fixes
+
 ## 0.7.4 - 2023-10-04
 - (fix) fix broken scheme names
 
