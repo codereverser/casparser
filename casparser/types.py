@@ -128,6 +128,12 @@ class MutualFund(BaseModel):
     balance: Decimal
     nav: Decimal
     value: Decimal
+    avg_cost: Optional[Decimal] = None
+    total_cost: Optional[Decimal] = None
+    ucc: Optional[str] = None
+    folio: Optional[str] = None
+    pnl: Optional[Decimal] = None
+    return_: Optional[Decimal] = Field(None, alias="return")
 
     @model_validator(mode="before")
     @classmethod
