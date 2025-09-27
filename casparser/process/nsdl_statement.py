@@ -60,10 +60,10 @@ def process_nsdl_text(text):
             "equities": [],
             "mutual_funds": [],
         }
-    for num_folios, _, balance in mutual_funds:
+    for account_name, folios, balance in mutual_funds:
         demat[(None, None)] = {
-            "name": "Mutual Fund Folios",
-            "folios": num_folios,
+            "name": account_name,
+            "folios": folios,
             "balance": balance,
             "type": "MF",
             "dp_id": "",
