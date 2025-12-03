@@ -29,7 +29,8 @@ SCHEME_RE = (
 SCHEME_KV_RE = r"""(\w+)\s*:\s*([-\w]+)"""
 
 REGISTRAR_RE = r"^\s*Registrar\s*:\s*(.*)\s*$"
-OPEN_UNITS_RE = r"Opening\s+Unit\s+Balance.+?([\d,.]+)"
+# Captures optional description before "Opening Unit Balance" (for first transaction)
+OPEN_UNITS_RE = r"(?:(.+?)\t\t)?Opening\s+Unit\s+Balance.+?([\d,.]+)"
 CLOSE_UNITS_RE = r"Closing\s+Unit\s+Balance.+?([\d,.]+)"
 COST_RE = r"Total\s+Cost\s+Value\s*:.+?[INR\s]*([\d,.]+)"
 VALUATION_RE = (
@@ -45,6 +46,8 @@ TRANSACTION_RE2 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}\t\t(?:{amt_re})*\t\t{am
 TRANSACTION_RE3 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}\t\t{amt_re}(?:\t\t{amt_re}\t\t{amt_re})*"
 # Tax transactions
 TRANSACTION_RE4 = rf"{date_re}\t\t([^0-9].*)\t\t{amt_re}(?:\t\t{amt_re}\t\t{amt_re}\t\t{amt_re})*"
+# First transaction without description (description is on previous line with Opening Unit Balance)
+TRANSACTION_RE5 = rf"{date_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}"
 DESCRIPTION_TAIL_RE = r"(\n.+?)(\t\t|$)"
 DIVIDEND_RE = r"(?:div\.|dividend|idcw).+?(reinvest)*.*?@\s*Rs\.\s*([\d\.]+)(?:\s+per\s+unit)?"
 SCHEME_TAIL_RE = r"(\n.+?)(?:\t\t|$)"
