@@ -54,6 +54,11 @@ DEMAT_STATEMENT_PERIOD_RE = (
     r"for\s+the\s+period\s+from\s+(?P<from>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
     r"\s+to\s+(?P<to>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
 )
+# Alternate wording used in some CDSL statements (e.g. inbound)
+DEMAT_STATEMENT_PERIOD_ALT_RE = (
+    r"Statement\s+for\s+the\s+period\s+from\s+(?P<from>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
+    r"\s+to\s+(?P<to>\d{2}-[a-zA-Z0-9]{2,3}-\d{4})"
+)
 DEMAT_HEADER_RE = (
     r"((?:CDSL|NSDL)\s+demat\s+account)\s+(.+?)\s*DP\s*Id\s*:\s*(.+?)"
     r"\s*Client\s*Id\s*:\s*(\d+)\s+(\d+)\s+([\d,.]+)"
