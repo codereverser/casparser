@@ -35,7 +35,7 @@ def parse_header(text):
 
 
 def process_nsdl_text(text):
-    hdr_data = parse_header(text[:1000])
+    hdr_data = parse_header(text)
     statement_period = StatementPeriod(from_=hdr_data["from"], to=hdr_data["to"])
     accounts = re.findall(
         DEMAT_HEADER_RE,
