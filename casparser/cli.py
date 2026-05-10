@@ -25,17 +25,24 @@ console = Console()
 
 
 def formatINR(number):
-    """format a number as INR
-    credit: https://stackoverflow.com/a/68484491"""
+    """format a number as INR (Indian grouping)"""
     prefix = {True: "-", False: ""}
     number = float(number)
     number = round(number, 2)
     is_negative = number < 0
-    number = abs(number)
-    s, *d = str(number).partition(".")
-    r = ",".join([s[x - 2 : x] for x in range(-3, -len(s), -2)][::-1] + [s[-3:]])
-    value = "".join([r] + d)
-    return f"{prefix[is_negative]}₹{value}"
+    s = f"{abs(number):.2f}"
+    int_part, dec_part = s.split(".")
+    if len(int_part) <= 3:
+        r = int_part
+    else:
+        last3 = int_part[-3:]
+        rest = int_part[:-3]
+        groups = [rest[max(0, i - 2):i or None] for i in range(len(rest), 0, -2)][::-1]
+        if groups and groups[0]:
+            r = ",".join(groups + [last3])
+        else:
+            r = last3
+    return f"{prefix[is_negative]}₹{r}.{dec_part}"
 
 
 def format_number(number):
@@ -83,11 +90,11 @@ def print_nsdl(parsed_data: NSDLCASData):
     console.print("")
 
     table = Table(title="Portfolio Summary", show_lines=True)
-    table.add_column("Name")
-    table.add_column("ISIN")
-    table.add_column("Units")
-    table.add_column("Price")
-    table.add_column("Value")
+    table.add_column("Name", max_width=30, overflow="fold")
+    table.add_column("ISIN", width=12)
+    table.add_column("Units", justify="right")
+    table.add_column("Price", justify="right")
+    table.add_column("Value", justify="right")
 
     value = Decimal(0)
 
@@ -137,10 +144,42 @@ def print_nsdl(parsed_data: NSDLCASData):
 
     console.print(table)
 
-    console.print(
-        f"Portfolio Valuation  : [bold green]{formatINR(value)}[/] "
-        f"[As of {data['statement_period']['to']}]"
+    # Asset class breakdown
+    equities_total = Decimal(0)
+    mf_demat_total = Decimal(0)
+    mf_folio_total = Decimal(0)
+    debts_total = Decimal(0)
+
+    for account in parsed_data.accounts:
+        if account.type == "MF":
+            mf_folio_total += sum(m.value for m in account.mutual_funds)
+        else:
+            eq_val = sum(e.value for e in account.equities)
+            mf_val = sum(m.value for m in account.mutual_funds)
+            if eq_val > 0 and mf_val == 0 and len(account.equities) == 1:
+                debts_total += eq_val
+            else:
+                equities_total += eq_val
+            mf_demat_total += mf_val
+
+    asset_table = Table.grid(expand=True)
+    asset_table.add_column(justify="left", style="bold")
+    asset_table.add_column(justify="right")
+    if debts_total > 0:
+        asset_table.add_row("  Debts / Bonds", formatINR(debts_total))
+    if equities_total > 0:
+        asset_table.add_row("  Equities (demat)", formatINR(equities_total))
+    if mf_demat_total > 0:
+        asset_table.add_row("  Mutual Funds (demat)", formatINR(mf_demat_total))
+    if mf_folio_total > 0:
+        asset_table.add_row("  Mutual Fund Folios", formatINR(mf_folio_total))
+    total_all = debts_total + equities_total + mf_demat_total + mf_folio_total
+    asset_table.add_row("  " + "─" * 20, "")
+    asset_table.add_row(
+        f"  Total Portfolio Value [As of {data['statement_period']['to']}]",
+        f"[bold green]{formatINR(total_all)}[/]",
     )
+    console.print(asset_table)
 
     console.print("[bold]Summary[/]")
     console.print(f"{'Total':8s}: [bold white]{count:4d}[/] accounts")
