@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10']
+        python-version: ['3.12']
 
     steps:
     - uses: actions/checkout@v4
@@ -44,6 +44,8 @@ jobs:
         KFINTECH_CAS_FILE_NEW: ${{ secrets.KFINTECH_CAS_FILE_NEW }}
         KFINTECH_CAS_PASSWORD: ${{ secrets.KFINTECH_CAS_PASSWORD }}
         NSDL_CAS_FILE_1: ${{ secrets.NSDL_CAS_FILE_1 }}
+        CDSL_CAS_FILE_1: ${{ secrets.CDSL_CAS_FILE_1 }}
+        CDSL_CAS_PASSWORD: ${{ secrets.CDSL_CAS_PASSWORD }}
     - name: Upload coverage report to codecov
       uses: codecov/codecov-action@v5
       with:

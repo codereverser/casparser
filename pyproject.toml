@@ -1,15 +1,13 @@
 [project]
 name = "casparser"
-description = "(Karvy/Kfintech/CAMS) Consolidated Account Statement (CAS) PDF parser"
+description = "(CAMS/KFintech/NSDL/CDSL) Consolidated Account Statement (CAS) PDF parser"
 authors = [{ name = "Sandeep Somasekharan", email = "codereverser@gmail.com" }]
-requires-python = "~=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -17,18 +15,17 @@ classifiers = [
 ]
 dependencies = [
     "casparser-isin>=2025.2.28",
-    "click>=7.0,<9.0",
-    "colorama>=0.4.6,<0.5",
-    "pdfminer.six==20240706",
+    "click>=8.0,<10",
+    "colorama>=0.4.6,<1",
+    # pypdfium2 ships a vendored C lib; we use the raw ctypes surface
+    # (FPDFText_GetCharOrigin etc.), so cap a major ahead to catch
+    # breaking ABI bumps before they hit users.
+    "pypdfium2>=5.0,<7",
     "python-dateutil>=2.8.2,<3",
-    "rich>=13.5.2,<14",
+    "rich>=13.5.2,<16",
     "pydantic>=2.3.0,<3",
 ]
 dynamic = ["version"]
-
-[project.optional-dependencies]
-mupdf = ["PyMuPDF>=1.24.0,<1.25.0"]
-fast = ["PyMuPDF>=1.24.0,<1.25.0"]
 
 [project.urls]
 Homepage = "https://github.com/codereverser/casparser"
@@ -38,10 +35,10 @@ casparser = "casparser.cli:cli"
 
 [dependency-groups]
 dev = [
-    "coverage[toml]>=7.3.0,<8",
-    "ipython>=8.31.0,<9",
-    "pytest>=8.0.0,<9",
-    "pytest-cov~=6.0.0",
+    "coverage[toml]>=7.3.0,<9",
+    "ipython>=8.31.0",
+    "pytest>=8.0.0,<10",
+    "pytest-cov>=6.0,<8",
     "pre-commit>=4.0.0,<5",
 ]
 
@@ -78,7 +75,7 @@ omit = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

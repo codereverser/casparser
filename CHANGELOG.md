@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.0.0
+
+Major release. The parsing backend was rewritten from scratch on
+[pypdfium2](https://github.com/pypdfium2-team/pypdfium2) (Apache-2.0 /
+BSD-3) and the four supported CAS issuers now each have a dedicated
+parser tuned to their template family.
+
+### Breaking changes
+
+- **pdfminer.six and PyMuPDF backends removed.** `casparser.read_cas_pdf`
+  no longer dispatches between them. The `mupdf` / `fast` extras in
+  `pyproject.toml` are gone. The `--force-pdfminer` CLI flag and the
+  `force_pdfminer=` kwarg on `read_cas_pdf` are kept as no-ops; the
+  kwarg emits a `DeprecationWarning` and is otherwise ignored.
+- **License simplified to pure MIT.** With the GPL/AGPL-licensed
+  PyMuPDF dependency gone, the `licenses/` directory of GPL/AGPL
+  copies has been removed. pypdfium2 is dual Apache-2.0 / BSD-3 and
+  doesn't impose any copyleft obligation on users of casparser.
+- **Minimum Python is now 3.11.** 3.9 / 3.10 classifiers dropped from
+  `pyproject.toml`.
+- **`CASData.investor_info` is now `Optional[InvestorInfo]`** (matches
+  the `NSDLCASData.investor_info` shape that already existed). It is
+  populated on every supported issuer, but consumers should still
+  guard against the `None` case for unfamiliar templates.
+- **Internal `casparser.process` package removed.** The two helpers
+  downstream code still imports from it are now at
+  `casparser.parsers._classify` (`get_parsed_scheme_name`,
+  `get_transaction_type`) and `casparser.parsers._isin` (`isin_search`).
+
+### New
+
+- **First-class NSDL and CDSL parsers.** Drops the regex-on-text
+  approach the 0.8 NSDL/CDSL code used; the new parsers consume
+  structured `Block`/`Cell` records directly from `pypdfium2`. Several
+  bugs the v0.8 NSDL/CDSL code shipped with are no longer in scope
+  (misplaced-UCC-as-folio on NSDL MF Holdings, space-merged
+  folio+units cells on CDSL, the silently-dropped NSDL HDFC
+  subaccount on CDSL multi-account statements, `Optional[Decimal]`
+  comma-strip miss in the `MutualFund` validator).
+- **CAMS / KFin 2026 templates supported** out of the box. The newer
+  CAMS SUMMARY template added an ISIN column the v0.8 regex didn't
+  match; v1.0 parses all rows. The newer KFin SUMMARY template emits
+  zero-balance schemes with single-space-separated trio cells that
+  the v0.8 regex required `\t\t` between; v1.0 picks them up too.
+- **AMC-header detection extended** to include the `Fund House`
+  suffix. v0.8's regex only matched `Mutual Fund` / `MF` suffixes,
+  so schemes from a few newer AMCs whose names end in `Fund House`
+  ended up bucketed under the previous AMC.
+- **ISIN / AMFI enrichment has a direct-ISIN fallback** path via
+  `MFISINDb.direct_isin_lookup` for the case where multi-line
+  `Registrar:` rendering corrupts the RTA token.
+
+### Fixed
+
+- **CAMS SUMMARY `valuation.date` no longer mis-parses to year 201**
+  (was a column-boundary bug — the NAVDate column treated as
+  right-aligned with a 42pt width clipped the trailing year digit,
+  then Pydantic mis-coerced the `01-Jan-201` string).
+- **CDSL multi-account statements** (5+ demat accounts on one PDF) are
+  now parsed correctly. Earlier the page-3+ scan only kicked in from
+  page 8, dropping holdings sections that landed on pages 4-7.
+- **CDSL MF holdings** rows with `DIRECT` (or any non-`ARN-XXXX`
+  distribution-mode token) now correctly populate `pnl` and `return_`.
+
 ## 0.8.1 - 2025-09-21
 - NSDL parser bug fixes
 
