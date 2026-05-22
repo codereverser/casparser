@@ -64,6 +64,21 @@ parser tuned to their template family.
 - **CDSL MF holdings** rows with `DIRECT` (or any non-`ARN-XXXX`
   distribution-mode token) now correctly populate `pnl` and `return_`.
 
+## 0.9.0 - 2026-05-22
+- Add support for CDSL statements
+- Drop support for Python 3.9 and 3.10; minimum supported version is now 3.11
+- Support PyMuPDF >= 1.25 (1.27.x tested). Older `<1.25` pin removed.
+- Bump `casparser-isin` to `>= 2026.5.1` (new DB format v2 with
+  `sebi_category`/`last_seen` columns; ISIN-first lookup priority).
+- Relax other dependency pins (click, colorama, rich, pdfminer.six).
+- Fix `MutualFund.fix_float` pydantic validator so the aliased `return`
+  field (Python attribute `return_`) also gets the comma-stripping
+  treatment; previously NSDL MF folio rows with a return value of
+  1 lakh or more would fail Decimal validation.
+- Parser robustness fixes for PyMuPDF 1.25+ text extraction quirks
+  (all superseded in 1.0.0 by the pypdfium2 rewrite, kept here for
+  the historical record).
+
 ## 0.8.1 - 2025-09-21
 - NSDL parser bug fixes
 

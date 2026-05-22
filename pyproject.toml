@@ -11,10 +11,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "casparser-isin>=2025.2.28",
+    "casparser-isin>=2026.5.1",
     "click>=8.0,<10",
     "colorama>=0.4.6,<1",
     # pypdfium2 ships a vendored C lib; we use the raw ctypes surface
