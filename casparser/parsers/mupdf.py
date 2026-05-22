@@ -66,39 +66,57 @@ def extract_blocks(page_dict, file_type=FileType.UNKNOWN):
     The logic is similar to `PyMuPDF.TextPage.extractBLOCKS` but with a slightly better text
     arrangement.
     """
-    tolerance = {FileType.CAMS: 3, FileType.KFINTECH: 3, FileType.CDSL: 7, FileType.NSDL: 7}.get(
+    tolerance = {FileType.CAMS: 3, FileType.KFINTECH: 3, FileType.CDSL: 8, FileType.NSDL: 8}.get(
         file_type, 3
     )
 
+    # For NSDL/CDSL statements, holdings rows span multiple visual rows that
+    # represent a single logical entity; keep the legacy behaviour of joining
+    # them with ``\n`` so the downstream regexes (which use ``re.DOTALL``) can
+    # match across the rows.
+    split_rows = file_type not in (FileType.NSDL, FileType.CDSL)
+
     blocks = []
     grouped_blocks = group_similar_blocks(page_dict.get("blocks", []), file_type=file_type)
+
     for num, block in enumerate(grouped_blocks):
-        lines = []
+        rendered_rows = []
         items = []
-        bbox = [0, 0, 0, 0]
-        if len(block.get("lines", [])) > 0:
-            bbox = block["lines"][0]["bbox"]
-        y0, y1 = bbox[1], bbox[3]
-        if file_type in (FileType.NSDL, FileType.CDSL):
-            block["lines"] = sorted(block["lines"], key=lambda x: (x["bbox"][0], x["bbox"][1]))
-        else:
-            block["lines"] = sorted(block["lines"], key=lambda x: x["bbox"][1])
+        block["lines"] = sorted(block["lines"], key=lambda x: (x["bbox"][1], x["bbox"][0]))
+        y0 = block["lines"][0]["bbox"][1] if block.get("lines") else 0
+        y1 = block["lines"][0]["bbox"][3] if block.get("lines") else 0
+
+        def emit_row():
+            if not items:
+                return
+            full_text = "\t\t".join(
+                [x[0].strip() for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
+            )
+            if not full_text.strip():
+                return
+            if split_rows:
+                row_x0 = min(x[1][0] for x in items)
+                row_y0 = min(x[1][1] for x in items)
+                row_x1 = max(x[1][2] for x in items)
+                row_y1 = max(x[1][3] for x in items)
+                blocks.append([row_x0, row_y0, row_x1, row_y1, full_text])
+            else:
+                rendered_rows.append(full_text)
+
         for line in block["lines"]:
             if len(items) > 0 and not (
                 is_close(y0, line["bbox"][1], tol=tolerance)
                 or is_close(y1, line["bbox"][3], tol=tolerance)
-                or is_close(y1, line["bbox"][1], tol=2)
-                or is_close(y0, line["bbox"][3], tol=2)
                 or y0 <= line["bbox"][1] <= line["bbox"][3] <= y1
             ):
-                full_text = "\t\t".join(
-                    [x[0].strip() for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
-                )
-                if full_text.strip():
-                    lines.append(full_text)
+                emit_row()
                 items = []
-                # y0, y1 = line["bbox"][1], line["bbox"][3]
-                y0, y1 = min(y0, line["bbox"][1]), max(y1, line["bbox"][3])
+                y0, y1 = line["bbox"][1], line["bbox"][3]
+            else:
+                # Expand the band so subsequent lines that overlap with any
+                # previously-grouped item still get attached to the row.
+                y0 = min(y0, line["bbox"][1])
+                y1 = max(y1, line["bbox"][3])
             line_text = "\t\t".join(
                 [
                     span["text"].strip()
@@ -107,15 +125,10 @@ def extract_blocks(page_dict, file_type=FileType.UNKNOWN):
                 ]
             )
             items.append([line_text, line["bbox"]])
-        if len(items) > 0:
-            full_text = "\t\t".join(
-                [x[0] for x in sorted(items, key=lambda x: x[1][0]) if x[0].strip()]
-            )
-            if full_text.strip():
-                lines.append(full_text)
-        text = "\n".join(lines)
-        if text.strip() != "":
-            blocks.append([*block["bbox"], text])
+        emit_row()
+
+        if not split_rows and rendered_rows:
+            blocks.append([*block["bbox"], "\n".join(rendered_rows)])
     return blocks
 
 

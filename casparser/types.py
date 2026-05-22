@@ -138,12 +138,18 @@ class MutualFund(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def fix_float(cls, data: dict):
+        # Build a lookup from both attribute names and field aliases so that
+        # aliased fields (e.g. ``return`` -> ``return_``) also get the
+        # comma-stripping treatment.
+        annotations_by_key: dict = {}
+        for attr, annotation in cls.__annotations__.items():
+            annotations_by_key[attr] = annotation
+            field = cls.model_fields.get(attr)
+            if field is not None and field.alias is not None:
+                annotations_by_key[field.alias] = annotation
         for k, v in data.items():
-            if (
-                k in cls.__annotations__
-                and issubclass(Decimal, cls.__annotations__[k])
-                and isinstance(v, str)
-            ):
+            annotation = annotations_by_key.get(k)
+            if annotation is not None and issubclass(Decimal, annotation) and isinstance(v, str):
                 data[k] = v.replace(",", "_").replace("_", "")
         return data
 
