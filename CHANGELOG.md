@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.0 - 2026-05-22
+- Add support for CDSL sttements
+- Drop support for Python 3.9 and 3.10; minimum supported version is now 3.11
+- Support PyMuPDF >= 1.25 (1.27.x tested). Older `<1.25` pin removed.
+- Bump `casparser-isin` to `>= 2026.5.1` (new DB format v2 with
+  `sebi_category`/`last_seen` columns; ISIN-first lookup priority).
+- Relax other dependency pins (click, colorama, rich, pdfminer.six).
+- Fix `MutualFund.fix_float` pydantic validator so the aliased `return`
+  field (Python attribute `return_`) also gets the comma-stripping
+  treatment; previously NSDL MF folio rows with a return value of
+  1 lakh or more would fail Decimal validation.
+- Parser robustness fixes for PyMuPDF 1.25+ text extraction quirks:
+  - Re-emit visual rows as separate blocks for CAMS/KFINTECH so the
+    table header / folio header no longer get merged when the new
+    block grouping collapses them into a single PyMuPDF block.
+  - Recover the registrar value (e.g. `KFINTECH`) when it wraps to the
+    next line.
+  - Recover the advisor value when the scheme name wraps before the
+    advisor closing paren.
+  - Pull ISIN/Advisor onto the scheme line when long scheme names wrap.
+  - Tax transactions (`*** Stamp Duty ***`, STT, TDS) no longer absorb
+    spurious units when an adjacent column wraps onto the same row.
+  - NSDL holdings: widen the y-band tolerance, drop the strict
+    multiline `$` anchoring, and accept tab-separated wrapped names so
+    the regexes match consistently across Python 3.11–3.14.
+
 ## 0.8.1 - 2025-09-21
 - NSDL parser bug fixes
 

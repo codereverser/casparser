@@ -147,6 +147,14 @@ def parse_transaction(line) -> Optional[ParsedTransaction]:
                 # Normal entries
                 date, description, amount, units, nav, balance = groups
             if date is not None:
+                # Tax-style entries (e.g. ``*** Stamp Duty ***``) only carry an
+                # amount; if a downstream column from a wrapped row got
+                # appended, the regex may misread it as units/balance.
+                if description and re.match(r"\s*\*\*\*", description):
+                    if amount is None and units is not None:
+                        amount = units
+                    units = None
+                    balance = None
                 return ParsedTransaction(date, description, amount, units, nav, balance)
 
 
@@ -169,6 +177,46 @@ def process_detailed_text(text):
         # "Registrar" column to the previous line
         if re.search(REGISTRAR_RE, line):
             line = "\t\t".join([lines[idx + 1], line])
+        # Some scheme rows have the registrar header at the end of the scheme
+        # line but the registrar value (e.g. "KFINTECH") on the following line.
+        elif idx + 1 < len(lines) and re.search(r"Registrar\s*:\s*$", line):
+            next_line = lines[idx + 1].strip()
+            # Two-column wrap: both the advisor value and the registrar value
+            # wrapped to the next visual row. The next line looks like
+            # ``<advisor>)\t\t<registrar>``. Splice the advisor into the
+            # ``(Advisor:`` slot and the registrar onto the end.
+            two_col = re.match(r"^([-\w]+)\)\s*\t+\s*(\S+)\s*$", next_line)
+            if two_col and re.search(r"\(Advisor\s*:\s*\t", line):
+                advisor_value, registrar_value = two_col.groups()
+                line = (
+                    re.sub(
+                        r"(\(Advisor\s*:\s*)",
+                        r"\1" + advisor_value + ")",
+                        line,
+                        count=1,
+                    )
+                    + registrar_value
+                )
+            else:
+                line = line + next_line
+        # Scheme name with advisor info wraps across visual rows; the advisor
+        # value (e.g. "WEALTH)") ends up on the next line.
+        elif (
+            idx + 1 < len(lines)
+            and re.search(r"\(Advisor\s*:\s*(?:\t|$)", line)
+            and re.match(r"^[-\w]+\)\s*$", lines[idx + 1].strip())
+        ):
+            advisor_value = lines[idx + 1].strip().rstrip(")")
+            line = re.sub(r"(\(Advisor\s*:\s*)", r"\1" + advisor_value + ")", line, count=1)
+        # Scheme name wraps and the wrapped continuation contains the ISIN /
+        # advisor info on the next visual row.
+        elif (
+            idx + 1 < len(lines)
+            and re.search(r"Registrar\s*:\s*\w+\s*$", line)
+            and re.search(r"^[-\w]+-", line)
+            and re.search(r"ISIN\s*:|\(Advisor\s*:", lines[idx + 1])
+        ):
+            line = line + " " + lines[idx + 1].strip()
         if amc_match := re.search(AMC_RE, line, re.I | re.DOTALL):
             current_amc = amc_match.group(0)
         elif m := re.search(FOLIO_RE, line):

@@ -72,6 +72,6 @@ NSDL_CDSL_HOLDINGS_RE = (
     r"^([A-Z]{2}[0-9A-Z]{9}[0-9]{1})\s*(.+?)\s+" + rf"{amt_re}\s+" * 10 + rf"{amt_re}$"
 )
 NSDL_MF_HOLDINGS_RE = (
-    rf"({isin_re})\n(.+?)[\n\t]+(.+?)\t\t(\w+?)\t\t{amt_re}"
-    rf"\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}\t\t{amt_re}(?:\t\t{amt_re})?$"
+    rf"({isin_re})[\n\t]+(.+?)[\n\t]+(.+?)[\n\t]+(\d{{4,}}?)[\n\t]+{amt_re}"
+    rf"[\n\t]+{amt_re}[\n\t]+{amt_re}[\n\t]+{amt_re}[\n\t]+{amt_re}[\n\t]+{amt_re}(?:[\n\t]+{amt_re})?$"
 )

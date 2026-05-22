@@ -10,12 +10,19 @@ def isin_search(
     isin: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Search isin db for ISIN and AMFI code
+    Search isin db for ISIN and AMFI code.
 
-    :param isin: Scheme ISIN code
-    :param scheme_name: Scheme name from CAS
-    :param rta: RTA for the scheme
-    :param rta_code: Scheme RTA code
+    The underlying ``MFISINDb.isin_lookup`` does ISIN-first lookup
+    internally when ``isin`` is supplied, but only after validating
+    that ``rta`` is one of the known RTAs (CAMS / KARVY / FRANKLIN).
+    The RTA check is deliberate -- if it trips, the parser captured a
+    malformed RTA upstream and the right fix is to repair the parser,
+    not to bypass the validation here.
+
+    :param isin: Scheme ISIN code (from the scheme line, if present).
+    :param scheme_name: Scheme name from CAS.
+    :param rta: RTA for the scheme.
+    :param rta_code: Scheme RTA code.
     """
     try:
         with MFISINDb() as db:
