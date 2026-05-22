@@ -12,6 +12,7 @@ from .regex import (
     DEMAT_HEADER_RE,
     DEMAT_MF_HEADER_RE,
     DEMAT_MF_TYPE_RE,
+    DEMAT_STATEMENT_PERIOD_ALT_RE,
     DEMAT_STATEMENT_PERIOD_RE,
     NSDL_CDSL_HOLDINGS_RE,
     NSDL_EQ_RE,
@@ -19,15 +20,25 @@ from .regex import (
     NSDL_MF_RE,
 )
 
+# Search window for statement period (CDSL/NSDL block order can put it after 1000 chars)
+_HEADER_SEARCH_LEN = 5000
+
 
 def parse_header(text):
     """
     Parse CAS header data.
     :param text: CAS text
     """
+    search_text = text[:_HEADER_SEARCH_LEN]
     if m := re.search(
         DEMAT_STATEMENT_PERIOD_RE,
-        text,
+        search_text,
+        re.DOTALL | re.MULTILINE | re.I,
+    ):
+        return m.groupdict()
+    if m := re.search(
+        DEMAT_STATEMENT_PERIOD_ALT_RE,
+        search_text,
         re.DOTALL | re.MULTILINE | re.I,
     ):
         return m.groupdict()
