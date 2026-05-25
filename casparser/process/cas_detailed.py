@@ -35,6 +35,7 @@ from .regex import (
     TRANSACTION_RE2,
     TRANSACTION_RE3,
     TRANSACTION_RE4,
+    TRANSACTION_RE5,
     VALUATION_RE,
 )
 from .utils import isin_search
@@ -128,7 +129,7 @@ def get_parsed_scheme_name(scheme) -> str:
     return re.sub(r"[^a-zA-Z0-9_)]+$", "", scheme).strip()
 
 
-def parse_transaction(line) -> Optional[ParsedTransaction]:
+def parse_transaction(line, pending_description: Optional[str] = None) -> Optional[ParsedTransaction]:
     for regex in (TRANSACTION_RE1, TRANSACTION_RE2, TRANSACTION_RE3, TRANSACTION_RE4):
         if m := re.search(regex, line, re.DOTALL | re.MULTILINE | re.I):
             groups = m.groups()
@@ -157,6 +158,12 @@ def parse_transaction(line) -> Optional[ParsedTransaction]:
                     balance = None
                 return ParsedTransaction(date, description, amount, units, nav, balance)
 
+    # Try TRANSACTION_RE5 for first transaction without description
+    # (description is on previous line with "Opening Unit Balance")
+    if pending_description and (m := re.search(TRANSACTION_RE5, line, re.DOTALL | re.MULTILINE | re.I)):
+        date, amount, units, nav, balance = m.groups()
+        return ParsedTransaction(date, pending_description, amount, units, nav, balance)
+
 
 def process_detailed_text(text):
     """
@@ -171,6 +178,7 @@ def process_detailed_text(text):
     current_folio = None
     current_amc = None
     curr_scheme_data: Optional[Scheme] = None
+    pending_first_txn_desc: Optional[str] = None  # For first transaction whose description is on Opening Unit Balance line
     lines = text.split("\u2029")
     for idx, line in enumerate(lines):
         # Parse schemes with long names (single line) effectively pushing
@@ -285,7 +293,11 @@ def process_detailed_text(text):
         if m := re.search(NOMINEE_RE, line, re.I | re.DOTALL):
             curr_scheme_data.nominees.extend([x.strip() for x in m.groups() if x.strip()])
         if m := re.search(OPEN_UNITS_RE, line):
-            curr_scheme_data.open = Decimal(m.group(1).replace(",", "_"))
+            # group(1) is optional description before "Opening Unit Balance" (for first transaction)
+            # group(2) is the opening unit balance value
+            if m.group(1):
+                pending_first_txn_desc = m.group(1).strip()
+            curr_scheme_data.open = Decimal(m.group(2).replace(",", "_"))
             curr_scheme_data.close_calculated = curr_scheme_data.open
             continue
         if m := re.search(CLOSE_UNITS_RE, line):
@@ -303,7 +315,7 @@ def process_detailed_text(text):
         if m := re.search(DESCRIPTION_TAIL_RE, line):
             description_tail = m.group(1).strip()
             line = line.replace(m.group(1), "")
-        if parsed_txn := parse_transaction(line):
+        if parsed_txn := parse_transaction(line, pending_first_txn_desc):
             date = date_parser.parse(parsed_txn.date).date()
             desc = parsed_txn.description.strip()
             if description_tail != "":
@@ -327,6 +339,8 @@ def process_detailed_text(text):
                     dividend_rate=dividend_rate,
                 )
             )
+            # Clear pending description after first transaction is parsed
+            pending_first_txn_desc = None
     if curr_scheme_data:
         folios[current_folio].schemes.append(curr_scheme_data)
     return ProcessedCASData(
