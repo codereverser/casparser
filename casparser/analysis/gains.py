@@ -364,10 +364,15 @@ class FIFOUnits:
 
             pending_units -= units
             if pending_units < 0 and purchase_nav is not None:
-                # Sale is partially matched against the last buy transactions
-                # Re-add the remaining units to the FIFO queue
+                # Sale is partially matched against the last buy transactions.
+                # Re-add the remaining units to the FIFO queue with the
+                # *unallocated* stamp-duty remainder — not the full original.
+                # Otherwise a lot consumed across N disposals would re-claim
+                # the full original stamp on every disposal, over-stating the
+                # transfer-expense deduction on Schedule 112A by a factor
+                # that grows with split depth.
                 self.transactions.appendleft(
-                    (purchase_date, -1 * pending_units, purchase_nav, purchase_tax)
+                    (purchase_date, -1 * pending_units, purchase_nav, purchase_tax - stamp_duty)
                 )
 
 

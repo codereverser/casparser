@@ -140,6 +140,104 @@ class TestGainsClass:
         with pytest.raises(GainsError):
             FIFOUnits(test_fund, transactions)
 
+    def test_stamp_duty_split_lot_does_not_exceed_paid(self):
+        """When a single purchase lot is consumed across multiple
+        disposals, the sum of stamp duty allocated across those
+        disposals must not exceed the original stamp paid.
+
+        Regression guard for the FIFOUnits.sell bug where a
+        partially-consumed lot was re-queued with the FULL original
+        purchase_tax (instead of the unallocated remainder), causing
+        the per-disposal proportional allocation to re-claim the
+        same stamp on every subsequent disposal from the same lot.
+        Worked example with this 3-way 100/100/100 split of a
+        300-unit lot with ₹1.25 stamp:
+
+        - Disposal 1: round(1.25 × 100/300, 2) = 0.42 (lot re-queued
+          with remainder 0.83)
+        - Disposal 2: round(0.83 × 100/200, 2) = 0.42 (lot re-queued
+          with remainder 0.41)
+        - Disposal 3: round(0.41 × 100/100, 2) = 0.41
+        - Total claimed = 1.25 = exactly stamp paid ✓
+
+        Under the pre-fix code the lot was re-queued with the full
+        1.25 each time, producing a total of ~2.29 — an 84% over-
+        claim that grows worse with split depth.
+        """
+        fund = Fund("Split-Lot Fund", "SL", "INF000SL0001", "EQUITY")
+        purchase_dt = date(2020, 1, 1)
+        transactions = [
+            TransactionData(
+                date=purchase_dt,
+                description="Purchase",
+                amount=Decimal("3000.00"),
+                units=Decimal("300.000"),
+                nav=Decimal("10.000"),
+                balance=Decimal("300.000"),
+                type=TransactionType.PURCHASE,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=purchase_dt,
+                description="*** Stamp Duty ***",
+                amount=Decimal("1.25"),
+                units=None,
+                nav=None,
+                balance=None,
+                type=TransactionType.STAMP_DUTY_TAX,
+                dividend_rate=None,
+            ),
+            # Three 100-unit redemptions on distinct dates (held > 1yr,
+            # so they're LTCG; specific dates don't matter for the
+            # stamp-allocation invariant).
+            TransactionData(
+                date=date(2022, 1, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("200.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=date(2022, 2, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("100.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=date(2022, 3, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("0.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+        ]
+        fifo = FIFOUnits(fund, transactions)
+
+        # Three disposals, three gain entries.
+        assert len(fifo.gains) == 3
+
+        total_stamp = sum((ge.stamp_duty for ge in fifo.gains), Decimal("0"))
+
+        # Section 48 invariant: deductible transfer expense ≤ paid.
+        assert total_stamp <= Decimal("1.25"), (
+            f"Total stamp claimed ({total_stamp}) exceeds stamp paid (1.25); "
+            f"per-disposal stamps were {[ge.stamp_duty for ge in fifo.gains]}"
+        )
+        # Stronger: with the remainder-aware re-queue the rounding
+        # residual gets absorbed into the final disposal, so the
+        # total equals the paid stamp exactly.
+        assert total_stamp == Decimal("1.25")
+
 
 def _ltcg_entry(fy, fund, purchase_date, sale_date, units="100.000"):
     """Build a minimal LTCG GainEntry (EQUITY, held > 1yr) for the

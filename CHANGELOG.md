@@ -89,6 +89,20 @@ parser tuned to their template family.
   positive-units branch of `get_transaction_type`. Acts as a
   self-validating safety net for the entire transaction stream,
   not just the Franklin case.
+- **Stamp-duty allocation on split lots.** When a single purchase
+  lot is consumed across N disposals the `FIFOUnits.sell` re-queue
+  carried the *full* original stamp duty on every remaining slice,
+  so the proportional allocation re-claimed the same paid stamp
+  on each disposal — total stamp claimed grew unboundedly with
+  split depth. (Worked example: 300-unit lot with ₹1.25 stamp,
+  split 100/100/100 → total claimed ₹2.29 vs ₹1.25 paid, an 84%
+  over-claim that further widens for deeper splits.) The lot is
+  now re-queued with the *unallocated remainder* (`purchase_tax -
+  stamp_duty`), so the invariant `Σ(stamp_claimed) == stamp_paid`
+  holds exactly across any number of partial consumptions. Section
+  48 only permits deducting the stamp actually paid as a
+  transfer expense, so the prior behaviour over-stated the
+  deduction on Schedule 112A.
 
 ## 0.9.0 - 2026-05-22
 - Add support for CDSL statements
