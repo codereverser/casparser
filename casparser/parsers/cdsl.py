@@ -492,25 +492,30 @@ def _parse_mf_holdings_row(
     block: Block,
     scheme_meta: Dict[str, Dict[str, str]],
 ) -> Optional[MutualFund]:
-    """MF holdings table row. Two known templates:
+    """MF holdings table row. Known templates:
 
-    - **With distribution-mode column (13 cells)**:
+    - **Full, with distribution-mode column (13 cells)**:
         name | ISIN | folio | ARN-or-DIRECT | units | NAV | invested
         | value | TER% | direct | commission | profit | return%
 
     - **Without distribution-mode column (7 cells)**:
         name | ISIN | folio | units | NAV | invested | value
 
-    Discriminator: the cell two positions after the ISIN. In the
-    13-cell layout it carries an alphanumeric distribution-mode label
-    (`ARN-####`, `DIRECT`, sometimes a folio-split fragment like
-    `4/0`). In the 7-cell layout it carries the units value (a pure
-    number). So if that cell isn't a clean number, we treat the row
-    as the 13-cell template.
+    - **Reduced, with distribution-mode column (7 cells)**:
+        name | ISIN | folio | ARN-or-DIRECT | units | NAV | value
+        (no separate "invested / total cost" column)
 
-    Either way, we then filter the cells after `data_start` to numeric
-    tokens only — that picks the right values for balance/NAV/invested/
-    valuation regardless of whether the row had a split-folio quirk.
+    Discriminator: the cell two positions after the ISIN. In the
+    distribution-mode layouts it carries an alphanumeric label
+    (`ARN-####`, `DIRECT`, sometimes a folio-split fragment like
+    `4/0`); otherwise it's the units value (a pure number).
+
+    We then filter the cells after `data_start` to numeric tokens. The
+    leading two are always units + NAV; the *current value* is the next
+    column when it's the last one (reduced row) or the column after
+    "invested" otherwise. A holdings statement always prints the
+    current value, so when only three numerics survive we treat the
+    third as the value (not the optional invested/cost column).
     """
     if len(block.cells) < 5:
         return None
@@ -548,8 +553,14 @@ def _parse_mf_holdings_row(
         return None
     balance = _to_decimal(numerics[0])
     nav = _to_decimal(numerics[1])
-    invested = _opt_decimal(numerics[2])
-    value = _to_decimal(numerics[3]) if len(numerics) >= 4 else Decimal(0)
+    if len(numerics) >= 4:
+        # units | NAV | invested | value | [TER, commission, profit, return]
+        invested = _opt_decimal(numerics[2])
+        value = _to_decimal(numerics[3])
+    else:
+        # Reduced row: units | NAV | value (no separate invested/cost).
+        invested = None
+        value = _to_decimal(numerics[2])
     pnl = _opt_decimal(numerics[-2]) if has_distrib_col and len(numerics) >= 6 else None
     ret = _opt_decimal(numerics[-1]) if has_distrib_col and len(numerics) >= 5 else None
 

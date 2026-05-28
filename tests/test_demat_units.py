@@ -190,6 +190,49 @@ class TestCDSLHelpers:
         # Only 3 cells — fewer than the 3 trailing data cells required.
         assert cdsl_p._parse_holdings_row(block) is None
 
+    def test_mf_holdings_full_row_with_invested_and_value(self):
+        """13-cell template (distribution mode + invested + value):
+        units | NAV | invested | value get assigned positionally."""
+        block = _block(
+            _cell("EXFND - Example Fund", 22, 90),
+            _cell("INF000A01001", 192, 230),
+            _cell("12345", 273, 300),
+            _cell("ARN-1234", 320, 360),  # distribution mode (non-numeric)
+            _cell("100.000", 380, 410),  # units
+            _cell("25.0000", 430, 460),  # NAV
+            _cell("2000.00", 480, 510),  # invested
+            _cell("2500.00", 530, 560),  # value
+        )
+        mf = cdsl_p._parse_mf_holdings_row(block, {})
+        assert mf is not None
+        assert mf.balance == Decimal("100.000")
+        assert mf.nav == Decimal("25.0000")
+        assert mf.total_cost == Decimal("2000.00")
+        assert mf.value == Decimal("2500.00")
+
+    def test_mf_holdings_reduced_row_distrib_no_invested(self):
+        """Reduced template: distribution-mode column present but NO
+        separate 'invested' column (units | NAV | value). The third
+        numeric is the current value, not the cost — regression for a
+        row that previously parsed value=0."""
+        block = _block(
+            _cell("EXFND - Example Fund", 22, 90),
+            _cell("INF000A01001", 192, 230),
+            _cell("12345", 273, 300),
+            _cell("DIR", 320, 360),  # distribution mode (non-numeric)
+            _cell("100.000", 380, 410),  # units
+            _cell("25.0000", 430, 460),  # NAV
+            _cell("2500.00", 530, 560),  # value (no invested column)
+        )
+        mf = cdsl_p._parse_mf_holdings_row(block, {})
+        assert mf is not None
+        assert mf.balance == Decimal("100.000")
+        assert mf.nav == Decimal("25.0000")
+        assert mf.value == Decimal("2500.00")  # not 0
+        assert mf.total_cost is None
+        # value is consistent with balance * nav
+        assert abs(mf.balance * mf.nav - mf.value) <= Decimal("0.01")
+
 
 # ---------------------------------------------------------------- NSDL
 
