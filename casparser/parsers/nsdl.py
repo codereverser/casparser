@@ -56,7 +56,10 @@ from .pageobj import Block, Cell
 ISIN_RE = re.compile(r"^[A-Z]{2}[0-9A-Z]{9}\d$")
 INF_ISIN_RE = re.compile(r"^INF[0-9A-Z]{8}\d$")
 INE_ISIN_RE = re.compile(r"^IN[E9][0-9A-Z]{8}\d$")
-NUMERIC_RE = re.compile(r"^-?[\d,]+(?:\.\d+)?$")
+# Some templates drop the leading zero on fractional values (e.g. a
+# `0.196` unit balance prints as `.196`), so the integer part is
+# optional when a decimal part is present.
+NUMERIC_RE = re.compile(r"^-?(?:[\d,]+(?:\.\d+)?|\.\d+)$")
 
 PERIOD_RE = re.compile(
     r"(?:for\s+the\s+period\s+from|statement\s+for\s+the\s+period\s+from)\s+"

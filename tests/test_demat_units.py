@@ -115,6 +115,19 @@ class TestCDSLHelpers:
         assert not cdsl_p._looks_numeric("DIRECT")
         assert not cdsl_p._looks_numeric("")
 
+    def test_looks_numeric_leading_dot(self):
+        """CDSL drops the leading zero on small fractional balances
+        (`0.196` -> `.196`); the classifier must still treat them as
+        numeric, otherwise the cell mis-buckets and the row layout
+        shifts silently."""
+        assert cdsl_p._looks_numeric(".196")
+        assert cdsl_p._looks_numeric(".69")
+        assert cdsl_p._looks_numeric("-.5")
+        assert cdsl_p._looks_numeric("0.196")
+        # naked separators must still fail
+        assert not cdsl_p._looks_numeric(".")
+        assert not cdsl_p._looks_numeric("-")
+
     def test_is_total_row(self):
         block = _block(_cell("Sub Total"), _cell("100.00"))
         assert cdsl_p._is_total_row(block)
@@ -464,6 +477,16 @@ class TestNSDLHelpers:
         assert not nsdl_p._looks_numeric("   ")
         assert not cdsl_p._looks_numeric("")
         assert not cdsl_p._looks_numeric("   ")
+
+    def test_looks_numeric_leading_dot_both(self):
+        """Sub-unit balances rendered without the leading zero
+        (`.196`, `-.5`) must be recognised as numeric in BOTH NSDL and
+        CDSL classifiers; the parsers share the regex shape."""
+        for fn in (nsdl_p._looks_numeric, cdsl_p._looks_numeric):
+            assert fn(".196")
+            assert fn("-.5")
+            # naked dot must still fail
+            assert not fn(".")
 
     def test_per_account_header_joint_form(self):
         """The NSDL joint-account section header is split across THREE

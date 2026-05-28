@@ -74,6 +74,11 @@ parser tuned to their template family.
   page 8, dropping holdings sections that landed on pages 4-7.
 - **CDSL MF holdings** rows with `DIRECT` (or any non-`ARN-XXXX`
   distribution-mode token) now correctly populate `pnl` and `return_`.
+- **Leading-dot decimals** (`.196`, `-.5`) are now recognised as
+  numeric by the NSDL / CDSL cell classifier. CDSL occasionally
+  drops the leading zero on sub-unit balances; under the old regex
+  those cells were mis-bucketed as text, shifting the row layout
+  and producing a silent `Σholdings ≠ balance` mismatch.
 
 ## 0.9.0 - 2026-05-22
 - Add support for CDSL statements
