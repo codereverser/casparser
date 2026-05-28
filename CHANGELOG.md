@@ -58,6 +58,10 @@ parser tuned to their template family.
   that date and splits an after-31-Jan-2018-acquired fund into
   separate rows when it was sold on both sides of the cutoff. Older
   FYs keep the 14-column layout their utility expects.
+- **Cost Inflation Index extended to FY2025-26 (376)** and the
+  FY2024-25 value corrected from `365` to the CBDT-notified `363`
+  (the wrong value slightly mis-indexed debt-fund LTCG cost of
+  acquisition for FY2024-25 sales).
 
 ### Fixed
 

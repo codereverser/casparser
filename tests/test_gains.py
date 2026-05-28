@@ -31,6 +31,11 @@ class TestGainsClass:
         # Tests
         assert abs(CII["FY2020-21"] / CII["FY2001-02"] - 3.01) <= 1e-3
 
+        # Officially CBDT-notified values for the most recent years.
+        assert CII["FY2023-24"] == 348
+        assert CII["FY2024-25"] == 363
+        assert CII["FY2025-26"] == 376
+
         # Checks for out-of-range FYs
         today = date.today()
         future_date = date(today.year + 3, today.month, today.day)
