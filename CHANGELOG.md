@@ -51,6 +51,13 @@ parser tuned to their template family.
 - **ISIN / AMFI enrichment has a direct-ISIN fallback** path via
   `MFISINDb.direct_isin_lookup` for the case where multi-line
   `Registrar:` rendering corrupts the RTA token.
+- **Schedule 112A column 1b** ("Share/Unit Transferred") is emitted
+  for FY2024-25 onward, per the AY 2025-26 ITR utility template. The
+  Finance (No. 2) Act 2024 split the equity-LTCG regime on
+  23-Jul-2024; the 112A CSV now flags each transfer `BE`/`AE` against
+  that date and splits an after-31-Jan-2018-acquired fund into
+  separate rows when it was sold on both sides of the cutoff. Older
+  FYs keep the 14-column layout their utility expects.
 
 ### Fixed
 

@@ -4,10 +4,14 @@ from decimal import Decimal
 import pytest
 
 from casparser.analysis.gains import (
+    CapitalGainsReport,
     FIFOUnits,
     Fund,
     FundType,
+    GainEntry,
     MergedTransaction,
+    _fy_needs_transfer_col,
+    _transfer_flag,
     get_fund_type,
 )
 from casparser.analysis.utils import CII, get_fin_year
@@ -130,3 +134,103 @@ class TestGainsClass:
         ]
         with pytest.raises(GainsError):
             FIFOUnits(test_fund, transactions)
+
+
+def _ltcg_entry(fy, fund, purchase_date, sale_date, units="100.000"):
+    """Build a minimal LTCG GainEntry (EQUITY, held > 1yr) for the
+    Schedule-112A tests. NAV lookup on the synthetic ISIN returns None,
+    so fmv falls back to purchase_value."""
+    return GainEntry(
+        fy=fy,
+        fund=fund,
+        type="EQUITY",
+        purchase_date=purchase_date,
+        purchase_nav=Decimal("10.0"),
+        purchase_value=Decimal("1000.00"),
+        stamp_duty=Decimal("1.00"),
+        sale_date=sale_date,
+        sale_nav=Decimal("20.0"),
+        sale_value=Decimal("2000.00"),
+        stt=Decimal("2.00"),
+        units=Decimal(units),
+    )
+
+
+def _report_with_gains(gains):
+    """A CapitalGainsReport with `_gains` injected directly, bypassing
+    the FIFO engine (exercised separately above)."""
+    rep = CapitalGainsReport.__new__(CapitalGainsReport)
+    rep._gains = gains
+    rep.errors = []
+    return rep
+
+
+class TestSchedule112A:
+    """Schedule 112A column-1b (23-Jul-2024 transfer split) compliance."""
+
+    def test_transfer_flag(self):
+        assert _transfer_flag(date(2024, 7, 22)) == "BE"
+        assert _transfer_flag(date(2024, 7, 23)) == "AE"
+        assert _transfer_flag(date(2024, 9, 1)) == "AE"
+        assert _transfer_flag(date(2020, 1, 1)) == "BE"
+
+    def test_fy_needs_transfer_col(self):
+        assert _fy_needs_transfer_col("FY2024-25") is True
+        assert _fy_needs_transfer_col("FY2025-26") is True
+        assert _fy_needs_transfer_col("FY2023-24") is False
+        assert _fy_needs_transfer_col("FY2020-21") is False
+        assert _fy_needs_transfer_col("") is False
+
+    def test_ae_lots_split_across_cutoff(self):
+        """An after-31-Jan-2018-acquired fund sold both before and on/after
+        23-Jul-2024 within FY2024-25 yields TWO consolidated 112A rows —
+        one per transfer flag — instead of one merged row."""
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [
+            # acquired 2022 (1a=AE); sold 01-Jun-2024 (1b=BE)
+            _ltcg_entry("FY2024-25", fund, date(2022, 1, 1), date(2024, 6, 1)),
+            # acquired 2022 (1a=AE); sold 01-Sep-2024 (1b=AE)
+            _ltcg_entry("FY2024-25", fund, date(2022, 2, 1), date(2024, 9, 1)),
+        ]
+        rows = _report_with_gains(gains).generate_112a("FY2024-25")
+        assert len(rows) == 2
+        by_transferred = {r.transferred: r for r in rows}
+        assert set(by_transferred) == {"BE", "AE"}
+        assert all(r.acquired == "AE" for r in rows)
+
+    def test_grandfathered_lot_keeps_per_row_transfer_flag(self):
+        """A before-31-Jan-2018 (grandfathered) lot stays a separate row
+        and carries its own transfer flag."""
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [
+            _ltcg_entry("FY2024-25", fund, date(2017, 1, 1), date(2024, 9, 1)),
+        ]
+        rows = _report_with_gains(gains).generate_112a("FY2024-25")
+        assert len(rows) == 1
+        assert rows[0].acquired == "BE"
+        assert rows[0].transferred == "AE"
+
+    def test_csv_includes_1b_column_for_fy2024_25(self):
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [_ltcg_entry("FY2024-25", fund, date(2022, 1, 1), date(2024, 9, 1))]
+        csv_data = _report_with_gains(gains).generate_112a_csv_data("FY2024-25")
+        header = csv_data.splitlines()[0]
+        assert "Share/Unit Transferred(1b)" in header
+        # 1b sits between 1a and ISIN.
+        cols = header.split(",")
+        assert cols[0] == "Share/Unit acquired(1a)"
+        assert cols[1] == "Share/Unit Transferred(1b)"
+        assert cols[2] == "ISIN Code(2)"
+        # First data row's 1b value is populated.
+        first_row = csv_data.splitlines()[1].split(",")
+        assert first_row[1] == "AE"
+
+    def test_csv_omits_1b_column_for_older_fy(self):
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [_ltcg_entry("FY2021-22", fund, date(2019, 1, 1), date(2021, 6, 1))]
+        csv_data = _report_with_gains(gains).generate_112a_csv_data("FY2021-22")
+        header = csv_data.splitlines()[0]
+        assert "Transferred(1b)" not in header
+        cols = header.split(",")
+        assert cols[0] == "Share/Unit acquired(1a)"
+        assert cols[1] == "ISIN Code(2)"
