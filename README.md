@@ -15,6 +15,40 @@ CAMS, KFintech, NSDL, and CDSL.
   - with option to generate csv files for ITR in schedule 112A format
 
 
+## Supported inputs
+
+`casparser` parses **original** CAS PDFs delivered by the four
+recognised issuers:
+
+| Issuer    | Variant(s)              | Source                              |
+|-----------|-------------------------|-------------------------------------|
+| CAMS      | Detailed, Summary       | `mailback.camsonline.com` request   |
+| KFintech  | Detailed, Summary       | `mfs.kfintech.com` request          |
+| NSDL      | Demat consolidated      | NSDL CAS email (monthly)            |
+| CDSL      | Demat consolidated      | CDSL CAS email (monthly)            |
+
+### Known unsupported inputs
+
+- **Re-printed PDFs.** If you "print to PDF" an existing CAS
+  (Microsoft Print to PDF, "Save as PDF" via a browser print
+  dialog, macOS print preview → save, etc.) the watermark gets
+  flattened from selectable text into a bitmap and the original
+  generator metadata is wiped. The visual appearance is
+  identical but `casparser` can no longer prove what it's
+  looking at, and will reject the file. Re-request the
+  statement from the issuer directly and parse the original.
+- **MF Central statements.** MF Central's CAS uses a different
+  template / generator and is not in scope for v1.0.
+- **Third-party-reformatted statements** (broker portals that
+  re-render CAS data, Excel/CSV exports converted back to PDF,
+  etc.) — same reason as re-prints.
+
+If you need to support one of these flows for downstream
+tooling, the recommended path is to keep the original
+issuer-delivered PDF alongside any redistributed copy and feed
+the original to `casparser`.
+
+
 ## Installation
 ```bash
 pip install -U casparser
