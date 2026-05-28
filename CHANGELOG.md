@@ -79,6 +79,16 @@ parser tuned to their template family.
   drops the leading zero on sub-unit balances; under the old regex
   those cells were mis-bucketed as text, shifting the row layout
   and producing a silent `Σholdings ≠ balance` mismatch.
+- **KFin `... - Reversed` transaction rows** (e.g. the Franklin
+  wound-up debt schemes' `Payment - Units Extinguished-Reversed`
+  entries) had their units cell printed with cosmetic parentheses
+  even though the semantic sign is the opposite of the original.
+  A new running-balance cross-check in the CAMS / KFin DETAILED
+  parser flips the sign (and matching amount) on any single-row
+  mis-parse and reclassifies the transaction type via the
+  positive-units branch of `get_transaction_type`. Acts as a
+  self-validating safety net for the entire transaction stream,
+  not just the Franklin case.
 
 ## 0.9.0 - 2026-05-22
 - Add support for CDSL statements

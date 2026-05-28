@@ -297,6 +297,64 @@ def _decimal(s: str) -> Optional[Decimal]:
 
 
 # -----------------------------------------------------------------------------
+# Running-balance sign validator
+# -----------------------------------------------------------------------------
+
+
+def _apply_balance_sign_fix(scheme: Scheme) -> None:
+    """Cross-check parsed ``units`` against the per-row ``balance``
+    column and flip the sign of single-row mis-parses.
+
+    Some KFin templates print *Reversed* rows (e.g. the Franklin
+    wound-up debt schemes' ``Payment - Units Extinguished-Reversed``
+    entries) with cosmetic parentheses around the units value even
+    though the semantic sign is the opposite of the original. The
+    running ``Unit Balance`` column is unambiguous, so we trust it
+    and flip the sign (plus the matching amount, which the same
+    parens convention turned negative) on any row where
+    ``prev_balance + units != balance`` but
+    ``prev_balance - units == balance``. After flipping we
+    reclassify the type via :func:`get_transaction_type`, so a
+    flip from negative-to-positive moves the row out of the default
+    ``REDEMPTION`` bucket into whichever positive bucket the
+    description warrants.
+
+    Rows without ``units`` (STT / Stamp / TDS / MISC) and rows
+    without a parsed ``balance`` are skipped — they can't be
+    cross-checked. The helper is a no-op for transactions whose
+    signs already agree with the running balance, which covers the
+    overwhelming majority of CAS data.
+    """
+    tol = Decimal("0.005")
+    prev_balance: Optional[Decimal] = scheme.open if scheme.open is not None else Decimal(0)
+    for t in scheme.transactions:
+        if t.units is None or t.balance is None or prev_balance is None:
+            continue
+        units = Decimal(str(t.units))
+        balance = Decimal(str(t.balance))
+        if abs((prev_balance + units) - balance) <= tol:
+            prev_balance = balance
+            continue
+        if abs((prev_balance - units) - balance) <= tol:
+            flipped_units = -units
+            t.units = flipped_units
+            if t.amount is not None:
+                t.amount = -Decimal(str(t.amount))
+            new_type, new_div = get_transaction_type(t.description, flipped_units)
+            t.type = new_type.name
+            t.dividend_rate = new_div
+        prev_balance = balance
+
+    # Recompute the running close_calculated using the corrected
+    # signs so downstream invariant assertions reflect the fix.
+    total = scheme.open if scheme.open is not None else Decimal(0)
+    for t in scheme.transactions:
+        if t.units is not None:
+            total += Decimal(str(t.units))
+    scheme.close_calculated = total
+
+
+# -----------------------------------------------------------------------------
 # Top-level parse
 # -----------------------------------------------------------------------------
 
@@ -536,6 +594,15 @@ def parse(
                         dividend_rate=dividend_rate,
                     )
                 )
+
+    # Cross-check each scheme's transactions against the running
+    # `Unit Balance` column and fix cosmetic-parens sign mis-parses
+    # (e.g. KFin Franklin `Payment - Units Extinguished-Reversed`
+    # rows). Cheap, self-validating, and a no-op when signs already
+    # agree with the printed balance.
+    for folio in folios.values():
+        for scheme in folio.schemes:
+            _apply_balance_sign_fix(scheme)
 
     return CASData(
         statement_period=statement_period or StatementPeriod(**{"from": "", "to": ""}),

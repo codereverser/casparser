@@ -130,3 +130,147 @@ class TestISINSearch:
         assert isin is None
         assert amfi is None
         assert scheme_type is None
+
+
+class TestBalanceSignFix:
+    """Cover `_apply_balance_sign_fix`, the running-balance sign
+    validator that catches cosmetic-parens sign mis-parses (notably
+    the KFin Franklin `Payment - Units Extinguished-Reversed` rows
+    whose parenthesised units cell hides a semantically positive
+    value)."""
+
+    @staticmethod
+    def _scheme(open_, transactions):
+        from casparser.types import Scheme, SchemeValuation
+
+        return Scheme(
+            scheme="dummy",
+            rta="CAMS",
+            rta_code="X",
+            type="EQUITY",
+            open=open_,
+            close=Decimal(0),
+            close_calculated=Decimal(0),
+            valuation=SchemeValuation(date="1970-01-01", nav=Decimal(0), value=Decimal(0)),
+            transactions=transactions,
+        )
+
+    @staticmethod
+    def _txn(units, balance, desc="Payment", amount=None):
+        from casparser.types import TransactionData
+
+        return TransactionData(
+            date="2021-03-30",
+            description=desc,
+            amount=amount,
+            units=units,
+            nav=Decimal("1"),
+            balance=balance,
+            type=TransactionType.REDEMPTION,
+        )
+
+    def test_flips_sign_when_balance_says_so(self):
+        """Franklin-shaped row: parsed units have wrong sign, but
+        running balance unambiguously requires the opposite. The
+        validator must flip units (and amount) AND reclassify."""
+        from casparser.parsers.cams_detailed import _apply_balance_sign_fix
+
+        scheme = self._scheme(
+            open_=Decimal("558.456"),
+            transactions=[
+                # Mis-parsed: units shown as -171.447 (parenthesised in
+                # PDF), but balance jumps UP by 171.447 — so semantic
+                # sign is positive.
+                self._txn(
+                    units=Decimal("-171.447"),
+                    balance=Decimal("729.903"),
+                    desc="Payment - Units Extinguished-Reversed",
+                    amount=Decimal("-5126.75"),
+                ),
+            ],
+        )
+        _apply_balance_sign_fix(scheme)
+        t = scheme.transactions[0]
+        assert t.units == Decimal("171.447")
+        assert t.amount == Decimal("5126.75")
+        # Type must be re-derived from the flipped sign; positive
+        # units + a non-SIP/non-switch/non-segregat description maps
+        # to PURCHASE in the classifier's positive branch.
+        assert t.type == TransactionType.PURCHASE
+        # close_calculated reflects the corrected sum.
+        assert scheme.close_calculated == Decimal("729.903")
+
+    def test_no_op_when_sign_already_correct(self):
+        """A vanilla negative-units redemption whose balance check
+        succeeds must be left untouched (sign, amount, type)."""
+        from casparser.parsers.cams_detailed import _apply_balance_sign_fix
+
+        scheme = self._scheme(
+            open_=Decimal("1000"),
+            transactions=[
+                self._txn(
+                    units=Decimal("-100"),
+                    balance=Decimal("900"),
+                    desc="Redemption",
+                    amount=Decimal("-3000"),
+                ),
+            ],
+        )
+        _apply_balance_sign_fix(scheme)
+        t = scheme.transactions[0]
+        assert t.units == Decimal("-100")
+        assert t.amount == Decimal("-3000")
+        assert t.type == TransactionType.REDEMPTION
+        assert scheme.close_calculated == Decimal("900")
+
+    def test_skips_rows_without_units_or_balance(self):
+        """STT / Stamp / TDS rows have no units and don't change the
+        running balance; the validator must skip them and carry the
+        previous balance forward to the next checkable row."""
+        from casparser.parsers.cams_detailed import _apply_balance_sign_fix
+
+        scheme = self._scheme(
+            open_=Decimal("1000"),
+            transactions=[
+                # Stamp duty: no units, balance unchanged
+                self._txn(
+                    units=None,
+                    balance=Decimal("1000"),
+                    desc="*** Stamp Duty ***",
+                ),
+                # Then a real (sign-correct) redemption
+                self._txn(
+                    units=Decimal("-100"),
+                    balance=Decimal("900"),
+                    desc="Redemption",
+                ),
+            ],
+        )
+        _apply_balance_sign_fix(scheme)
+        # Stamp row untouched
+        assert scheme.transactions[0].units is None
+        # Redemption row sign correct — left alone
+        assert scheme.transactions[1].units == Decimal("-100")
+        assert scheme.transactions[1].type == TransactionType.REDEMPTION
+
+    def test_leaves_row_untouched_when_neither_sign_matches(self):
+        """If the printed balance disagrees with both +units and
+        -units, the validator must leave the row alone — something
+        else upstream is wrong and we can't tell which value to
+        trust."""
+        from casparser.parsers.cams_detailed import _apply_balance_sign_fix
+
+        scheme = self._scheme(
+            open_=Decimal("1000"),
+            transactions=[
+                # 1000 + 50 != 999, 1000 - 50 != 999 — both fail
+                self._txn(
+                    units=Decimal("50"),
+                    balance=Decimal("999"),
+                    desc="Mystery",
+                ),
+            ],
+        )
+        _apply_balance_sign_fix(scheme)
+        t = scheme.transactions[0]
+        assert t.units == Decimal("50")
