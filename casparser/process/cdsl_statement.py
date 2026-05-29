@@ -118,6 +118,7 @@ def process_cdsl_text(text):
     mf_folio_holdings = []
 
     for idx, line in enumerate(lines):
+        line = line.replace("\u00ad", "")
         stripped = line.strip()
 
         if not stripped:
@@ -153,7 +154,7 @@ def process_cdsl_text(text):
             ):
                 continue
 
-            has_isin = re.search(r"INF[A-Z0-9]{8}\d", line)
+            has_isin = re.search(r"INF[A-Z0-9]{8}\d", re.sub(r"\s+", "", line))
             if not has_isin:
                 continue
 
@@ -166,11 +167,16 @@ def process_cdsl_text(text):
             numeric_fields = []
             found_isin = False
 
-            for p in stripped_parts:
+            for index, p in enumerate(stripped_parts):
                 if re.match(r"^INF[A-Z0-9]{8}\d$", p):
                     isin = p
                     found_isin = True
                     continue
+                elif re.match(r"^INF", p):
+                    if re.match(r"^INF[A-Z0-9]{8}\d$", p + stripped_parts[index + 1]):
+                        isin = p + stripped_parts[index + 1]
+                        found_isin = True
+                        continue
                 if not found_isin:
                     scheme_name_parts.append(p)
                     continue
