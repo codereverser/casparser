@@ -139,7 +139,7 @@ def process_cdsl_text(text):
                 mf_scheme_name_lines = []
                 continue
             if re.search(r"Grand\s+Total|Average\s+Total\s+Expense|Load\s+Structures|"
-                         r"Statement\s+for\s+the\s+period|IDCW|Notes|About\s+CDSL",
+                         r"Statement\s+for\s+the\s+period|Notes|About\s+CDSL",
                          stripped, re.I):
                 in_mf_holdings = False
                 continue
