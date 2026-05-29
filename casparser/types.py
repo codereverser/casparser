@@ -87,20 +87,6 @@ class CASData(BaseModel):
     )
 
 
-class PartialCASData(BaseModel):
-    """CAS Parser return data type."""
-
-    investor_info: InvestorInfo
-    file_type: FileType
-    lines: List[str]
-
-
-class ProcessedCASData(BaseModel):
-    cas_type: CASFileType
-    folios: List[Folio]
-    statement_period: StatementPeriod
-
-
 class DematOwner(BaseModel):
     name: str
     PAN: str
@@ -119,6 +105,47 @@ class Equity(BaseModel):
         for k, v in data.items():
             if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
                 data[k] = v.replace(",", "_").replace("_", "")
+        return data
+
+
+class Bond(BaseModel):
+    """Corporate / government bond holding.
+
+    Two source layouts feed this model — both are present in the same
+    NSDL CAS, one per demat-account flavour:
+
+    - **NSDL-account summary form** (8 data cells):
+      `ISIN | name | frequency | coupon_rate | maturity | num_bonds |
+      face_value | value`. All optional fields populated.
+    - **CDSL-account detailed form** (13 data cells, identical layout to
+      detailed equity rows): we only get `num_bonds`, `market_price`,
+      `value`. `coupon_rate`/`frequency`/`maturity`/`face_value` are
+      `None` here — the detailed table doesn't include them.
+    """
+
+    name: Optional[str] = None
+    isin: str
+    num_bonds: Decimal
+    value: Decimal
+    face_value: Optional[Decimal] = None
+    coupon_rate: Optional[Decimal] = None
+    coupon_frequency: Optional[str] = None
+    maturity_date: Optional[str] = None
+    market_price: Optional[Decimal] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def fix_float(cls, data: dict):
+        for k, v in data.items():
+            try:
+                if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
+                    data[k] = v.replace(",", "_").replace("_", "")
+            except TypeError:
+                # Optional[Decimal] / Union annotations land here; the
+                # parser already strips commas before constructing the
+                # model, so this is just a safety-net for required
+                # Decimal fields.
+                pass
         return data
 
 
@@ -164,6 +191,7 @@ class DematAccount(BaseModel):
     owners: List[DematOwner]
     equities: List[Equity]
     mutual_funds: List[MutualFund]
+    bonds: List[Bond] = []
 
     @model_validator(mode="before")
     @classmethod
@@ -180,8 +208,8 @@ class DematAccount(BaseModel):
 class NSDLCASData(BaseModel):
     accounts: List[DematAccount]
     statement_period: StatementPeriod
-    investor_info: Optional[InvestorInfo] = None
-    file_type: Optional[FileType] = None
+    investor_info: InvestorInfo
+    file_type: FileType
     model_config = ConfigDict(
         populate_by_name=True,
         use_enum_values=True,

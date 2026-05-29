@@ -4,10 +4,14 @@ from decimal import Decimal
 import pytest
 
 from casparser.analysis.gains import (
+    CapitalGainsReport,
     FIFOUnits,
     Fund,
     FundType,
+    GainEntry,
     MergedTransaction,
+    _fy_needs_transfer_col,
+    _transfer_flag,
     get_fund_type,
 )
 from casparser.analysis.utils import CII, get_fin_year
@@ -26,6 +30,11 @@ class TestGainsClass:
 
         # Tests
         assert abs(CII["FY2020-21"] / CII["FY2001-02"] - 3.01) <= 1e-3
+
+        # Officially CBDT-notified values for the most recent years.
+        assert CII["FY2023-24"] == 348
+        assert CII["FY2024-25"] == 363
+        assert CII["FY2025-26"] == 376
 
         # Checks for out-of-range FYs
         today = date.today()
@@ -130,3 +139,201 @@ class TestGainsClass:
         ]
         with pytest.raises(GainsError):
             FIFOUnits(test_fund, transactions)
+
+    def test_stamp_duty_split_lot_does_not_exceed_paid(self):
+        """When a single purchase lot is consumed across multiple
+        disposals, the sum of stamp duty allocated across those
+        disposals must not exceed the original stamp paid.
+
+        Regression guard for the FIFOUnits.sell bug where a
+        partially-consumed lot was re-queued with the FULL original
+        purchase_tax (instead of the unallocated remainder), causing
+        the per-disposal proportional allocation to re-claim the
+        same stamp on every subsequent disposal from the same lot.
+        Worked example with this 3-way 100/100/100 split of a
+        300-unit lot with ₹1.25 stamp:
+
+        - Disposal 1: round(1.25 × 100/300, 2) = 0.42 (lot re-queued
+          with remainder 0.83)
+        - Disposal 2: round(0.83 × 100/200, 2) = 0.42 (lot re-queued
+          with remainder 0.41)
+        - Disposal 3: round(0.41 × 100/100, 2) = 0.41
+        - Total claimed = 1.25 = exactly stamp paid ✓
+
+        Under the pre-fix code the lot was re-queued with the full
+        1.25 each time, producing a total of ~2.29 — an 84% over-
+        claim that grows worse with split depth.
+        """
+        fund = Fund("Split-Lot Fund", "SL", "INF000SL0001", "EQUITY")
+        purchase_dt = date(2020, 1, 1)
+        transactions = [
+            TransactionData(
+                date=purchase_dt,
+                description="Purchase",
+                amount=Decimal("3000.00"),
+                units=Decimal("300.000"),
+                nav=Decimal("10.000"),
+                balance=Decimal("300.000"),
+                type=TransactionType.PURCHASE,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=purchase_dt,
+                description="*** Stamp Duty ***",
+                amount=Decimal("1.25"),
+                units=None,
+                nav=None,
+                balance=None,
+                type=TransactionType.STAMP_DUTY_TAX,
+                dividend_rate=None,
+            ),
+            # Three 100-unit redemptions on distinct dates (held > 1yr,
+            # so they're LTCG; specific dates don't matter for the
+            # stamp-allocation invariant).
+            TransactionData(
+                date=date(2022, 1, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("200.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=date(2022, 2, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("100.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=date(2022, 3, 1),
+                description="Redemption",
+                amount=Decimal("-2000.00"),
+                units=Decimal("-100.000"),
+                nav=Decimal("20.000"),
+                balance=Decimal("0.000"),
+                type=TransactionType.REDEMPTION,
+                dividend_rate=None,
+            ),
+        ]
+        fifo = FIFOUnits(fund, transactions)
+
+        # Three disposals, three gain entries.
+        assert len(fifo.gains) == 3
+
+        total_stamp = sum((ge.stamp_duty for ge in fifo.gains), Decimal("0"))
+
+        # Section 48 invariant: deductible transfer expense ≤ paid.
+        assert total_stamp <= Decimal("1.25"), (
+            f"Total stamp claimed ({total_stamp}) exceeds stamp paid (1.25); "
+            f"per-disposal stamps were {[ge.stamp_duty for ge in fifo.gains]}"
+        )
+        # Stronger: with the remainder-aware re-queue the rounding
+        # residual gets absorbed into the final disposal, so the
+        # total equals the paid stamp exactly.
+        assert total_stamp == Decimal("1.25")
+
+
+def _ltcg_entry(fy, fund, purchase_date, sale_date, units="100.000"):
+    """Build a minimal LTCG GainEntry (EQUITY, held > 1yr) for the
+    Schedule-112A tests. NAV lookup on the synthetic ISIN returns None,
+    so fmv falls back to purchase_value."""
+    return GainEntry(
+        fy=fy,
+        fund=fund,
+        type="EQUITY",
+        purchase_date=purchase_date,
+        purchase_nav=Decimal("10.0"),
+        purchase_value=Decimal("1000.00"),
+        stamp_duty=Decimal("1.00"),
+        sale_date=sale_date,
+        sale_nav=Decimal("20.0"),
+        sale_value=Decimal("2000.00"),
+        stt=Decimal("2.00"),
+        units=Decimal(units),
+    )
+
+
+def _report_with_gains(gains):
+    """A CapitalGainsReport with `_gains` injected directly, bypassing
+    the FIFO engine (exercised separately above)."""
+    rep = CapitalGainsReport.__new__(CapitalGainsReport)
+    rep._gains = gains
+    rep.errors = []
+    return rep
+
+
+class TestSchedule112A:
+    """Schedule 112A column-1b (23-Jul-2024 transfer split) compliance."""
+
+    def test_transfer_flag(self):
+        assert _transfer_flag(date(2024, 7, 22)) == "BE"
+        assert _transfer_flag(date(2024, 7, 23)) == "AE"
+        assert _transfer_flag(date(2024, 9, 1)) == "AE"
+        assert _transfer_flag(date(2020, 1, 1)) == "BE"
+
+    def test_fy_needs_transfer_col(self):
+        assert _fy_needs_transfer_col("FY2024-25") is True
+        assert _fy_needs_transfer_col("FY2025-26") is True
+        assert _fy_needs_transfer_col("FY2023-24") is False
+        assert _fy_needs_transfer_col("FY2020-21") is False
+        assert _fy_needs_transfer_col("") is False
+
+    def test_ae_lots_split_across_cutoff(self):
+        """An after-31-Jan-2018-acquired fund sold both before and on/after
+        23-Jul-2024 within FY2024-25 yields TWO consolidated 112A rows —
+        one per transfer flag — instead of one merged row."""
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [
+            # acquired 2022 (1a=AE); sold 01-Jun-2024 (1b=BE)
+            _ltcg_entry("FY2024-25", fund, date(2022, 1, 1), date(2024, 6, 1)),
+            # acquired 2022 (1a=AE); sold 01-Sep-2024 (1b=AE)
+            _ltcg_entry("FY2024-25", fund, date(2022, 2, 1), date(2024, 9, 1)),
+        ]
+        rows = _report_with_gains(gains).generate_112a("FY2024-25")
+        assert len(rows) == 2
+        by_transferred = {r.transferred: r for r in rows}
+        assert set(by_transferred) == {"BE", "AE"}
+        assert all(r.acquired == "AE" for r in rows)
+
+    def test_grandfathered_lot_keeps_per_row_transfer_flag(self):
+        """A before-31-Jan-2018 (grandfathered) lot stays a separate row
+        and carries its own transfer flag."""
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [
+            _ltcg_entry("FY2024-25", fund, date(2017, 1, 1), date(2024, 9, 1)),
+        ]
+        rows = _report_with_gains(gains).generate_112a("FY2024-25")
+        assert len(rows) == 1
+        assert rows[0].acquired == "BE"
+        assert rows[0].transferred == "AE"
+
+    def test_csv_includes_1b_column_for_fy2024_25(self):
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [_ltcg_entry("FY2024-25", fund, date(2022, 1, 1), date(2024, 9, 1))]
+        csv_data = _report_with_gains(gains).generate_112a_csv_data("FY2024-25")
+        header = csv_data.splitlines()[0]
+        assert "Share/Unit Transferred(1b)" in header
+        # 1b sits between 1a and ISIN.
+        cols = header.split(",")
+        assert cols[0] == "Share/Unit acquired(1a)"
+        assert cols[1] == "Share/Unit Transferred(1b)"
+        assert cols[2] == "ISIN Code(2)"
+        # First data row's 1b value is populated.
+        first_row = csv_data.splitlines()[1].split(",")
+        assert first_row[1] == "AE"
+
+    def test_csv_omits_1b_column_for_older_fy(self):
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        gains = [_ltcg_entry("FY2021-22", fund, date(2019, 1, 1), date(2021, 6, 1))]
+        csv_data = _report_with_gains(gains).generate_112a_csv_data("FY2021-22")
+        header = csv_data.splitlines()[0]
+        assert "Transferred(1b)" not in header
+        cols = header.split(",")
+        assert cols[0] == "Share/Unit acquired(1a)"
+        assert cols[1] == "ISIN Code(2)"

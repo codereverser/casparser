@@ -37,7 +37,7 @@ def formatINR(number):
     else:
         last3 = int_part[-3:]
         rest = int_part[:-3]
-        groups = [rest[max(0, i - 2):i or None] for i in range(len(rest), 0, -2)][::-1]
+        groups = [rest[max(0, i - 2) : i or None] for i in range(len(rest), 0, -2)][::-1]
         if groups and groups[0]:
             r = ",".join(groups + [last3])
         else:
@@ -82,7 +82,7 @@ def print_nsdl(parsed_data: NSDLCASData):
     )
     summary_table.add_row(Padding("File Type :", spacing), f"[bold]{data['file_type']}[/]")
     # summary_table.add_row(Padding("CAS Type :", spacing), f"[bold]{data['cas_type']}[/]")
-    for key, value in data["investor_info"].items():
+    for key, value in (data.get("investor_info") or {}).items():
         summary_table.add_row(
             Padding(f"{key.capitalize()} :", spacing), re.sub(r"[^\S\r\n]+", " ", value)
         )
@@ -208,7 +208,7 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
     summary_table.add_row(Padding("File Type :", spacing), f"[bold]{data['file_type']}[/]")
     summary_table.add_row(Padding("CAS Type :", spacing), f"[bold]{data['cas_type']}[/]")
 
-    for key, value in data["investor_info"].items():
+    for key, value in (data.get("investor_info") or {}).items():
         summary_table.add_row(
             Padding(f"{key.capitalize()} :", spacing), re.sub(r"[^\S\r\n]+", " ", value)
         )

@@ -1,11 +1,12 @@
 import csv
 import io
 import itertools
+import re
 from collections import deque
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import List
 
 from dateutil.parser import parse as dateparse
 from dateutil.relativedelta import relativedelta
@@ -34,11 +35,36 @@ SALE_TXNS = {
 }
 
 
+# Finance (No. 2) Act 2024 split the FY2024-25 LTCG regime on this date
+# (equity LTCG 10% -> 12.5%, exemption 1L -> 1.25L). Schedule 112A from
+# AY 2025-26 carries a column 1b ("Share/Unit Transferred") flagging which
+# side of this date each *transfer* (sale) falls on.
+LTCG_REGIME_CUTOFF = date(2024, 7, 23)
+
+# Schedule 112A column 1b only exists on the AY 2025-26 (FY 2024-25) utility
+# and later. We emit it when the report's FY starts in 2024 or later.
+TRANSFER_COL_FROM_FY_START_YEAR = 2024
+
+
+def _transfer_flag(sale_date: date) -> str:
+    """Schedule 112A column 1b value for a transfer on `sale_date`:
+    ``BE`` if before 23-Jul-2024, ``AE`` on or after."""
+    return "BE" if sale_date < LTCG_REGIME_CUTOFF else "AE"
+
+
+def _fy_needs_transfer_col(fy: str) -> bool:
+    """True if `fy` (e.g. ``FY2024-25``) is FY2024-25 or later, i.e. the
+    Schedule 112A column 1b applies."""
+    m = re.match(r"FY(\d{4})", fy or "")
+    return bool(m) and int(m.group(1)) >= TRANSFER_COL_FROM_FY_START_YEAR
+
+
 @dataclass
 class GainEntry112A:
     """GainEntry for schedule 112A of ITR."""
 
-    acquired: str  # AE, BE
+    acquired: str  # AE, BE — col 1a (acquired before/after 31-Jan-2018)
+    transferred: str  # AE, BE — col 1b (transferred before/after 23-Jul-2024)
     isin: str
     name: str
     units: Decimal
@@ -338,10 +364,15 @@ class FIFOUnits:
 
             pending_units -= units
             if pending_units < 0 and purchase_nav is not None:
-                # Sale is partially matched against the last buy transactions
-                # Re-add the remaining units to the FIFO queue
+                # Sale is partially matched against the last buy transactions.
+                # Re-add the remaining units to the FIFO queue with the
+                # *unallocated* stamp-duty remainder — not the full original.
+                # Otherwise a lot consumed across N disposals would re-claim
+                # the full original stamp on every disposal, over-stating the
+                # transfer-expense deduction on Schedule 112A by a factor
+                # that grows with split depth.
                 self.transactions.appendleft(
-                    (purchase_date, -1 * pending_units, purchase_nav, purchase_tax)
+                    (purchase_date, -1 * pending_units, purchase_nav, purchase_tax - stamp_duty)
                 )
 
 
@@ -478,13 +509,19 @@ class CapitalGainsReport:
         )
         rows: List[GainEntry112A] = []
         for fund, txns in itertools.groupby(fy_transactions, key=lambda x: x.fund):
-            consolidated_entry: Optional[GainEntry112A] = None
-            entries = []
+            entries: List[GainEntry112A] = []  # grandfathered (1a=BE), one per txn
+            # AE-acquired lots are consolidated, but keyed on the transfer
+            # flag (1b) so a fund sold both before and on/after the
+            # 23-Jul-2024 cutoff yields one row per side (the utility
+            # taxes the two sides at different rates).
+            consolidated: dict[str, GainEntry112A] = {}
             for txn in txns:
+                transferred = _transfer_flag(txn.sale_date)
                 if txn.purchase_date <= date(2018, 1, 31):
                     entries.append(
                         GainEntry112A(
                             "BE",
+                            transferred,
                             fund.isin,
                             fund.scheme,
                             txn.units,
@@ -497,34 +534,39 @@ class CapitalGainsReport:
                             txn.stamp_duty,
                         )
                     )
+                elif transferred not in consolidated:
+                    consolidated[transferred] = GainEntry112A(
+                        "AE",
+                        transferred,
+                        fund.isin,
+                        fund.scheme,
+                        txn.units,
+                        txn.sale_nav,
+                        txn.sale_value,
+                        txn.purchase_value,
+                        Decimal(0.0),
+                        Decimal(0.0),
+                        txn.stt,
+                        txn.stamp_duty,
+                    )
                 else:
-                    if consolidated_entry is None:
-                        consolidated_entry = GainEntry112A(
-                            "AE",
-                            fund.isin,
-                            fund.scheme,
-                            txn.units,
-                            txn.sale_nav,
-                            txn.sale_value,
-                            txn.purchase_value,
-                            Decimal(0.0),
-                            Decimal(0.0),
-                            txn.stt,
-                            txn.stamp_duty,
-                        )
-                    else:
-                        consolidated_entry.purchase_value += txn.purchase_value
-                        consolidated_entry.stt += txn.stt
-                        consolidated_entry.stamp_duty += txn.stamp_duty
-                        consolidated_entry.units += txn.units
-                        consolidated_entry.sale_value += txn.sale_value
-                        consolidated_entry.sale_nav = Decimal(round(txn.sale_value / txn.units, 3))
+                    ce = consolidated[transferred]
+                    ce.purchase_value += txn.purchase_value
+                    ce.stt += txn.stt
+                    ce.stamp_duty += txn.stamp_duty
+                    ce.units += txn.units
+                    ce.sale_value += txn.sale_value
+                    ce.sale_nav = Decimal(round(txn.sale_value / txn.units, 3))
             rows.extend(entries)
-            if consolidated_entry is not None:
-                rows.append(consolidated_entry)
+            rows.extend(consolidated.values())
         return rows
 
     def generate_112a_csv_data(self, fy):
+        # Schedule 112A column 1b ("Share/Unit Transferred") was added on the
+        # AY 2025-26 (FY 2024-25) utility for the 23-Jul-2024 LTCG-regime
+        # split. Emit it only from FY2024-25 onward so older returns keep
+        # the 14-column layout their utility expects.
+        with_transfer_col = _fy_needs_transfer_col(fy)
         headers = [
             "Share/Unit acquired(1a)",
             "ISIN Code(2)",
@@ -541,29 +583,32 @@ class CapitalGainsReport:
             "Total deductions(13) = 7 + 12",
             "Balance(14) = 6 - 13",
         ]
+        if with_transfer_col:
+            headers.insert(1, "Share/Unit Transferred(1b)")
         with io.StringIO() as csv_fp:
             writer = csv.writer(csv_fp)
             writer.writerow(headers)
 
             for row in self.generate_112a(fy):
-                writer.writerow(
-                    [
-                        row.acquired,
-                        row.isin,
-                        row.name,
-                        str(row.units),
-                        str(row.sale_nav),
-                        str(row.sale_value),
-                        str(row.actual_coa),
-                        str(row.purchase_value),
-                        str(row.consideration_value),
-                        str(row.fmv_nav),
-                        str(row.fmv),
-                        str(row.expenditure),
-                        str(row.deductions),
-                        str(row.balance),
-                    ]
-                )
+                values = [
+                    row.acquired,
+                    row.isin,
+                    row.name,
+                    str(row.units),
+                    str(row.sale_nav),
+                    str(row.sale_value),
+                    str(row.actual_coa),
+                    str(row.purchase_value),
+                    str(row.consideration_value),
+                    str(row.fmv_nav),
+                    str(row.fmv),
+                    str(row.expenditure),
+                    str(row.deductions),
+                    str(row.balance),
+                ]
+                if with_transfer_col:
+                    values.insert(1, row.transferred)
+                writer.writerow(values)
             csv_fp.seek(0)
             csv_data = csv_fp.read()
             return csv_data
