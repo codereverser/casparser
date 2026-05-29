@@ -103,6 +103,17 @@ parser tuned to their template family.
   48 only permits deducting the stamp actually paid as a
   transfer expense, so the prior behaviour over-stated the
   deduction on Schedule 112A.
+- **Soft-hyphen-wrapped tokens in NSDL / CDSL holdings.** Some CAS
+  generators insert a `U+00AD` soft hyphen at the point where a long
+  token (notably a 12-char ISIN) wraps across two display lines, e.g.
+  `INF179K01<soft-hyphen>WN9`. The block/cell extractor now treats a trailing
+  soft hyphen as a continuation marker (splicing the next fragment on
+  with no separator) and strips any embedded soft hyphens, so the
+  token is reconstructed intact. Previously the wrapped ISIN matched
+  neither the anchored ISIN regex nor its leftover, and the holding
+  was silently dropped. (Reconstruction works when the wrapped
+  fragments fall in the same row block; ISINs split across blocks by
+  a non-standard page scale are not covered.)
 
 ## 0.9.0 - 2026-05-22
 - Add support for CDSL statements

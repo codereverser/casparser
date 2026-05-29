@@ -11,7 +11,14 @@ import pytest
 
 import casparser.parsers.cdsl as cdsl_p
 import casparser.parsers.nsdl as nsdl_p
-from casparser.parsers.pageobj import Atom, Block, Cell
+from casparser.parsers.pageobj import (
+    SOFT_HYPHEN,
+    Atom,
+    Block,
+    Cell,
+    _cells_from_block_atoms,
+    _join_column_atoms,
+)
 
 
 def _cell(
@@ -718,3 +725,68 @@ class TestISINSearchFallback:
         assert isin is None
         assert amfi is None
         assert scheme_type is None
+
+
+def _atom(text: str, x_left=100.0, x_right=200.0, y_top=500.0, y_bot=490.0) -> Atom:
+    """Synthetic Atom for column-join tests."""
+    return Atom(x_left, x_right, y_top, y_bot, text, "Helvetica", stream_seq=0)
+
+
+class TestSoftHyphen:
+    """Reconstruction of tokens (notably ISINs) that a CAS generator
+    soft-wrapped across lines with a U+00AD soft hyphen. Regression
+    guard for CDSL issue #127 — `INF179K01<SHY>WN9` was being dropped
+    because neither the wrapped fragment nor the leftover matched the
+    anchored ISIN regex."""
+
+    def test_embedded_soft_hyphen_single_atom(self):
+        """A single atom carrying an embedded soft hyphen
+        (`INF179K01\\u00adWN9`) is normalised to the clean ISIN."""
+        out = _join_column_atoms([_atom(f"INF179K01{SOFT_HYPHEN}WN9")])
+        assert out == "INF179K01WN9"
+        assert cdsl_p.INF_ISIN_RE.match(out)
+
+    def test_trailing_soft_hyphen_split_across_two_atoms(self):
+        """The wrap case: `INF179K01\\u00ad` on one line, `WN9` on the
+        next (same column). The trailing soft hyphen splices the
+        continuation on with no separator."""
+        atoms = [
+            _atom(f"INF179K01{SOFT_HYPHEN}", y_top=500.0, y_bot=492.0),
+            _atom("WN9", y_top=491.0, y_bot=483.0),
+        ]
+        out = _join_column_atoms(atoms)
+        assert out == "INF179K01WN9"
+        assert cdsl_p.INF_ISIN_RE.match(out)
+
+    def test_normal_multiline_cell_unchanged(self):
+        """A genuine multi-line cell (scheme name) with no soft hyphen
+        still joins with newlines — no behavioural change."""
+        atoms = [
+            _atom("HDFC Small Cap Fund -", y_top=500.0, y_bot=492.0),
+            _atom("Direct Growth Plan", y_top=491.0, y_bot=483.0),
+        ]
+        out = _join_column_atoms(atoms)
+        assert out == "HDFC Small Cap Fund -\nDirect Growth Plan"
+
+    def test_chained_continuation(self):
+        """Defensive: a token wrapped across three fragments still
+        reconstructs (two consecutive soft-hyphen continuations)."""
+        atoms = [
+            _atom(f"INF179{SOFT_HYPHEN}"),
+            _atom(f"K01{SOFT_HYPHEN}"),
+            _atom("WN9"),
+        ]
+        assert _join_column_atoms(atoms) == "INF179K01WN9"
+
+    def test_cells_from_block_reconstructs_isin(self):
+        """End-to-end through `_cells_from_block_atoms`: two same-column
+        atoms (the soft-hyphen-wrapped ISIN) collapse into one cell
+        whose text is a valid ISIN."""
+        atoms = [
+            _atom(f"INF179K01{SOFT_HYPHEN}", x_left=100, x_right=200, y_top=500, y_bot=492),
+            _atom("WN9", x_left=100, x_right=180, y_top=491, y_bot=483),
+        ]
+        cells = _cells_from_block_atoms(atoms)
+        assert len(cells) == 1
+        assert cells[0].text == "INF179K01WN9"
+        assert cdsl_p.INF_ISIN_RE.match(cells[0].text)

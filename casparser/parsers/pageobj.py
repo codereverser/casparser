@@ -57,6 +57,13 @@ Y_LINE_TOL = 1.5
 # between rows. 9pt cleanly separates them.
 Y_BLOCK_TOL = 9.0
 
+# SOFT HYPHEN (U+00AD). CAS generators insert it at a soft-wrap point so
+# a long token (notably a 12-char ISIN) can break across two display
+# lines. It carries no semantic content — it must be removed, and when
+# it sits at the end of a fragment it marks a continuation that should be
+# spliced onto the next fragment with no separator.
+SOFT_HYPHEN = "\u00ad"
+
 # Buffer sizes for ctypes
 _TEXT_BUF_SIZE = 2048  # bytes (UTF-16LE), so up to 1023 chars per atom
 _FONT_BUF_SIZE = 128
@@ -372,6 +379,35 @@ class Block:
         return "\t\t".join(c.text for c in self.cells if c.text)
 
 
+def _join_column_atoms(atoms_top_down: List[Atom]) -> str:
+    """Join a column's atom texts top-to-bottom into one cell string.
+
+    Normally one line per atom, joined with `\\n`. The exception is the
+    SOFT HYPHEN (U+00AD): when a fragment *ends* with one, the CAS
+    generator soft-wrapped a single token across lines, so we splice the
+    next fragment on directly (no newline) and drop the hyphen — this
+    reconstructs ISINs like `INF179K01<SHY>WN9` that wrapped mid-token. Any
+    remaining (embedded, mid-atom) soft hyphens are stripped too, so a
+    single-atom `INF179K01<SHY>WN9` is normalised the same way.
+    """
+    pieces: List[str] = []
+    continuation = False
+    for atom in atoms_top_down:
+        part = atom.text.strip()
+        if not part:
+            continue
+        if continuation:
+            pieces[-1] += part
+        else:
+            pieces.append(part)
+        if pieces[-1].endswith(SOFT_HYPHEN):
+            pieces[-1] = pieces[-1][:-1]
+            continuation = True
+        else:
+            continuation = False
+    return "\n".join(pieces).replace(SOFT_HYPHEN, "")
+
+
 def _cells_from_block_atoms(block_atoms: List[Atom]) -> List[Cell]:
     """Run column-cluster and return `Cell` objects with bbox metadata.
 
@@ -385,7 +421,7 @@ def _cells_from_block_atoms(block_atoms: List[Atom]) -> List[Cell]:
     cells: List[Cell] = []
     for strip in strips:
         sorted_strip = sorted(strip, key=lambda a: (-a.y_top, a.x_left))
-        joined = "\n".join(a.text.strip() for a in sorted_strip if a.text.strip())
+        joined = _join_column_atoms(sorted_strip)
         if not joined:
             continue
         cells.append(
