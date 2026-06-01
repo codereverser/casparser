@@ -16,6 +16,7 @@ from casparser.enums import CASFileType
 from ._assertions import (
     assert_folio_well_formed,
     assert_investor_info_complete,
+    assert_scheme_name_clean,
     assert_scheme_transaction_units_close,
     assert_scheme_valuation_arithmetic,
     assert_scheme_well_formed,
@@ -116,6 +117,13 @@ class TestKFinSummary:
         for folio in kfin_summary_data.folios:
             for scheme in folio.schemes:
                 assert_scheme_well_formed(scheme)
+
+    def test_scheme_names_not_footer_bled(self, kfin_summary_data):
+        """The last scheme used to swallow the `Total ...` row + the
+        trailing disclaimer paragraphs into its name. Guard it."""
+        for folio in kfin_summary_data.folios:
+            for scheme in folio.schemes:
+                assert_scheme_name_clean(scheme)
 
 
 class TestKFinCLI:

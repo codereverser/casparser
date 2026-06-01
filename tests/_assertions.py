@@ -57,8 +57,44 @@ def assert_scheme_well_formed(scheme):
     assert scheme.isin, f"scheme {scheme.scheme!r}: no ISIN"
     assert scheme.amfi, f"scheme {scheme.scheme!r}: no AMFI"
     assert scheme.rta_code, f"scheme {scheme.scheme!r}: no rta_code"
+    # RTA is a clean registrar acronym (CAMS, KFINTECH, KARVY, FTAMIL,
+    # ...). Wrapped "(Non Demat)" scheme headers used to leak an advisor /
+    # ISIN / watermark fragment into this field (e.g. "(Advisor:", "iv",
+    # "01101(Advisor:") — assert the shape rather than an allowlist so
+    # legitimate self-RTAs aren't false-flagged.
+    assert re.fullmatch(
+        r"[A-Z]{3,12}", scheme.rta or ""
+    ), f"scheme {scheme.scheme!r}: malformed RTA {scheme.rta!r}"
     assert scheme.valuation is not None
     assert _D(scheme.valuation.nav) > 0, f"scheme {scheme.scheme!r}: zero/negative NAV"
+
+
+# Sentence fragments from the CAS footer / disclaimer / load-structure
+# notes that legitimately never appear inside a mutual-fund scheme name.
+# Their presence means trailing notes bled into the name.
+_FOOTER_BLEED_RE = re.compile(
+    r"kindly|FATCA|\bCRS\b|stamp\s+duty|addendum|please\s+refer|"
+    r"redeemed\s+after|date\s+of\s+allotment|basis\s+relevant|"
+    r"tax\s+provisions|immediately|effect\s+from|evaluated\s+by\s+investor",
+    re.I,
+)
+
+
+def assert_scheme_name_clean(scheme):
+    """A scheme name reads like a fund name — it must not absorb the
+    trailing grand-total row, notes or disclaimers.
+
+    Regression guard for the CAMS/KFin SUMMARY footer-bleed bug, where
+    the last scheme's name swallowed the `Total ...` row plus the
+    disclaimer paragraphs that follow the holdings table.
+    """
+    name = scheme.scheme or ""
+    assert not _FOOTER_BLEED_RE.search(
+        name
+    ), f"scheme name has footer/disclaimer text bled in: {name!r}"
+    # A real fund name (even with a "(formerly ...)" suffix + plan +
+    # option) stays well under this; the bled names ran 170-280 chars.
+    assert len(name) <= 150, f"scheme name implausibly long ({len(name)} chars): {name!r}"
 
 
 def assert_scheme_valuation_arithmetic(scheme):

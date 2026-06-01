@@ -265,6 +265,12 @@ SCHEME_CELL_RE = re.compile(r"^\s*([\w\s]{2,15}?)\s*-\s*(.+)$")
 # then the scheme name. Examples: "D110 - DSP...", "117 IOD1G-Mirae...",
 # "PP001ZG-Parag...". Disclaimer rows lack this exact prefix shape.
 SCHEME_LOOKS_LIKE_DATA = re.compile(r"^\s*[A-Z0-9][\w\s]{1,15}\s*-\s*\S")
+# The holdings table ends with a "Total" / "Grand Total" row (no folio,
+# carrying the portfolio grand total). Everything after it is notes,
+# disclaimers and the vertical watermark — none of which must bleed
+# into the last scheme's name. A genuine scheme-name continuation is a
+# *fragment*, never a row that begins with "Total".
+SUMMARY_TOTAL_RE = re.compile(r"^\s*(?:grand\s+|sub\s+|portfolio\s+)?total\b", re.I)
 
 
 def parse(
@@ -330,6 +336,19 @@ def parse(
             cost_cell = cells.get("Cost", "").strip()
             rta_cell = cells.get("Registrar", "").strip()
 
+            # End of the holdings table: the grand-total / sub-total row
+            # (no folio, "Total ..." in the scheme/leftmost zone). Drop
+            # the current scheme so the trailing notes / disclaimers /
+            # watermark can't be appended to its name as bogus
+            # "continuations". A later real scheme row (e.g. the next
+            # AMC after a sub-total) re-establishes current_scheme via
+            # the is_main branch below.
+            if not folio_cell and (
+                SUMMARY_TOTAL_RE.match(scheme_cell) or SUMMARY_TOTAL_RE.match(text.strip())
+            ):
+                current_scheme = None
+                continue
+
             # A "main" row is one that has BOTH a folio number AND a
             # scheme name that looks like "<RTA_CODE>-<name>". This
             # rejects disclaimer/footer text that happens to land
@@ -339,12 +358,20 @@ def parse(
                 and bool(scheme_cell)
                 and bool(SCHEME_LOOKS_LIKE_DATA.match(scheme_cell))
             )
+            # A genuine wrapped scheme name lands ONLY in the scheme
+            # column — every numeric/date/registrar zone is empty.
+            # Requiring that rejects footer rows (e.g. the total row, or
+            # disclaimer lines carrying a stray amount) that happen to
+            # spill text into the scheme x-zone.
             is_continuation = (
                 current_scheme is not None
                 and not folio_cell
                 and scheme_cell
                 and not nav_date_cell
                 and not balance_cell
+                and not nav_cell
+                and not value_cell
+                and not cost_cell
             )
 
             if is_main:

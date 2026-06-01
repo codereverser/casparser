@@ -247,6 +247,20 @@ SCHEME_HEAD_RE = re.compile(
 INLINE_ISIN_RE = re.compile(r"[-\s]*ISIN\s*:\s*([A-Z0-9]+)", re.I)
 INLINE_ADVISOR_RE = re.compile(r"[-\s]*\(\s*Advisor\s*:\s*([^)]+?)\)", re.I)
 SCHEME_HEAD_RTA_RE = re.compile(r"Registrar\s*:\s*(\S+)", re.I)
+# A full MF ISIN is `INF` + 8 alphanumerics + 1 check digit (12 chars).
+# Used to reject a truncated ISIN (e.g. `INF769K`) that results when the
+# value wraps across the `Registrar :` label — passing a partial ISIN to
+# isin_search suppresses the name+code fallback and yields no ISIN.
+FULL_ISIN_RE = re.compile(r"^INF[0-9A-Z]{8}\d$")
+# Same shape, unanchored — to find a complete ISIN anywhere in the
+# stitched header when the labelled "ISIN: <value>" capture wraps.
+ISIN_ANYWHERE_RE = re.compile(r"\bINF[0-9A-Z]{8}\d\b")
+# Recognised registrar names. The RTA value is NOT reliably the first
+# token after `Registrar :` — some templates interleave `(Advisor: ...)`,
+# an ISIN-continuation fragment, or a rotated-watermark fragment between
+# the label and the real registrar name. We pick the recognised token
+# from the stitched scheme header instead.
+RTA_TOKEN_RE = re.compile(r"\b(CAMS|KFINTECH|KFIN|KARVY)\b", re.I)
 OPEN_BAL_RE = re.compile(r"Opening\s+Unit\s+Balance\s*:?\s*([\d,.]+)", re.I)
 CLOSE_BAL_RE = re.compile(r"Closing\s+Unit\s+Balance\s*:?\s*([\d,.]+)", re.I)
 NAV_RE = re.compile(r"NAV\s+on\s+(\d{2}-[A-Za-z]{3}-\d{4})\s*:\s*INR\s*([\d,.]+)", re.I)
@@ -386,6 +400,14 @@ def parse(
             header_idx = -1
             columns = last_columns
 
+        # Line indices already absorbed as a scheme header's wrapped
+        # continuation. The header can wrap *anywhere* (mid-ISIN,
+        # mid-advisor, mid-name), so a continuation line may itself
+        # start with "<x>-..." and, by stitching the real header line
+        # above it, look like a second scheme. Once a line has been
+        # consumed by a header it must not anchor another one.
+        consumed_below: set[int] = set()
+
         for i, line in enumerate(page.lines):
             text = line.text
 
@@ -430,10 +452,16 @@ def parse(
             # current line (within Y_BAND pts y-distance) if those
             # adjacent lines contain Registrar / Advisor / ISIN markers
             # or look like the standalone RTA value (CAMS / KFINTECH).
-            Y_BAND = 5.0
-            if current_folio is not None and "-" in text:
+            #
+            # A long "(Non Demat)" scheme name wraps to a second baseline
+            # ~8pt below carrying `(Advisor:...) <RTA>`, so the band must
+            # reach beyond a single ~8pt line; the content filter below
+            # keeps unrelated rows (transactions, nominees) out.
+            Y_BAND = 10.0
+            if current_folio is not None and "-" in text and i not in consumed_below:
                 parts_above = []
                 parts_below = []
+                below_indices: List[int] = []
                 base_y = page.lines[i].baseline
                 for offset in (1, 2):
                     j = i - offset
@@ -468,34 +496,68 @@ def parse(
                     if (
                         re.fullmatch(r"(CAMS|KFINTECH|KFIN)\)?", t_below, re.I)
                         or re.search(r"Registrar\s*:|Advisor\s*:|ISIN\s*:", t_below, re.I)
+                        # The wrap line often carries only the registrar
+                        # name (possibly with a stray watermark fragment,
+                        # e.g. "KFINTECH 4."), which the markers above miss.
+                        or RTA_TOKEN_RE.search(t_below)
                         or (offset == 1 and trailing_incomplete)
                     ):
                         parts_below.append(t_below)
+                        below_indices.append(j)
                 # Scheme line FIRST so SCHEME_HEAD_RE can anchor to `<code>-`.
                 # Then append annotations from any direction.
                 scheme_text = " ".join([text.strip()] + parts_above + parts_below)
-                # Trailing "Registrar :" with value already on the next
-                # token after stitching → ensure value present.
+                # Trailing "Registrar :" with the value on the next line —
+                # append the WHOLE next line (not just its first token) so
+                # the registrar name comes along even when an advisor / ISIN
+                # fragment precedes it.
                 if scheme_text.endswith("Registrar :") or scheme_text.endswith("Registrar:"):
                     if i + 1 < len(page.lines):
-                        toks = page.lines[i + 1].text.split()
-                        if toks:
-                            scheme_text = scheme_text + " " + toks[0]
+                        nxt = page.lines[i + 1].text.strip()
+                        if nxt:
+                            scheme_text = scheme_text + " " + nxt
+                            below_indices.append(i + 1)
                 if "Registrar" in scheme_text and (m := SCHEME_HEAD_RE.match(scheme_text)):
+                    # Lines pulled in below us are this header's wrap, not
+                    # separate schemes — block them from anchoring again.
+                    consumed_below.update(below_indices)
                     code = m.group("code").strip()
                     raw_name = m.group("name")
                     # Pull `(Advisor: …)` and `- ISIN: …` out of name
                     # (templates emit them in either order). Capture
                     # values first, then `re.sub` both fragments so we
                     # don't have to track shifted span offsets.
-                    isin_m = INLINE_ISIN_RE.search(raw_name)
+                    # Advisor / ISIN can sit in the name OR in the stitched
+                    # registrar annotation that follows `Registrar :` (some
+                    # templates wrap the ISIN or put `(Advisor:...)` between
+                    # the label and the RTA name), so search the whole
+                    # stitched header, not just the name chunk.
+                    isin_m = INLINE_ISIN_RE.search(scheme_text)
                     inline_isin = isin_m.group(1).strip() if isin_m else None
-                    adv_m = INLINE_ADVISOR_RE.search(raw_name)
+                    # The value after "ISIN:" can wrap, so the labelled
+                    # capture may grab the following "Registrar" label or a
+                    # truncated stub. If it isn't a full ISIN, look for a
+                    # complete one anywhere in the stitched header (the real
+                    # value often sits on the wrapped continuation line, as
+                    # for `... - ISIN: Registrar : CAMS  INF179K01CW2`).
+                    # Trusting the PDF's own ISIN keeps the correct IDCW
+                    # payout/reinvest variant that a name-only lookup loses.
+                    if not inline_isin or not FULL_ISIN_RE.match(inline_isin):
+                        anywhere = ISIN_ANYWHERE_RE.search(scheme_text)
+                        inline_isin = anywhere.group(0) if anywhere else None
+                    adv_m = INLINE_ADVISOR_RE.search(scheme_text)
                     advisor = adv_m.group(1).strip() if adv_m else None
                     raw_name = INLINE_ISIN_RE.sub("", raw_name)
                     raw_name = INLINE_ADVISOR_RE.sub("", raw_name)
                     name = get_parsed_scheme_name(raw_name)
-                    rta = (m.group("rta") or "").strip() or "CAMS"
+                    # The registrar name is not reliably the first token
+                    # after `Registrar :` — pick the recognised RTA token
+                    # from the stitched header, falling back to the regex
+                    # capture and finally to CAMS.
+                    rta_m = RTA_TOKEN_RE.search(scheme_text)
+                    rta = (
+                        rta_m.group(1).upper() if rta_m else (m.group("rta") or "").strip()
+                    ) or "CAMS"
                     isin, amfi, scheme_type = isin_search(
                         name,
                         rta,

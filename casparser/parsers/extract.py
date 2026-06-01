@@ -235,6 +235,18 @@ def _walk_page_atoms(page) -> List[_Atom]:
         obj = pdfium_raw.FPDFPage_GetObject(page_handle, oi)
         if pdfium_raw.FPDFPageObj_GetType(obj) != pdfium_raw.FPDF_PAGEOBJ_TEXT:
             continue
+        # Drop vertically-oriented text. CAMS/KFin stamp a rotated
+        # watermark ("CAMSCASWS… Version:V3.4 Live-1017") down the page
+        # edge; its glyphs land in the right-hand columns and bleed
+        # fragments ("V", "iv", "CAMS L", "KFINTECH 4.") into the RTA /
+        # scheme-name fields. The object matrix's glyph-advance vector is
+        # (a, b); |b| > |a| means the run reads vertically, so it is
+        # watermark noise, not content — route its chars to the drop
+        # sentinel.
+        _mtx = pdfium_raw.FS_MATRIX()
+        if pdfium_raw.FPDFPageObj_GetMatrix(obj, ctypes.byref(_mtx)) and abs(_mtx.b) > abs(_mtx.a):
+            obj_index[_obj_key(obj)] = None
+            continue
         font_obj = pdfium_raw.FPDFTextObj_GetFont(obj)
         fn = pdfium_raw.FPDFFont_GetBaseFontName(font_obj, font_buf, _FONT_BUF_SIZE)
         raw_font = (

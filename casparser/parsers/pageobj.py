@@ -176,6 +176,13 @@ def extract_atoms(
         seen: set = set()  # dedup by (x_left, y_top, text)
         counter = _StreamCounter()
         for obj, seq in _iter_text_objects(page_handle, is_form=False, counter=counter):
+            # Skip vertically-oriented text — the rotated CAS watermark
+            # ("CAMSCASWS… / NSDLCASWS…") whose glyphs otherwise bleed
+            # down the right-hand columns. The object matrix's glyph
+            # advance vector is (a, b); |b| > |a| means a vertical run.
+            mtx = pdfium_raw.FS_MATRIX()
+            if pdfium_raw.FPDFPageObj_GetMatrix(obj, ctypes.byref(mtx)) and abs(mtx.b) > abs(mtx.a):
+                continue
             text, fname = _read_text_obj(obj, tp_handle, buf, fname_buf)
             if not text:
                 continue
