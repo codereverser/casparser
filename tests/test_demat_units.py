@@ -250,6 +250,34 @@ class TestCDSLHelpers:
         assert mf.nav == Decimal("25.0000")
         assert mf.value == Decimal("2500.00")  # not 0
         assert mf.total_cost is None
+
+    def test_mf_holdings_wrapped_folio(self):
+        """A long folio wraps its `<digits>/<digits>` tail into the next
+        cell ("910121125" | "82/0"). It must be spliced back into the
+        full folio (91012112582/0), not truncated to its head — and the
+        tail must not be mistaken for the distribution-mode column, which
+        would shift the numerics. Regression for dropped folio tails."""
+        block = _block(
+            _cell("SPGD - Motilal Oswal S&P 500 Index Fund", 22, 120),
+            _cell("INF247L01AG2", 192, 230),
+            _cell("910121125", 273, 300),  # folio head
+            _cell("82/0", 305, 325),  # folio tail (wrapped onto next cell)
+            _cell("DIRECT", 340, 380),  # distribution mode
+            _cell("20037.345", 400, 430),  # units
+            _cell("28.3293", 450, 480),  # NAV
+            _cell("250504.20", 500, 530),  # invested
+            _cell("567643.96", 550, 580),  # value
+        )
+        mf = cdsl_p._parse_mf_holdings_row(block, {})
+        assert mf is not None
+        # Full folio reconstructed (no dash, matching the authoritative
+        # "Folio No :" block), not truncated to "910121125".
+        assert mf.folio == "91012112582/0"
+        # Numerics still align after the tail cell is consumed by folio.
+        assert mf.balance == Decimal("20037.345")
+        assert mf.nav == Decimal("28.3293")
+        assert mf.total_cost == Decimal("250504.20")
+        assert mf.value == Decimal("567643.96")
         # value is consistent with balance * nav
         assert abs(mf.balance * mf.nav - mf.value) <= Decimal("0.01")
 

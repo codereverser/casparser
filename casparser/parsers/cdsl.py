@@ -59,6 +59,13 @@ INE_ISIN_RE = re.compile(r"^IN[E9][0-9A-Z]{8}\d$")
 # `0.196` unit balance prints as `.196`), so the integer part is
 # optional when a decimal part is present.
 NUMERIC_RE = re.compile(r"^-?(?:[\d,]+(?:\.\d+)?|\.\d+)$")
+# A long CDSL folio wraps its tail onto the next display line, which the
+# extractor emits as a separate cell — e.g. folio "91012112582/0" splits
+# into "910121125" | "82/0". The tail is a `<digits>/<digits>` token; we
+# splice it back onto the folio head (the on-page hyphen at the wrap is
+# only a line-break indicator, absent from the authoritative
+# "Folio No :" block).
+FOLIO_TAIL_RE = re.compile(r"\d+/\d+")
 
 PERIOD_RE = re.compile(
     r"(?:for\s+the\s+period\s+from|statement\s+for\s+the\s+period\s+from)\s+"
@@ -543,14 +550,29 @@ def _parse_mf_holdings_row(
 
     # Folio = cell right after ISIN (`<digits>/<digits>` or just digits).
     folio = None
+    folio_end = isin_idx + 1
     if isin_idx + 1 < len(block.cells):
         folio = block.cells[isin_idx + 1].text.strip() or None
 
+    # A long folio wraps its tail into the NEXT cell:
+    #   "910121125" | "82/0" | DIRECT | units | ...
+    # The real folio "91012112582/0" is split across two cells. Splice
+    # the `<digits>/<digits>` tail back on (no separator — the on-page
+    # hyphen is just the wrap indicator); otherwise the folio is
+    # truncated to its head and the tail is mistaken for the
+    # distribution-mode column below.
+    if folio and isin_idx + 2 < len(block.cells):
+        tail = block.cells[isin_idx + 2].text.strip()
+        if FOLIO_TAIL_RE.fullmatch(tail):
+            folio = folio + tail
+            folio_end = isin_idx + 2
+
     # Discriminate 13-cell (has ARN/DIRECT) vs 7-cell (no such column).
-    has_distrib_col = isin_idx + 2 < len(block.cells) and not _looks_numeric(
-        block.cells[isin_idx + 2].text
-    )
-    data_start = isin_idx + (3 if has_distrib_col else 2)
+    # The distribution-mode discriminator is the cell right after the
+    # folio (which may span two cells when it wrapped).
+    disc_idx = folio_end + 1
+    has_distrib_col = disc_idx < len(block.cells) and not _looks_numeric(block.cells[disc_idx].text)
+    data_start = disc_idx + (1 if has_distrib_col else 0)
     numerics = [c.text.strip() for c in block.cells[data_start:] if _looks_numeric(c.text)]
     if len(numerics) < 3:
         return None

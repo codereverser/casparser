@@ -97,6 +97,31 @@ class TestCAMSDetailed:
                 assert s["isin"], f"JSON: scheme without ISIN: {s['scheme']!r}"
                 assert s["amfi"], f"JSON: scheme without AMFI: {s['scheme']!r}"
 
+    def test_pdf_document_closed_after_parse(self, cams_file, cams_password, monkeypatch):
+        """`read_cas_pdf` must close the pypdfium2 document it opens.
+
+        Leaving it open leaks the page / text-page child handles and
+        makes pdfium emit "objects still open" at interpreter / library
+        teardown. We spy on the opener and assert the document's raw
+        handle is cleared (closed) once parsing returns.
+        """
+        import casparser.parsers as parsers
+        from casparser import read_cas_pdf
+
+        opened = []
+        orig_open = parsers._open_document
+
+        def _spy(*args, **kwargs):
+            doc = orig_open(*args, **kwargs)
+            opened.append(doc)
+            return doc
+
+        monkeypatch.setattr(parsers, "_open_document", _spy)
+        read_cas_pdf(cams_file, cams_password)
+
+        assert opened, "_open_document was never called"
+        assert not opened[0].raw, "PdfDocument left open after read_cas_pdf"
+
 
 class TestCAMSDetailedNew:
     """Multi-decade CAMS DETAILED statement (`CAMS_CAS_FILE_NEW`)."""

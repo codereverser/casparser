@@ -90,61 +90,71 @@ def read_cas_pdf(
     # parser / investor extractor calls — every pypdfium2 open re-runs
     # the password decrypt + content-stream parse, so the savings on
     # multi-page detailed statements are significant.
+    # Open the document once and ALWAYS close it before returning.
+    # pypdfium2 tracks pages / text-pages as children of the document;
+    # leaving the document open leaks those handles and makes pdfium emit
+    # "objects still open" at interpreter / library teardown. `close()`
+    # cascades to all child handles created during parsing. The parsed
+    # `data` is plain pydantic models holding no pdfium references, so it
+    # is safe to return after the document is closed.
     doc = _open_document(filename, password)
-
-    file_type = detect_file_type(filename, password, _doc=doc)
-    if file_type == FileType.UNKNOWN:
-        raise CASParseError(
-            "Could not identify the CAS issuer. Supported issuers are "
-            "CAMS, KFintech, NSDL, and CDSL."
-        )
-
-    if file_type in (FileType.CAMS, FileType.KFINTECH):
-        cas_type = detect_cas_type(filename, password, _doc=doc)
-        if cas_type == CASFileType.DETAILED:
-            from . import cams_detailed
-
-            data: Union[CASData, NSDLCASData] = cams_detailed.parse(
-                filename,
-                password,
-                file_type=file_type,
-                _doc=doc,
-            )
-        elif cas_type == CASFileType.SUMMARY:
-            from . import cams_summary
-
-            data = cams_summary.parse(
-                filename,
-                password,
-                file_type=file_type,
-                _doc=doc,
-            )
-        else:
+    try:
+        file_type = detect_file_type(filename, password, _doc=doc)
+        if file_type == FileType.UNKNOWN:
             raise CASParseError(
-                "Could not identify whether this is a DETAILED or " "SUMMARY CAMS / KFin statement."
+                "Could not identify the CAS issuer. Supported issuers are "
+                "CAMS, KFintech, NSDL, and CDSL."
             )
-        if sort_transactions and isinstance(data, CASData):
-            data = _sort_transactions(data)
-    elif file_type == FileType.NSDL:
-        from . import nsdl
 
-        data = nsdl.parse_nsdl(
-            filename,
-            password,
-            file_type=FileType.NSDL,
-            _doc=doc,
-        )
-    elif file_type == FileType.CDSL:
-        from . import cdsl
+        if file_type in (FileType.CAMS, FileType.KFINTECH):
+            cas_type = detect_cas_type(filename, password, _doc=doc)
+            if cas_type == CASFileType.DETAILED:
+                from . import cams_detailed
 
-        data = cdsl.parse_cdsl(
-            filename,
-            password,
-            file_type=FileType.CDSL,
-            _doc=doc,
-        )
-    else:  # pragma: no cover — handled above
-        raise CASParseError(f"Unsupported file type: {file_type}")
+                data: Union[CASData, NSDLCASData] = cams_detailed.parse(
+                    filename,
+                    password,
+                    file_type=file_type,
+                    _doc=doc,
+                )
+            elif cas_type == CASFileType.SUMMARY:
+                from . import cams_summary
+
+                data = cams_summary.parse(
+                    filename,
+                    password,
+                    file_type=file_type,
+                    _doc=doc,
+                )
+            else:
+                raise CASParseError(
+                    "Could not identify whether this is a DETAILED or "
+                    "SUMMARY CAMS / KFin statement."
+                )
+            if sort_transactions and isinstance(data, CASData):
+                data = _sort_transactions(data)
+        elif file_type == FileType.NSDL:
+            from . import nsdl
+
+            data = nsdl.parse_nsdl(
+                filename,
+                password,
+                file_type=FileType.NSDL,
+                _doc=doc,
+            )
+        elif file_type == FileType.CDSL:
+            from . import cdsl
+
+            data = cdsl.parse_cdsl(
+                filename,
+                password,
+                file_type=FileType.CDSL,
+                _doc=doc,
+            )
+        else:  # pragma: no cover — handled above
+            raise CASParseError(f"Unsupported file type: {file_type}")
+    finally:
+        doc.close()
 
     if output == "dict":
         return data
