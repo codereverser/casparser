@@ -71,7 +71,8 @@ def _split_name_numeric(parts):
         if _is_numeric_token(p):
             numeric_parts.append(p)
         else:
-            name_parts.append(p)
+            if not re.match(ISIN_LINE_RE, p):
+                name_parts.append(p)
     return name_parts, numeric_parts
 
 
@@ -229,11 +230,11 @@ def process_cdsl_text(text):
         if _PAGE_HEADER_SKIP_RE.match(stripped):
             continue
 
-        if m := re.match(ISIN_LINE_RE, line):
+        if m := re.search(ISIN_LINE_RE, line, re.MULTILINE):
             isin = m.group("isin")
             is_mf = isin.startswith("INF")
-            parts = line.split("\t\t")
-            name_parts, numeric_parts = _split_name_numeric(parts[1:])
+            parts = re.split(r"[\t\n]+", line)
+            name_parts, numeric_parts = _split_name_numeric(parts)
             name = re.sub(r"\s+", " ", " ".join(name_parts)).strip()
 
             if len(numeric_parts) >= 2:
