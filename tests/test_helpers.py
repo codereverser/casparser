@@ -53,6 +53,13 @@ class TestTransactionType:
             "Purchase SIPCheque Dishonoured - Instalment No 108",
             Decimal("-1"),
         ) == (TransactionType.REVERSAL, None)
+        # A failed-SIP "payment not received" row carries negative units
+        # but is a reversal of a provisional purchase, not a redemption.
+        assert get_transaction_type(
+            "SIP Purchase151/Payment not received from investor Banker "
+            "Physical - Instalment No 1",
+            Decimal("-1.365"),
+        ) == (TransactionType.REVERSAL, None)
 
     def test_dividends(self):
         assert get_transaction_type(

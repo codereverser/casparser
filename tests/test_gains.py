@@ -238,6 +238,89 @@ class TestGainsClass:
         # total equals the paid stamp exactly.
         assert total_stamp == Decimal("1.25")
 
+    def test_failed_sip_payment_not_received_nets_to_zero(self):
+        """A failed SIP (``Payment not received``) reverses both the
+        units and the stamp duty on the same date. Modelled on a real
+        CAMS DETAILED statement::
+
+            SIP Purchase - Instalment 1/7        2,999.85   1.365  2,198.255
+            *** Stamp Duty ***                        0.15
+            SIP Purchase151/Payment not received  (2,999.85) (1.365) 2,198.255
+            *** Stamp Duty ***                       (0.15)
+
+        Two guarantees:
+
+        - The reversal is classified ``REVERSAL`` (not ``REDEMPTION``),
+          so net ``purchase_units`` for the date is 0 → no buy, no sell,
+          and therefore **no phantom redemption** in the gains report.
+        - The matching ``(0.15)`` stamp reversal nets the date's stamp
+          duty to exactly 0, so **no stamp is ever claimed** for a
+          purchase that never settled (a failed payment is not a §48
+          transfer).
+        """
+        fund = Fund("Failed-SIP Fund", "FS", "INF000FS0001", "EQUITY")
+        dt = date(2025, 9, 26)
+        transactions = [
+            TransactionData(
+                date=dt,
+                description="SIP Purchase - Instalment 1/7 - via myCAMS Online",
+                amount=Decimal("2999.85"),
+                units=Decimal("1.365"),
+                nav=Decimal("2198.255"),
+                balance=Decimal("3.843"),
+                type=TransactionType.PURCHASE_SIP,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=dt,
+                description="*** Stamp Duty ***",
+                amount=Decimal("0.15"),
+                units=None,
+                nav=None,
+                balance=None,
+                type=TransactionType.STAMP_DUTY_TAX,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=dt,
+                description=(
+                    "SIP Purchase151/Payment not received from investor "
+                    "Banker Physical - Instalment No 1"
+                ),
+                amount=Decimal("-2999.85"),
+                units=Decimal("-1.365"),
+                nav=Decimal("2198.255"),
+                balance=Decimal("2.478"),
+                type=TransactionType.REVERSAL,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date=dt,
+                description="*** Stamp Duty ***",
+                amount=Decimal("-0.15"),
+                units=None,
+                nav=None,
+                balance=None,
+                type=TransactionType.STAMP_DUTY_TAX,
+                dividend_rate=None,
+            ),
+        ]
+        fifo = FIFOUnits(fund, transactions)
+
+        # Units and stamp both net to zero for the date.
+        merged = fifo._merged_transactions[dt]
+        assert merged.purchase_units == Decimal("0.000")
+        assert merged.sale_units == Decimal("0")
+        assert merged.stamp_duty == Decimal("0.00")
+
+        # No phantom redemption, and nothing left in the FIFO queue.
+        assert fifo.gains == []
+        assert fifo.balance == Decimal("0")
+
+        # No stamp duty claimed anywhere.
+        total_stamp = sum((ge.stamp_duty for ge in fifo.gains), Decimal("0"))
+        assert total_stamp == Decimal("0")
+
 
 def _ltcg_entry(fy, fund, purchase_date, sale_date, units="100.000"):
     """Build a minimal LTCG GainEntry (EQUITY, held > 1yr) for the

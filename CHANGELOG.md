@@ -89,6 +89,13 @@ parser tuned to their template family.
   positive-units branch of `get_transaction_type`. Acts as a
   self-validating safety net for the entire transaction stream,
   not just the Franklin case.
+- **Failed-SIP `Payment not received` rows** are now classified as
+  `REVERSAL` instead of `REDEMPTION`. These carry negative units (the
+  provisional purchase is being undone) with a correct sign, so the
+  running-balance validator leaves them untouched — only the
+  description keyword distinguishes them, and it was missing from the
+  reversal pattern. Misclassifying them as redemptions injected a
+  phantom capital-gains event into the gains analysis.
 - **Stamp-duty allocation on split lots.** When a single purchase
   lot is consumed across N disposals the `FIFOUnits.sell` re-queue
   carried the *full* original stamp duty on every remaining slice,

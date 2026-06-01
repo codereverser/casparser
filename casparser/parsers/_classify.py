@@ -75,7 +75,8 @@ def get_transaction_type(
             txn_type = TransactionType.PURCHASE
     elif units < 0:
         if re.search(
-            r"reversal|rejection|dishonoured|mismatch|insufficient\s+balance",
+            r"reversal|rejection|dishonoured|mismatch|insufficient\s+balance|"
+            r"payment\s+not\s+received",
             description,
             re.I,
         ):
