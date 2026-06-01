@@ -66,6 +66,11 @@ class TestProcessClass:
             "Purchase SIPCheque Dishonoured - Instalment No 108", Decimal(-1.0)
         ) == (TransactionType.REVERSAL, None)
 
+        assert get_transaction_type(
+            "SIP Purchase151/Payment not received from investor Banker Physical - Instalment No 1",
+            Decimal(-1.365),
+        ) == (TransactionType.REVERSAL, None)
+
         assert parse_transaction(
             "01-Jan-2021\t\tCreation of units - Segregated Portfolio\t\t1.000\t\t12,601.184"
         ) == ParsedTransaction(
