@@ -59,11 +59,16 @@ class GainEntry112A:
 
     @property
     def actual_coa(self):
-        return max(self.purchase_value, self.consideration_value)
+        # Stamp duty paid at purchase is part of the cost of acquisition
+        # (CAMS/KFin both report cost "inclusive of stamp duty").
+        return max(self.purchase_value, self.consideration_value) + self.stamp_duty
 
     @property
     def expenditure(self):
-        return self.stt + self.stamp_duty
+        # STT is explicitly NOT a deductible expense under section 112A,
+        # and stamp duty is already folded into the cost of acquisition,
+        # so there is no separately deductible transfer expenditure.
+        return Decimal("0.00")
 
     @property
     def deductions(self):
@@ -164,8 +169,19 @@ class GainEntry:
         return GainType.LTCG if self.sale_date > ltcg[self.type] else GainType.STCG
 
     @property
+    def acquisition_value(self) -> Decimal:
+        """Cost of acquisition including the stamp duty paid at purchase.
+
+        Both CAMS and KFin capital-gains statements report the cost
+        "inclusive of stamp duty", and under the Income-tax Act stamp
+        duty paid on acquisition forms part of the cost of acquisition.
+        Omitting it over-states the realised gain by the stamp amount.
+        """
+        return self.purchase_value + self.stamp_duty
+
+    @property
     def gain(self) -> Decimal:
-        return Decimal(round(self.sale_value - self.purchase_value, 2))
+        return Decimal(round(self.sale_value - self.acquisition_value, 2))
 
     @property
     def fmv_nav(self) -> Decimal:
@@ -188,12 +204,12 @@ class GainEntry:
     @property
     def coa(self) -> Decimal:
         if self.fund.type == FundType.DEBT:
-            return Decimal(round(self.purchase_value * self.index_ratio, 2))
+            return Decimal(round(self.acquisition_value * self.index_ratio, 2))
         if self.purchase_date < self.__cutoff_date:
             if self.sale_date < self.__sell_cutoff_date:
                 return self.sale_value
-            return max(self.purchase_value, min(self.fmv, self.sale_value))
-        return self.purchase_value
+            return max(self.acquisition_value, min(self.fmv, self.sale_value))
+        return self.acquisition_value
 
     @property
     def ltcg_taxable(self) -> Decimal:
