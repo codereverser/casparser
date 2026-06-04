@@ -420,3 +420,41 @@ class TestSchedule112A:
         cols = header.split(",")
         assert cols[0] == "Share/Unit acquired(1a)"
         assert cols[1] == "ISIN Code(2)"
+
+
+class TestStampDutyInCostOfAcquisition:
+    """Purchase-side stamp duty is part of the cost of acquisition.
+
+    Both CAMS and KFin capital-gains statements report cost "inclusive
+    of stamp duty"; omitting it over-states the realised gain by the
+    stamp amount. See gains.GainEntry.acquisition_value.
+    """
+
+    def _entry(self):
+        # purchase 1000.00 + stamp 1.00, sale 2000.00, held > 1yr (LTCG).
+        fund = Fund("Equity Fund", "F1", "INF000A01001", "EQUITY")
+        return _ltcg_entry("FY2024-25", fund, date(2022, 1, 1), date(2024, 9, 1))
+
+    def test_gain_is_net_of_purchase_stamp_duty(self):
+        ge = self._entry()
+        # cost = purchase_value + stamp_duty = 1001; gain = 2000 - 1001.
+        assert ge.acquisition_value == Decimal("1001.00")
+        assert ge.gain == Decimal("999.00")
+        assert ge.ltcg == Decimal("999.00")
+
+    def test_coa_includes_stamp_duty(self):
+        ge = self._entry()
+        # AE-acquired equity: coa is the stamp-inclusive cost.
+        assert ge.coa == Decimal("1001.00")
+        assert ge.ltcg_taxable == Decimal("999.00")
+
+    def test_112a_balance_includes_stamp_excludes_stt(self):
+        """Schedule 112A: stamp duty folded into cost of acquisition,
+        STT not deducted (it is not an allowable transfer expense)."""
+        rows = _report_with_gains([self._entry()]).generate_112a("FY2024-25")
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.actual_coa == Decimal("1001.00")  # 1000 + 1 stamp
+        assert row.expenditure == Decimal("0.00")  # STT excluded
+        assert row.deductions == Decimal("1001.00")
+        assert row.balance == Decimal("999.00")
