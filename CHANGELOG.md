@@ -122,6 +122,18 @@ parser tuned to their template family.
   fragments fall in the same row block; ISINs split across blocks by
   a non-standard page scale are not covered.)
 
+## 0.9.1 - 2026-06-02
+- CDSL: parse holdings rows whose ISIN spans/wraps across multiple
+  lines instead of silently dropping them (#129, thanks @mvineetmenon).
+- CDSL: parse stock holdings rows where a long security name wraps so
+  the line no longer begins with the ISIN — these equities were
+  previously skipped entirely (#132 / #133, thanks @mvineetmenon).
+- Classify failed-SIP `Payment not received` transactions as
+  `REVERSAL` rather than `REDEMPTION`, so a reversed (unsettled)
+  purchase no longer surfaces as a spurious redemption / capital-gains
+  event (#131, thanks @rahulpatel135).
+- Allow `pytest` 9.x in the dev/test dependency range (#126).
+
 ## 0.9.0 - 2026-05-22
 - Add support for CDSL statements
 - Drop support for Python 3.9 and 3.10; minimum supported version is now 3.11
