@@ -77,6 +77,16 @@ class TestCDSLAccountInvariants:
             for mf in ac.mutual_funds:
                 assert_mutual_fund_well_formed(mf)
 
+    def test_mutual_funds_enriched_from_isin_db(self, cdsl_data):
+        """Demat MF holdings (ISIN-only in the source) are backfilled
+        with AMFI code + scheme type from the ISIN database, so they line
+        up with RTA-sourced schemes. Every MF in this fixture resolves."""
+        mfs = [mf for ac in cdsl_data.accounts for mf in ac.mutual_funds]
+        assert mfs, "fixture should carry MF holdings"
+        for mf in mfs:
+            assert mf.amfi, f"{mf.isin}: amfi not enriched"
+            assert mf.type in ("EQUITY", "DEBT"), f"{mf.isin}: type {mf.type!r}"
+
 
 class TestCDSLOutput:
     """CDSL JSON output preserves the account schema."""

@@ -755,6 +755,31 @@ class TestISINSearchFallback:
         assert scheme_type is None
 
 
+class TestBatchISINMetadata:
+    """`batch_isin_metadata` backfills (amfi, type) for demat MF holdings,
+    which depository statements carry by ISIN only."""
+
+    def test_resolves_known_isins(self):
+        from casparser.parsers._isin import batch_isin_metadata
+
+        # Duplicate + falsy entries are de-duped / ignored.
+        meta = batch_isin_metadata(["INF846K01EW2", "INF846K01EW2", "", "INF174V01317"])
+        assert meta["INF846K01EW2"] == ("120503", "EQUITY")
+        assert meta["INF174V01317"] == ("141224", "EQUITY")
+
+    def test_unknown_isin_maps_to_nones(self):
+        from casparser.parsers._isin import batch_isin_metadata
+
+        meta = batch_isin_metadata(["INF000X00X00"])
+        assert meta["INF000X00X00"] == (None, None)
+
+    def test_empty_input_returns_empty(self):
+        from casparser.parsers._isin import batch_isin_metadata
+
+        assert batch_isin_metadata([]) == {}
+        assert batch_isin_metadata(["", None]) == {}
+
+
 def _atom(text: str, x_left=100.0, x_right=200.0, y_top=500.0, y_bot=490.0) -> Atom:
     """Synthetic Atom for column-join tests."""
     return Atom(x_left, x_right, y_top, y_bot, text, "Helvetica", stream_seq=0)

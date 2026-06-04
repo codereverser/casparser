@@ -51,6 +51,29 @@ def _sort_transactions(data: CASData) -> CASData:
     return data
 
 
+def _enrich_demat_mutual_funds(data: NSDLCASData) -> NSDLCASData:
+    """Backfill ``amfi`` / ``type`` on demat MF holdings from the ISIN DB.
+
+    NSDL/CDSL statements list MF holdings by ISIN only, so — unlike the
+    RTA (CAMS/KFin) `Scheme` rows — they arrive without an AMFI code or
+    scheme type. Resolve both from the ISIN database in one batch so a
+    demat holding can be reconciled with the same scheme parsed from an
+    RTA CAS. Values already set by the parser are left untouched; ISINs
+    the DB can't resolve stay ``None``.
+    """
+    from ._isin import batch_isin_metadata
+
+    meta = batch_isin_metadata(mf.isin for account in data.accounts for mf in account.mutual_funds)
+    for account in data.accounts:
+        for mf in account.mutual_funds:
+            amfi, scheme_type = meta.get(mf.isin, (None, None))
+            if mf.amfi is None:
+                mf.amfi = amfi
+            if mf.type is None:
+                mf.type = scheme_type
+    return data
+
+
 def read_cas_pdf(
     filename: Union[str, io.IOBase],
     password: str,
@@ -155,6 +178,12 @@ def read_cas_pdf(
             raise CASParseError(f"Unsupported file type: {file_type}")
     finally:
         doc.close()
+
+    # Demat (NSDL/CDSL) MF holdings carry only an ISIN; enrich them with
+    # AMFI code + scheme type so they match RTA-sourced schemes. Done
+    # after the document is closed — the lookup needs no PDF handle.
+    if isinstance(data, NSDLCASData):
+        data = _enrich_demat_mutual_funds(data)
 
     if output == "dict":
         return data

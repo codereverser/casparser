@@ -152,6 +152,13 @@ class Bond(BaseModel):
 class MutualFund(BaseModel):
     name: Optional[str] = None
     isin: str
+    # Depository (NSDL/CDSL) statements identify an MF holding only by
+    # ISIN — unlike RTA (CAMS/KFin) `Scheme` rows they carry no AMFI code
+    # or scheme type. These are backfilled from the ISIN database after
+    # parsing (see parsers._isin.batch_isin_metadata) so a demat holding
+    # lines up with the same scheme from an RTA CAS on `amfi` / `type`.
+    amfi: Optional[str] = None
+    type: Optional[str] = None
     balance: Decimal
     nav: Decimal
     value: Decimal

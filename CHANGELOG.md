@@ -31,6 +31,13 @@ parser tuned to their template family.
 
 ### New
 
+- **Demat MF holdings now carry `amfi` + `type`.** NSDL/CDSL statements
+  identify a mutual-fund holding by ISIN only, so `MutualFund` rows used
+  to lack the AMFI code and scheme type that RTA (CAMS/KFin) `Scheme`
+  rows have. Both are now backfilled from the ISIN database in a single
+  batched lookup after parsing (`parsers._isin.batch_isin_metadata`), so
+  the same fund parsed from a depository CAS and an RTA CAS reconciles on
+  `amfi` / `type` when imported together. Unresolvable ISINs stay `None`.
 - **First-class NSDL and CDSL parsers.** Drops the regex-on-text
   approach the 0.8 NSDL/CDSL code used; the new parsers consume
   structured `Block`/`Cell` records directly from `pypdfium2`. Several

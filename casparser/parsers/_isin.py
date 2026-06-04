@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 from casparser_isin import MFISINDb
 
@@ -38,3 +38,36 @@ def isin_search(
             except (ValueError, KeyError, TypeError):
                 pass
     return None, None, None
+
+
+def batch_isin_metadata(
+    isins: Iterable[str],
+) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+    """Map each ISIN to ``(amfi_code, scheme_type)`` in a single DB session.
+
+    Used to enrich demat (NSDL/CDSL) ``MutualFund`` holdings, which the
+    depository statements identify only by ISIN, with the AMFI code and
+    scheme type that RTA (CAMS/KFin) statements carry. Opening one
+    ``MFISINDb`` session for the whole batch avoids the per-row connect
+    overhead of calling :func:`isin_search` in a loop.
+
+    Unknown or unresolvable ISINs map to ``(None, None)``.
+
+    :param isins: ISINs to resolve (duplicates and falsy values ignored).
+    """
+    result: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    unique = {isin for isin in isins if isin}
+    if not unique:
+        return result
+    with MFISINDb() as db:
+        for isin in unique:
+            try:
+                rows = db.direct_isin_lookup(isin)
+            except (ValueError, KeyError, TypeError):
+                rows = None
+            if rows:
+                row = rows[0]
+                result[isin] = (row.get("amfi_code"), row.get("type"))
+            else:
+                result[isin] = (None, None)
+    return result
