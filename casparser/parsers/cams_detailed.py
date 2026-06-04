@@ -1,24 +1,22 @@
-"""POC: CAMS DETAILED CAS parser using column-based row reading.
+"""CAMS / KFin DETAILED CAS parser using column-based row reading.
 
-Produces the same `List[Folio]` shape as the production parser so output can
-be diffed directly. ISIN/AMFI enrichment and investor info are deferred —
-those passes are orthogonal to the column-reader question.
+Reads each page's transaction table by detecting column boundaries and
+assigning cells per row, producing the `CASData` shape returned by
+`casparser.read_cas_pdf`.
 
-Scope of this POC (handles):
-- One CAS, possibly multi-page
-- One AMC, one folio header per folio, one scheme header per scheme
-- Transaction table with 6 standard columns (Date / Transaction / Amount /
-  Units / Price / Unit Balance)
+Handles:
+- Multi-page, multi-AMC statements with one folio/scheme header per block
+- Transaction table with the 6 standard columns (Date / Transaction /
+  Amount / Units / Price / Unit Balance)
 - "Opening Unit Balance", "Closing Unit Balance", "NAV on", "Valuation on"
   labeled rows
+- ISIN / AMFI enrichment (via `_isin.isin_search`), nominees, Total Cost
+  Value, and investor info / statement period
 
-Deferred (TODO markers below):
-- Multi-line transaction descriptions (we keep first line only)
-- ISIN / AMFI lookup
-- Nominees
-- Segregated portfolios
-- Total Cost Value parsing
-- Investor info / statement period
+Known limitations:
+- Multi-line transaction descriptions keep the first line only.
+- Segregated portfolios are classified as `SEGREGATION` transactions but
+  are not fully supported by the capital-gains module.
 """
 
 from __future__ import annotations

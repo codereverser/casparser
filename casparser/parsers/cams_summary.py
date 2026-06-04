@@ -1,4 +1,4 @@
-"""POC: CAMS/KFin SUMMARY CAS parser using column-based row reading.
+"""CAMS / KFin SUMMARY CAS parser using column-based row reading.
 
 Same architecture as `cams_detailed`, simpler schema — each scheme is
 ONE row (no transactions). Schemes can wrap to one or two continuation
@@ -12,8 +12,7 @@ KFin uses the same fields but renders the header across 2-3 baselines
 ("Cost Value | Closing Unit Balance | Price | Market Value" on top,
 "Folio No. | ISIN | Scheme Name | NAV Date" below).
 
-Produces the same `POCResult` shape as `cams_detailed.parse` so output
-can be diffed directly against production `casparser.read_cas_pdf`.
+Returns the `CASData` shape produced by `casparser.read_cas_pdf`.
 """
 
 from __future__ import annotations
