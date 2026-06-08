@@ -1,5 +1,134 @@
 # Changelog
 
+## 1.0.0
+
+Major release. The parsing backend was rewritten from scratch on
+[pypdfium2](https://github.com/pypdfium2-team/pypdfium2) (Apache-2.0 /
+BSD-3) and the four supported CAS issuers now each have a dedicated
+parser tuned to their template family.
+
+### Breaking changes
+
+- **pdfminer.six and PyMuPDF backends removed.** `casparser.read_cas_pdf`
+  no longer dispatches between them. The `mupdf` / `fast` extras in
+  `pyproject.toml` are gone. The `--force-pdfminer` CLI flag and the
+  `force_pdfminer=` kwarg on `read_cas_pdf` are kept as no-ops; the
+  kwarg emits a `DeprecationWarning` and is otherwise ignored.
+- **License simplified to pure MIT.** With the GPL/AGPL-licensed
+  PyMuPDF dependency gone, the `licenses/` directory of GPL/AGPL
+  copies has been removed. pypdfium2 is dual Apache-2.0 / BSD-3 and
+  doesn't impose any copyleft obligation on users of casparser.
+- **Minimum Python is now 3.11.** 3.9 / 3.10 classifiers dropped from
+  `pyproject.toml`.
+- **`CASData.investor_info` is now `Optional[InvestorInfo]`** (matches
+  the `NSDLCASData.investor_info` shape that already existed). It is
+  populated on every supported issuer, but consumers should still
+  guard against the `None` case for unfamiliar templates.
+- **Internal `casparser.process` package removed.** The two helpers
+  downstream code still imports from it are now at
+  `casparser.parsers._classify` (`get_parsed_scheme_name`,
+  `get_transaction_type`) and `casparser.parsers._isin` (`isin_search`).
+
+### New
+
+- **Demat MF holdings now carry `amfi` + `type`.** NSDL/CDSL statements
+  identify a mutual-fund holding by ISIN only, so `MutualFund` rows used
+  to lack the AMFI code and scheme type that RTA (CAMS/KFin) `Scheme`
+  rows have. Both are now backfilled from the ISIN database in a single
+  batched lookup after parsing (`parsers._isin.batch_isin_metadata`), so
+  the same fund parsed from a depository CAS and an RTA CAS reconciles on
+  `amfi` / `type` when imported together. Unresolvable ISINs stay `None`.
+- **First-class NSDL and CDSL parsers.** Drops the regex-on-text
+  approach the 0.8 NSDL/CDSL code used; the new parsers consume
+  structured `Block`/`Cell` records directly from `pypdfium2`. Several
+  bugs the v0.8 NSDL/CDSL code shipped with are no longer in scope
+  (misplaced-UCC-as-folio on NSDL MF Holdings, space-merged
+  folio+units cells on CDSL, the silently-dropped NSDL HDFC
+  subaccount on CDSL multi-account statements, `Optional[Decimal]`
+  comma-strip miss in the `MutualFund` validator).
+- **CAMS / KFin 2026 templates supported** out of the box. The newer
+  CAMS SUMMARY template added an ISIN column the v0.8 regex didn't
+  match; v1.0 parses all rows. The newer KFin SUMMARY template emits
+  zero-balance schemes with single-space-separated trio cells that
+  the v0.8 regex required `\t\t` between; v1.0 picks them up too.
+- **AMC-header detection extended** to include the `Fund House`
+  suffix. v0.8's regex only matched `Mutual Fund` / `MF` suffixes,
+  so schemes from a few newer AMCs whose names end in `Fund House`
+  ended up bucketed under the previous AMC.
+- **ISIN / AMFI enrichment has a direct-ISIN fallback** path via
+  `MFISINDb.direct_isin_lookup` for the case where multi-line
+  `Registrar:` rendering corrupts the RTA token.
+- **Schedule 112A column 1b** ("Share/Unit Transferred") is emitted
+  for FY2024-25 onward, per the AY 2025-26 ITR utility template. The
+  Finance (No. 2) Act 2024 split the equity-LTCG regime on
+  23-Jul-2024; the 112A CSV now flags each transfer `BE`/`AE` against
+  that date and splits an after-31-Jan-2018-acquired fund into
+  separate rows when it was sold on both sides of the cutoff. Older
+  FYs keep the 14-column layout their utility expects.
+- **Cost Inflation Index extended to FY2025-26 (376)** and the
+  FY2024-25 value corrected from `365` to the CBDT-notified `363`
+  (the wrong value slightly mis-indexed debt-fund LTCG cost of
+  acquisition for FY2024-25 sales).
+
+### Fixed
+
+- **CAMS SUMMARY `valuation.date` no longer mis-parses to year 201**
+  (was a column-boundary bug — the NAVDate column treated as
+  right-aligned with a 42pt width clipped the trailing year digit,
+  then Pydantic mis-coerced the `01-Jan-201` string).
+- **CDSL multi-account statements** (5+ demat accounts on one PDF) are
+  now parsed correctly. Earlier the page-3+ scan only kicked in from
+  page 8, dropping holdings sections that landed on pages 4-7.
+- **CDSL MF holdings** rows with `DIRECT` (or any non-`ARN-XXXX`
+  distribution-mode token) now correctly populate `pnl` and `return_`.
+- **Leading-dot decimals** (`.196`, `-.5`) are now recognised as
+  numeric by the NSDL / CDSL cell classifier. CDSL occasionally
+  drops the leading zero on sub-unit balances; under the old regex
+  those cells were mis-bucketed as text, shifting the row layout
+  and producing a silent `Σholdings ≠ balance` mismatch.
+- **KFin `... - Reversed` transaction rows** (e.g. the Franklin
+  wound-up debt schemes' `Payment - Units Extinguished-Reversed`
+  entries) had their units cell printed with cosmetic parentheses
+  even though the semantic sign is the opposite of the original.
+  A new running-balance cross-check in the CAMS / KFin DETAILED
+  parser flips the sign (and matching amount) on any single-row
+  mis-parse and reclassifies the transaction type via the
+  positive-units branch of `get_transaction_type`. Acts as a
+  self-validating safety net for the entire transaction stream,
+  not just the Franklin case.
+- **Failed-SIP `Payment not received` rows** are now classified as
+  `REVERSAL` instead of `REDEMPTION`. These carry negative units (the
+  provisional purchase is being undone) with a correct sign, so the
+  running-balance validator leaves them untouched — only the
+  description keyword distinguishes them, and it was missing from the
+  reversal pattern. Misclassifying them as redemptions injected a
+  phantom capital-gains event into the gains analysis.
+- **Stamp-duty allocation on split lots.** When a single purchase
+  lot is consumed across N disposals the `FIFOUnits.sell` re-queue
+  carried the *full* original stamp duty on every remaining slice,
+  so the proportional allocation re-claimed the same paid stamp
+  on each disposal — total stamp claimed grew unboundedly with
+  split depth. (Worked example: 300-unit lot with ₹1.25 stamp,
+  split 100/100/100 → total claimed ₹2.29 vs ₹1.25 paid, an 84%
+  over-claim that further widens for deeper splits.) The lot is
+  now re-queued with the *unallocated remainder* (`purchase_tax -
+  stamp_duty`), so the invariant `Σ(stamp_claimed) == stamp_paid`
+  holds exactly across any number of partial consumptions. Section
+  48 only permits deducting the stamp actually paid as a
+  transfer expense, so the prior behaviour over-stated the
+  deduction on Schedule 112A.
+- **Soft-hyphen-wrapped tokens in NSDL / CDSL holdings.** Some CAS
+  generators insert a `U+00AD` soft hyphen at the point where a long
+  token (notably a 12-char ISIN) wraps across two display lines, e.g.
+  `INF179K01<soft-hyphen>WN9`. The block/cell extractor now treats a trailing
+  soft hyphen as a continuation marker (splicing the next fragment on
+  with no separator) and strips any embedded soft hyphens, so the
+  token is reconstructed intact. Previously the wrapped ISIN matched
+  neither the anchored ISIN regex nor its leftover, and the holding
+  was silently dropped. (Reconstruction works when the wrapped
+  fragments fall in the same row block; ISINs split across blocks by
+  a non-standard page scale are not covered.)
+
 ## 0.9.1 - 2026-06-02
 - CDSL: parse holdings rows whose ISIN spans/wraps across multiple
   lines instead of silently dropping them (#129, thanks @mvineetmenon).
@@ -13,7 +142,7 @@
 - Allow `pytest` 9.x in the dev/test dependency range (#126).
 
 ## 0.9.0 - 2026-05-22
-- Add support for CDSL sttements
+- Add support for CDSL statements
 - Drop support for Python 3.9 and 3.10; minimum supported version is now 3.11
 - Support PyMuPDF >= 1.25 (1.27.x tested). Older `<1.25` pin removed.
 - Bump `casparser-isin` to `>= 2026.5.1` (new DB format v2 with
@@ -23,20 +152,9 @@
   field (Python attribute `return_`) also gets the comma-stripping
   treatment; previously NSDL MF folio rows with a return value of
   1 lakh or more would fail Decimal validation.
-- Parser robustness fixes for PyMuPDF 1.25+ text extraction quirks:
-  - Re-emit visual rows as separate blocks for CAMS/KFINTECH so the
-    table header / folio header no longer get merged when the new
-    block grouping collapses them into a single PyMuPDF block.
-  - Recover the registrar value (e.g. `KFINTECH`) when it wraps to the
-    next line.
-  - Recover the advisor value when the scheme name wraps before the
-    advisor closing paren.
-  - Pull ISIN/Advisor onto the scheme line when long scheme names wrap.
-  - Tax transactions (`*** Stamp Duty ***`, STT, TDS) no longer absorb
-    spurious units when an adjacent column wraps onto the same row.
-  - NSDL holdings: widen the y-band tolerance, drop the strict
-    multiline `$` anchoring, and accept tab-separated wrapped names so
-    the regexes match consistently across Python 3.11–3.14.
+- Parser robustness fixes for PyMuPDF 1.25+ text extraction quirks
+  (all superseded in 1.0.0 by the pypdfium2 rewrite, kept here for
+  the historical record).
 
 ## 0.8.1 - 2025-09-21
 - NSDL parser bug fixes
