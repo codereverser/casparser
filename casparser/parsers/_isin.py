@@ -1,6 +1,6 @@
 from typing import Dict, Iterable, Optional, Tuple
 
-from casparser_isin import MFISINDb
+from casparser_isin import ISINDb, MFISINDb
 
 
 def isin_search(
@@ -70,4 +70,28 @@ def batch_isin_metadata(
                 result[isin] = (row.get("amfi_code"), row.get("type"))
             else:
                 result[isin] = (None, None)
+    return result
+
+
+def batch_equity_symbols(
+    isins: Iterable[str],
+) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+    """Map each equity ISIN to ``(symbol, exchange)`` in a single DB session.
+
+    Used to enrich demat (NSDL/CDSL) ``Equity`` holdings, which the depository
+    statements identify only by ISIN, with the exchange trading symbol that
+    price feeds key on. Opening one :class:`ISINDb` session for the whole batch
+    avoids per-row connect overhead.
+
+    Only ISINs the database resolves *and* that carry a symbol are returned;
+    everything else (unknown ISIN, a bond / AIF with no listed symbol, or a
+    database built before the symbol columns existed) is absent from the map.
+
+    :param isins: ISINs to resolve (duplicates and falsy values ignored).
+    """
+    result: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    with ISINDb() as db:
+        for isin, data in db.batch_isin_lookup(isins).items():
+            if data.symbol:
+                result[isin] = (data.symbol, data.exchange)
     return result

@@ -98,13 +98,25 @@ class Equity(BaseModel):
     num_shares: Decimal
     price: Decimal
     value: Decimal
+    # Depository (NSDL/CDSL) statements identify an equity holding only by
+    # ISIN. The exchange trading symbol (and exchange) are backfilled from the
+    # ISIN database after parsing (see parsers._isin.batch_equity_symbols) so
+    # downstream consumers can price the holding via a symbol-keyed feed.
+    symbol: Optional[str] = None
+    exchange: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
     def fix_float(cls, data: dict):
         for k, v in data.items():
-            if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
-                data[k] = v.replace(",", "_").replace("_", "")
+            try:
+                if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
+                    data[k] = v.replace(",", "_").replace("_", "")
+            except TypeError:
+                # Optional[...] / Union annotations (name / symbol / exchange)
+                # aren't classes; only the required Decimal fields need the
+                # comma-stripping treatment.
+                pass
         return data
 
 

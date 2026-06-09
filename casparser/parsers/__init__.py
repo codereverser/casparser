@@ -74,6 +74,28 @@ def _enrich_demat_mutual_funds(data: NSDLCASData) -> NSDLCASData:
     return data
 
 
+def _enrich_demat_equities(data: NSDLCASData) -> NSDLCASData:
+    """Backfill ``symbol`` / ``exchange`` on demat equity holdings from the ISIN DB.
+
+    NSDL/CDSL statements list equities by ISIN only, with no exchange ticker.
+    Resolve the NSE trading symbol from the ISIN database in one batch so a
+    consumer can price the holding via a symbol-keyed feed (e.g. Yahoo
+    ``SYMBOL.NS``). Values already set by the parser are left untouched; ISINs
+    the DB can't map to a symbol stay ``None``.
+    """
+    from ._isin import batch_equity_symbols
+
+    symbols = batch_equity_symbols(eq.isin for account in data.accounts for eq in account.equities)
+    for account in data.accounts:
+        for eq in account.equities:
+            symbol, exchange = symbols.get(eq.isin, (None, None))
+            if eq.symbol is None:
+                eq.symbol = symbol
+            if eq.exchange is None:
+                eq.exchange = exchange
+    return data
+
+
 def read_cas_pdf(
     filename: Union[str, io.IOBase],
     password: str,
@@ -184,6 +206,7 @@ def read_cas_pdf(
     # after the document is closed — the lookup needs no PDF handle.
     if isinstance(data, NSDLCASData):
         data = _enrich_demat_mutual_funds(data)
+        data = _enrich_demat_equities(data)
 
     if output == "dict":
         return data

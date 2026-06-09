@@ -44,7 +44,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "casparser-isin", specifier = ">=2026.5.1" },
+    { name = "casparser-isin", specifier = ">=2026.6.9" },
     { name = "click", specifier = ">=8.0,<10" },
     { name = "colorama", specifier = ">=0.4.6,<1" },
     { name = "pydantic", specifier = ">=2.3.0,<3" },
@@ -64,15 +64,15 @@ dev = [
 
 [[package]]
 name = "casparser-isin"
-version = "2026.5.1"
+version = "2026.6.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
     { name = "rapidfuzz" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/89/62/82ac748b5db8429b4c8ccc76002f130a540818841dcdf01edf9e3f318cbe/casparser_isin-2026.5.1.tar.gz", hash = "sha256:33ee02796a86adc6e52b0deb02631d93e8d1cbfa380f71176d758e4e56cfa36f", size = 9232971, upload-time = "2026-05-22T04:29:45.441Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/9e/db0f244259c392f7f6e455882245d87c680d64c7125606a46913e36a445b/casparser_isin-2026.6.9.tar.gz", hash = "sha256:f3016463a608107a8ef48b1752fb9d04086dc340595e32f7a833009643693f1b", size = 9303746, upload-time = "2026-06-09T11:06:23.777Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/89/b0dc213b033475bca7224b91040c68202dafda87d3ba5a3e5fe264e58f87/casparser_isin-2026.5.1-py3-none-any.whl", hash = "sha256:7b7386000dcfce5cfe31d6dd27f71b8e20c47ea56801a63b78636192cc3aee77", size = 9343316, upload-time = "2026-05-22T04:29:48.205Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/c6/cedc318cf2c9a14e3ce57e2fff09b935a25cbc726390196baa5897aa9f30/casparser_isin-2026.6.9-py3-none-any.whl", hash = "sha256:d5d43765a3479f710914b524a452968b72d21aea6ef199ebad1839553ed7ab76", size = 9418059, upload-time = "2026-06-09T11:06:21.406Z" },
 ]
 
 [[package]]

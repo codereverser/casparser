@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.1
+
+### New
+
+- **Demat equity holdings now carry `symbol` + `exchange`.** NSDL/CDSL
+  statements identify an equity by ISIN only, so `Equity` rows used to lack an
+  exchange trading ticker. The NSE symbol + exchange are now backfilled from the
+  ISIN database after parsing (`parsers._isin.batch_equity_symbols`,
+  `_enrich_demat_equities`), mirroring the existing MF `amfi` / `type`
+  enrichment — so a demat holding identified only by ISIN can be priced via a
+  symbol-keyed feed. Unresolvable ISINs stay `None`. Requires
+  `casparser-isin>=2026.6.9` (ships the symbol columns + `ISINDb.batch_isin_lookup`).
+
 ## 1.0.0
 
 Major release. The parsing backend was rewritten from scratch on

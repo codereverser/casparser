@@ -843,3 +843,185 @@ class TestSoftHyphen:
         assert len(cells) == 1
         assert cells[0].text == "INF179K01WN9"
         assert cdsl_p.INF_ISIN_RE.match(cells[0].text)
+
+
+class TestBatchEquitySymbols:
+    """`batch_equity_symbols` backfills (symbol, exchange) for demat equity
+    holdings, which depository statements carry by ISIN only."""
+
+    @staticmethod
+    def _isin_db_with_symbols(path):
+        import sqlite3
+        from contextlib import closing
+
+        with closing(sqlite3.connect(path)) as conn, conn:
+            conn.execute(
+                "CREATE TABLE isin(isin NOT NULL PRIMARY KEY, name, issuer, type, "
+                "status, symbol, exchange, last_seen)"
+            )
+            conn.executemany(
+                "INSERT INTO isin(isin, name, issuer, type, status, symbol, exchange, "
+                "last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        "INE002A01018",
+                        "Reliance",
+                        "RIL",
+                        "EQUITY SHARES",
+                        "ACTIVE",
+                        "RELIANCE",
+                        "NSE",
+                        "2026-06-01",
+                    ),
+                    # A bond with no listed symbol -- must not appear in the map.
+                    (
+                        "INE111A07011",
+                        "Some SGB",
+                        "RBI",
+                        "SOVEREIGN GOLD BOND",
+                        "ACTIVE",
+                        None,
+                        None,
+                        "2026-06-01",
+                    ),
+                ],
+            )
+
+    def test_resolves_symbols(self, tmp_path, monkeypatch):
+        from casparser.parsers._isin import batch_equity_symbols
+
+        db = tmp_path / "isin.db"
+        self._isin_db_with_symbols(db)
+        monkeypatch.setenv("CASPARSER_ISIN_DB", str(db))
+        out = batch_equity_symbols(["INE002A01018", "INE002A01018", "", "INE111A07011"])
+        assert out["INE002A01018"] == ("RELIANCE", "NSE")
+        # Bond carries no symbol -> excluded entirely.
+        assert "INE111A07011" not in out
+
+    def test_unknown_isin_absent(self, tmp_path, monkeypatch):
+        from casparser.parsers._isin import batch_equity_symbols
+
+        db = tmp_path / "isin.db"
+        self._isin_db_with_symbols(db)
+        monkeypatch.setenv("CASPARSER_ISIN_DB", str(db))
+        assert batch_equity_symbols(["INE000X00X00"]) == {}
+
+    def test_legacy_db_without_symbol_columns_returns_empty(self, tmp_path, monkeypatch):
+        # A DB built before the symbol columns existed resolves nothing here
+        # (graceful degradation) rather than raising.
+        import sqlite3
+        from contextlib import closing
+
+        from casparser.parsers._isin import batch_equity_symbols
+
+        db = tmp_path / "isin.db"
+        with closing(sqlite3.connect(db)) as conn, conn:
+            conn.execute(
+                "CREATE TABLE isin(isin NOT NULL PRIMARY KEY, name, issuer, type, "
+                "status, last_seen)"
+            )
+            conn.execute(
+                "INSERT INTO isin VALUES (?, ?, ?, ?, ?, ?)",
+                ("INE002A01018", "Reliance", "RIL", "EQUITY SHARES", "ACTIVE", "2026-06-01"),
+            )
+        monkeypatch.setenv("CASPARSER_ISIN_DB", str(db))
+        assert batch_equity_symbols(["INE002A01018"]) == {}
+
+    def test_empty_input_returns_empty(self):
+        from casparser.parsers._isin import batch_equity_symbols
+
+        assert batch_equity_symbols([]) == {}
+        assert batch_equity_symbols(["", None]) == {}
+
+
+class TestEquityModelSymbolFields:
+    """The Equity model gained symbol/exchange; construction stays robust."""
+
+    def test_symbol_exchange_default_none_and_decimals_still_parse(self):
+        from casparser.types import Equity
+
+        eq = Equity(isin="INE002A01018", num_shares="1,000", price="1,234.50", value="12,34,500")
+        assert eq.symbol is None
+        assert eq.exchange is None
+        assert eq.num_shares == Decimal("1000")
+        assert eq.price == Decimal("1234.50")
+
+    def test_constructing_with_symbol_does_not_break_fix_float(self):
+        from casparser.types import Equity
+
+        eq = Equity(
+            isin="INE002A01018",
+            num_shares="5",
+            price="10",
+            value="50",
+            symbol="RELIANCE",
+            exchange="NSE",
+        )
+        assert eq.symbol == "RELIANCE"
+        assert eq.exchange == "NSE"
+
+
+class TestEnrichDematEquities:
+    """End-to-end backfill: parsed equities get a symbol from the ISIN DB."""
+
+    def test_enriches_equity_symbol(self, tmp_path, monkeypatch):
+        import sqlite3
+        from contextlib import closing
+
+        from casparser.enums import FileType
+        from casparser.parsers import _enrich_demat_equities
+        from casparser.types import (
+            DematAccount,
+            DematOwner,
+            Equity,
+            InvestorInfo,
+            NSDLCASData,
+            StatementPeriod,
+        )
+
+        db = tmp_path / "isin.db"
+        with closing(sqlite3.connect(db)) as conn, conn:
+            conn.execute(
+                "CREATE TABLE isin(isin NOT NULL PRIMARY KEY, name, issuer, type, "
+                "status, symbol, exchange, last_seen)"
+            )
+            conn.execute(
+                "INSERT INTO isin VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "INE002A01018",
+                    "Reliance",
+                    "RIL",
+                    "EQUITY SHARES",
+                    "ACTIVE",
+                    "RELIANCE",
+                    "NSE",
+                    "2026-06-01",
+                ),
+            )
+        monkeypatch.setenv("CASPARSER_ISIN_DB", str(db))
+
+        data = NSDLCASData(
+            accounts=[
+                DematAccount(
+                    name="ACME Demat",
+                    type="NSDL",
+                    folios=1,
+                    balance=Decimal("100"),
+                    owners=[DematOwner(name="A B", PAN="ABCDE1234F")],
+                    equities=[
+                        Equity(isin="INE002A01018", num_shares="10", price="10", value="100"),
+                        Equity(isin="INE000X00X00", num_shares="5", price="2", value="10"),
+                    ],
+                    mutual_funds=[],
+                )
+            ],
+            statement_period=StatementPeriod(**{"from": "2026-01-01", "to": "2026-03-31"}),
+            investor_info=InvestorInfo(name="A B", email="a@b.com", address="x", mobile="9"),
+            file_type=FileType.NSDL,
+        )
+        out = _enrich_demat_equities(data)
+        eqs = {e.isin: e for e in out.accounts[0].equities}
+        assert eqs["INE002A01018"].symbol == "RELIANCE"
+        assert eqs["INE002A01018"].exchange == "NSE"
+        # Unresolved ISIN stays None, doesn't raise.
+        assert eqs["INE000X00X00"].symbol is None

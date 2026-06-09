@@ -15,7 +15,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "casparser-isin>=2026.5.1",
+    "casparser-isin>=2026.6.9",
     "click>=8.0,<10",
     "colorama>=0.4.6,<1",
     # pypdfium2 ships a vendored C lib; we use the raw ctypes surface
