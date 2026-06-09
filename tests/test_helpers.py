@@ -78,6 +78,17 @@ class TestTransactionType:
             "Div. Reinvested @ Rs.0.0241 per unit",
             Decimal("1"),
         ) == (TransactionType.DIVIDEND_REINVEST, Decimal("0.0241"))
+        # Regression: "reinvest" appearing before the IDCW/Div anchor, or
+        # separated from it by punctuation, used to leak through as PAYOUT
+        # because the inline `(reinvest)*` group never backtracked to capture.
+        assert get_transaction_type(
+            "Reinvestment of IDCW @ Rs.0.0241 per unit",
+            Decimal("1"),
+        ) == (TransactionType.DIVIDEND_REINVEST, Decimal("0.0241"))
+        assert get_transaction_type(
+            "IDCW - Reinvest @ Rs.0.06 per unit",
+            Decimal("1"),
+        ) == (TransactionType.DIVIDEND_REINVEST, Decimal("0.06"))
 
 
 class TestParsedSchemeName:

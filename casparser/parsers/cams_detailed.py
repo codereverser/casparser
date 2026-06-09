@@ -136,15 +136,12 @@ def detect_txn_columns(lines: List[Line], start_idx: int) -> Optional[tuple[int,
 def _build_columns(words: List[tuple[str, float, float]]) -> List[Column]:
     """Map header words to Columns. Merge "Unit"+"Balance" into one column."""
     cols: List[Column] = []
-    used = set()
     for text, x0, x1 in words:
         if text == "Unit" and ("Balance" in (w[0] for w in words)):
             # Find "Balance" with overlapping x-range
             for w_text, w_x0, w_x1 in words:
                 if w_text == "Balance" and abs((w_x0 + w_x1) / 2 - (x0 + x1) / 2) < 30:
                     cols.append(Column("Unit Balance", min(x0, w_x0), max(x1, w_x1), "right"))
-                    used.add(id((text, x0, x1)))
-                    used.add(id((w_text, w_x0, w_x1)))
                     break
         elif text in ALIGN and text not in ("Unit", "Balance"):
             cols.append(Column(text, x0, x1, ALIGN[text]))
@@ -381,7 +378,10 @@ def parse(
     pages = extract_pages(pdf_path, password, _doc=_doc)
 
     statement_period: Optional[StatementPeriod] = None
-    folios: dict[str, Folio] = {}
+    # Keyed by (amc, folio_no): folio numbers are RTA-scoped, not globally
+    # unique, so two AMCs can share one. Keying on the number alone would
+    # silently merge the second AMC's schemes into the first AMC's folio.
+    folios: dict[tuple[str, str], Folio] = {}
     current_amc: Optional[str] = None
     current_folio: Optional[Folio] = None
     current_scheme: Optional[Scheme] = None
@@ -424,8 +424,9 @@ def parse(
                 # Preserve internal " / " for compatibility with production
                 # parser output format (it keeps "12124203 / 63" style).
                 folio_no = m.group(1).strip()
-                if folio_no not in folios:
-                    folios[folio_no] = Folio(
+                folio_key = (current_amc or "UNKNOWN", folio_no)
+                if folio_key not in folios:
+                    folios[folio_key] = Folio(
                         folio=folio_no,
                         amc=current_amc or "UNKNOWN",
                         PAN=m.group(2) or "",
@@ -433,7 +434,7 @@ def parse(
                         PANKYC=m.group(4) or None,
                         schemes=[],
                     )
-                current_folio = folios[folio_no]
+                current_folio = folios[folio_key]
                 current_scheme = None
                 continue
 

@@ -22,12 +22,20 @@ from typing import Optional, Tuple
 
 from casparser.enums import TransactionType
 
-# Matches an IDCW / dividend transaction description. Captures the
-# "reinvest" hint (if present) and the per-unit rupee value.
+# Matches an IDCW / dividend transaction description and captures the
+# per-unit rupee value. The "reinvest" hint is detected separately
+# (REINVEST_RE) rather than as an inline group: with a lazy `.*?` on
+# both sides of an optional group, the engine settles on the first
+# complete match and never backtracks to populate the group, so it only
+# captured "reinvest" when the word sat exactly where the minimal
+# expansion stopped. "Reinvestment of IDCW @ Rs..." and "IDCW - Reinvest
+# @ Rs..." both leaked through as PAYOUT. A plain substring search is
+# unambiguous.
 DIVIDEND_RE = re.compile(
-    r"(?:div\.|dividend|idcw).+?(reinvest)*.*?@\s*Rs\.\s*([\d\.]+)(?:\s+per\s+unit)?",
+    r"(?:div\.|dividend|idcw).*?@\s*Rs\.\s*([\d\.]+)(?:\s+per\s+unit)?",
     re.I | re.DOTALL,
 )
+REINVEST_RE = re.compile(r"reinvest", re.I)
 
 
 def get_transaction_type(
@@ -41,10 +49,11 @@ def get_transaction_type(
     dividend_rate: Optional[Decimal] = None
     description = description.lower()
     if div_match := DIVIDEND_RE.search(description):
-        reinvest_flag, dividend_str = div_match.groups()
-        dividend_rate = Decimal(dividend_str)
+        dividend_rate = Decimal(div_match.group(1))
         txn_type = (
-            TransactionType.DIVIDEND_REINVEST if reinvest_flag else TransactionType.DIVIDEND_PAYOUT
+            TransactionType.DIVIDEND_REINVEST
+            if REINVEST_RE.search(description)
+            else TransactionType.DIVIDEND_PAYOUT
         )
     elif units is None:
         if "stt" in description:
