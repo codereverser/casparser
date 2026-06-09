@@ -484,6 +484,18 @@ def parse(
                         re.I,
                     )
                 )
+                # Some CAMS templates render the advisor value on a wrapped
+                # line *below* the header, with "Registrar : <RTA>" interleaved
+                # ahead of it, e.g.
+                #     "<code>-<name> ... (Advisor: Registrar : CAMS"
+                #     "ARN-28283)"
+                # The "(Advisor:" opener mid-line has no matching ")" — its
+                # value sits on the next baseline. We must pull that line in
+                # AND mark it consumed, else the lone "ARN-28283)" line (a "-"
+                # below a Registrar line) re-anchors as a bogus scheme whose
+                # code parses as "ARN".
+                adv_open = re.search(r"\(\s*Advisor\s*:", text, re.I)
+                unclosed_advisor = bool(adv_open) and ")" not in text[adv_open.end() :]
                 for offset in (1, 2):
                     j = i + offset
                     if j >= len(page.lines):
@@ -498,7 +510,7 @@ def parse(
                         # name (possibly with a stray watermark fragment,
                         # e.g. "KFINTECH 4."), which the markers above miss.
                         or RTA_TOKEN_RE.search(t_below)
-                        or (offset == 1 and trailing_incomplete)
+                        or (offset == 1 and (trailing_incomplete or unclosed_advisor))
                     ):
                         parts_below.append(t_below)
                         below_indices.append(j)
@@ -520,6 +532,14 @@ def parse(
                     # separate schemes — block them from anchoring again.
                     consumed_below.update(below_indices)
                     code = m.group("code").strip()
+                    # "ARN" is a distributor's AMFI registration prefix, never
+                    # a scheme RTA code. A header matching with code == "ARN"
+                    # is an advisor-value wrap line ("ARN-28283) ...") that got
+                    # mis-anchored on top of the real header above it — skip it
+                    # (defensive; the unclosed-advisor stitch above normally
+                    # consumes the wrap line before it reaches here).
+                    if code.upper() == "ARN":
+                        continue
                     raw_name = m.group("name")
                     # Pull `(Advisor: …)` and `- ISIN: …` out of name
                     # (templates emit them in either order). Capture
@@ -545,8 +565,20 @@ def parse(
                         inline_isin = anywhere.group(0) if anywhere else None
                     adv_m = INLINE_ADVISOR_RE.search(scheme_text)
                     advisor = adv_m.group(1).strip() if adv_m else None
+                    # When the advisor value wrapped below an interleaved
+                    # "Registrar : <RTA>", the captured blob looks like
+                    # "Registrar : CAMS ARN-28283" — narrow it to the actual
+                    # distributor code (ARN-xxxx) or RIA code (INAxxxx).
+                    if advisor:
+                        adv_code = re.search(r"\b(ARN-?\d+|INA\d+)\b", advisor, re.I)
+                        if adv_code:
+                            advisor = adv_code.group(1)
                     raw_name = INLINE_ISIN_RE.sub("", raw_name)
                     raw_name = INLINE_ADVISOR_RE.sub("", raw_name)
+                    # The name capture stops at the first "Registrar :", which
+                    # for the interleaved "(Advisor: Registrar : CAMS" wrap
+                    # leaves a dangling, unclosed "(Advisor:" on the tail.
+                    raw_name = re.sub(r"[\s-]*\(\s*Advisor\s*:?\s*$", "", raw_name)
                     name = get_parsed_scheme_name(raw_name)
                     # The registrar name is not reliably the first token
                     # after `Registrar :` — pick the recognised RTA token
