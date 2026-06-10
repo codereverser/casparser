@@ -13,6 +13,33 @@ from casparser.parsers._classify import (
     get_transaction_type,
 )
 from casparser.parsers._isin import isin_search
+from casparser.parsers.cams_detailed import _reconcile_balances
+from casparser.types import Scheme, SchemeValuation, TransactionData
+
+
+def _scheme(open_bal, close_bal, rows):
+    """Build a minimal Scheme from (units, balance) rows for reconciliation
+    tests. `units`/`balance` may be None."""
+    txns = [
+        TransactionData(
+            date="2021-01-%02d" % (i + 1),
+            description="txn",
+            units=u,
+            balance=b,
+            type=TransactionType.PURCHASE,
+        )
+        for i, (u, b) in enumerate(rows)
+    ]
+    return Scheme(
+        scheme="Test Fund - Direct Growth",
+        rta_code="T123",
+        rta="CAMS",
+        open=Decimal(open_bal),
+        close=Decimal(close_bal),
+        close_calculated=Decimal(close_bal),
+        valuation=SchemeValuation(date="2021-12-31", nav=Decimal("10"), value=Decimal("0")),
+        transactions=txns,
+    )
 
 
 class TestTransactionType:
@@ -130,6 +157,47 @@ class TestParsedSchemeName:
             )
             == "Bandhan Liquid Fund-Growth-(Regular Plan)"
         )
+
+
+class TestReconcileBalances:
+    def test_clean_scheme_has_no_warnings(self):
+        # open 0; +100 -> 100; +50 -> 150; close 150. Fully reconciled.
+        s = _scheme(0, "150", [(Decimal("100"), Decimal("100")), (Decimal("50"), Decimal("150"))])
+        assert _reconcile_balances(s) == []
+
+    def test_zero_unit_rows_are_skipped(self):
+        # An STT row (no units) prints the unchanged balance — not a gap.
+        s = _scheme(
+            0,
+            "100",
+            [(Decimal("100"), Decimal("100")), (None, Decimal("100"))],
+        )
+        assert _reconcile_balances(s) == []
+
+    def test_dropped_mid_row_is_flagged_once(self):
+        # Rows print 100 then 300, but only +100 of units is recorded
+        # between them — a ~100-unit row was dropped. Exactly one warning,
+        # and it resyncs (no cascade onto the final row).
+        s = _scheme(
+            0,
+            "300",
+            [(Decimal("100"), Decimal("100")), (Decimal("100"), Decimal("300"))],
+        )
+        warns = _reconcile_balances(s)
+        assert len(warns) == 1
+        assert "discontinuity" in warns[0]
+
+    def test_closing_mismatch_flagged_when_no_row_balance_exposes_it(self):
+        # Final row carries units but no printed balance; computed running
+        # (150) disagrees with the printed close (200) -> closing warning.
+        s = _scheme(
+            0,
+            "200",
+            [(Decimal("100"), Decimal("100")), (Decimal("50"), None)],
+        )
+        warns = _reconcile_balances(s)
+        assert len(warns) == 1
+        assert "closing unit balance mismatch" in warns[0]
 
 
 class TestISINSearch:

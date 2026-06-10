@@ -363,6 +363,55 @@ def _apply_balance_sign_fix(scheme: Scheme) -> None:
     scheme.close_calculated = total
 
 
+def _reconcile_balances(scheme: Scheme) -> List[str]:
+    """Validate transactions against the printed running ``Unit Balance``.
+
+    The statement carries its own checksum: every row prints the running
+    unit balance *after* that transaction, so ``prev_balance + units``
+    must equal the printed ``balance`` on each row (signs already
+    corrected by :func:`_apply_balance_sign_fix`). When it doesn't, a row
+    was dropped or garbled between the previous row and this one — the
+    most dangerous failure mode, because the parse still *looks* fine.
+
+    Returns one human-readable warning per discontinuity. On a mismatch
+    we resync the running total to the statement's printed value so a
+    single missing row produces one warning instead of cascading onto
+    every row after it. A final closing-balance check catches a drop that
+    has no later printed balance to expose it (e.g. a missing last row).
+
+    Rows without ``units`` (STT / Stamp / TDS / MISC) leave the balance
+    unchanged; rows without a printed ``balance`` can't be checked and
+    are skipped.
+    """
+    tol = Decimal("0.005")
+    warnings: List[str] = []
+    label = f"{scheme.scheme!r} [{scheme.rta_code}]"
+    running: Decimal = Decimal(str(scheme.open)) if scheme.open is not None else Decimal(0)
+    for t in scheme.transactions:
+        if t.units is not None:
+            running += Decimal(str(t.units))
+        if t.balance is None:
+            continue
+        printed = Decimal(str(t.balance))
+        if abs(running - printed) > tol:
+            warnings.append(
+                f"{label}: unit-balance discontinuity at {t.date} ({t.type}) — "
+                f"computed {running} but statement printed {printed} "
+                f"(Δ={running - printed}); a transaction row may be missing "
+                f"or mis-parsed"
+            )
+            running = printed  # trust the statement's own running total
+    if scheme.close is not None:
+        close = Decimal(str(scheme.close))
+        if abs(running - close) > tol:
+            warnings.append(
+                f"{label}: closing unit balance mismatch — computed {running} but "
+                f"statement printed {close} (Δ={running - close}); a transaction "
+                f"row may be missing or mis-parsed"
+            )
+    return warnings
+
+
 # -----------------------------------------------------------------------------
 # Top-level parse
 # -----------------------------------------------------------------------------
@@ -693,9 +742,15 @@ def parse(
     # (e.g. KFin Franklin `Payment - Units Extinguished-Reversed`
     # rows). Cheap, self-validating, and a no-op when signs already
     # agree with the printed balance.
+    # Then reconcile each scheme against its printed running Unit Balance
+    # (the statement's own checksum) and surface any discontinuity as a
+    # non-fatal warning — the cheapest possible signal for the otherwise
+    # silent "a row was dropped / mis-parsed" failure mode.
+    parse_warnings: List[str] = []
     for folio in folios.values():
         for scheme in folio.schemes:
             _apply_balance_sign_fix(scheme)
+            parse_warnings.extend(_reconcile_balances(scheme))
 
     return CASData(
         statement_period=statement_period or StatementPeriod(**{"from": "", "to": ""}),
@@ -703,4 +758,5 @@ def parse(
         investor_info=extract_cams_kfin_investor(pdf_path, password, _doc=_doc),
         cas_type=CASFileType.DETAILED,
         file_type=file_type,
+        parse_warnings=parse_warnings,
     )

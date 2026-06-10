@@ -480,6 +480,19 @@ def cli(output, summary, password, include_all, gains, gains_112a, force_pdfmine
     except ParserException as exc:
         console.print(f"Error parsing pdf file :: [bold red]{str(exc)}[/]")
         sys.exit(1)
+
+    # Surface non-fatal data-quality warnings (e.g. a scheme whose
+    # transactions don't reconcile against its printed Unit Balance) so a
+    # silently-wrong parse becomes a visible one.
+    warnings_list = getattr(data, "parse_warnings", None) or []
+    if warnings_list:
+        console.print(
+            f"[bold yellow]Warning:[/] {len(warnings_list)} data-quality "
+            f"issue(s) detected while parsing:"
+        )
+        for w in warnings_list:
+            console.print(f"  [yellow]•[/] {w}")
+
     if isinstance(data, NSDLCASData):
         print_nsdl(data)
     elif summary:

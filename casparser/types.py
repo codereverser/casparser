@@ -81,6 +81,13 @@ class CASData(BaseModel):
     investor_info: InvestorInfo
     cas_type: CASFileType
     file_type: FileType
+    # Non-fatal data-quality warnings raised during parsing. Currently
+    # populated by the CAMS/KFin DETAILED parser, which reconciles each
+    # scheme's transactions against the printed running Unit Balance
+    # column (the statement's own checksum). A non-empty list means a
+    # transaction row was likely dropped or mis-parsed — the parse still
+    # returns, but the data for that scheme should not be trusted blindly.
+    parse_warnings: List[str] = []
     model_config = ConfigDict(
         populate_by_name=True,
         use_enum_values=True,
