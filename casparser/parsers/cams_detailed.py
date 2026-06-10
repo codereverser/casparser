@@ -232,16 +232,6 @@ FOLIO_LINE_RE = re.compile(
     r"(?:.*?PAN\s*:\s*(OK|NOT OK))?",
     re.I,
 )
-SCHEME_HEAD_RE = re.compile(
-    # `<CODE>-<NAME> Registrar:<RTA>`. The `<NAME>` chunk may carry
-    # inline `(Advisor: <ARN>)` and `- ISIN: <ISIN>` segments in either
-    # order — newer KFin templates put `(Advisor:...) - ISIN:...`,
-    # newer CAMS templates put `- ISIN: ...(Advisor: ...)`. We capture
-    # everything between code and Registrar as `name` and then strip
-    # the advisor / ISIN fragments out in a second pass.
-    r"^(?P<code>[\w\s]+?)-\s*(?P<name>.+?)" r"\s+Registrar\s*:\s*(?P<rta>\S+)",
-    re.I,
-)
 INLINE_ISIN_RE = re.compile(r"[-\s]*ISIN\s*:\s*([A-Z0-9]+)", re.I)
 INLINE_ADVISOR_RE = re.compile(r"[-\s]*\(\s*Advisor\s*:\s*([^)]+?)\)", re.I)
 SCHEME_HEAD_RTA_RE = re.compile(r"Registrar\s*:\s*(\S+)", re.I)
@@ -415,26 +405,44 @@ def _reconcile_balances(scheme: Scheme) -> List[str]:
     return warnings
 
 
-# Membership filter for the scheme-header region buffer. A line is header
-# content if it carries a header marker (Registrar/Advisor/ISIN/Nominee), an
-# advisor code (ARN-xxxx / INAxxxx), an RTA token (CAMS/KFINTECH/...), or is a
-# scheme-code line `<code>-...` whose code contains a letter. The
-# letter-in-code rule is what separates a real scheme line ("128TSGPG-Axis…",
-# "HGFG-HDFC…") from the investor-name, address, date-range and trailing
-# load/disclaimer lines that also sit between the folio line and `Opening Unit
-# Balance` ("Entry Load - NIL…" has a space before its dash; "01-Jan-1990…"
-# has a digits-only leading token; an investor name has no dash at all).
+# Header-content markers used by `_build_scheme_from_buffer` to pick the
+# region lines that form the wrapped scheme header: an annotation label
+# (Registrar/Advisor/ISIN/Nominee), an advisor code (ARN-xxxx / INAxxxx),
+# an RTA token (CAMS/KFINTECH/...), or a scheme-code line `<code>-...`
+# whose code contains a letter. The letter-in-code rule is what separates
+# a real scheme line ("128TSGPG-Axis…", "HGFG-HDFC…") from the
+# investor-name, address, date-range and trailing load/disclaimer lines
+# that also sit between the folio line and `Opening Unit Balance`
+# ("Entry Load - NIL…" has a space before its dash; "01-Jan-1990…" has a
+# digits-only leading token; an investor name has no dash at all).
 _HEADER_MARKER_RE = re.compile(
     r"Registrar\s*:|Advisor\s*:|ISIN\s*:|Nominee\s+\d|\bARN-?\d+\b|\bINA\d+\b", re.I
 )
-_SCHEME_CODE_RE = re.compile(r"^\s*[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*-")
-# A trailing, unfinished marker means the value continues on the next document
-# line, which may carry no marker of its own (e.g. "(Advisor: Registrar : CAMS"
-# wrapping to "ARN-28283)", or a bare "WEALTH)" distributor code). When the
-# last buffered line ends like this we force the very next line into the buffer
-# regardless of the membership filter — the region-bounded equivalent of the
-# old `unclosed_advisor` / `trailing_incomplete` one-line lookahead.
+# Scheme codes may contain internal spaces ("127 CPGPG-Motilal…"), so the
+# rule is: alphanumeric tokens, at least one letter somewhere (lookahead),
+# and the dash glued to the last token — "Entry Load - NIL" (space before
+# dash) and "01-Jan-1990" (digits-only code) both fail.
+_SCHEME_CODE_RE = re.compile(r"^\s*(?=[A-Z0-9 ]{0,40}[A-Z])[A-Z0-9]+(?: [A-Z0-9]+)*-", re.I)
+# A trailing, unfinished marker means the value continues on the next
+# document line, which may carry no marker of its own (e.g. "(Advisor:
+# Registrar : CAMS" wrapping to "ARN-28283)", or a bare "WEALTH)"
+# distributor code) — the member that follows a dangling line joins the
+# header regardless of its own content.
 _TRAILING_MARKER_RE = re.compile(r"(Registrar\s*:|Advisor\s*:|ISIN\s*:|\(\s*Advisor\s*:)\s*$", re.I)
+# Cut point for the scheme *name*: the first annotation that follows the
+# name text on the scheme line or its wrap lines. Subsumes the old
+# "strip ISIN / advisor / dangling '(Advisor:' back out of the name
+# capture" passes.
+_NAME_CUT_RE = re.compile(
+    r"\(\s*Advisor\s*:"
+    r"|ISIN\s*:"
+    r"|Registrar\s*:?"
+    r"|Nominee\s+\d"
+    r"|\bARN-?\d+\b|\bINA\d+\b"
+    r"|\b(?:CAMS|KFINTECH|KFIN|KARVY)\b",
+    re.I,
+)
+_ADVISOR_CODE_RE = re.compile(r"\b(ARN-?\d+|INA\d+)\b", re.I)
 
 
 def _is_header_line(text: str) -> bool:
@@ -451,93 +459,131 @@ def _expects_continuation(text: str) -> bool:
     return bool(adv) and ")" not in text[adv.end() :]
 
 
-def _build_scheme_from_buffer(buf: List[str], statement_period) -> Optional[Scheme]:
-    """Build a :class:`Scheme` from an accumulated scheme-header region.
+def _find_scheme_line(lines: List[str]) -> Optional[int]:
+    """Index of the region's `<code>-<name>` scheme line, or ``None``.
 
-    ``buf`` holds the region's lines in document (top-down) order — every
-    line between the folio line / previous scheme's footer and this
-    scheme's ``Opening Unit Balance``, minus recognised anchors and the
-    transaction-column-header window. The header wraps unpredictably, so
-    rather than stitch by proximity we join the whole region and extract
-    fields once.
+    "ARN" is a distributor's AMFI registration prefix, never a scheme
+    RTA code — an `ARN-28283)` advisor-value wrap line is not a scheme.
+    """
+    for k, ln in enumerate(lines):
+        if not _SCHEME_CODE_RE.match(ln):
+            continue
+        if ln.partition("-")[0].strip().upper() == "ARN":
+            continue
+        return k
+    return None
 
-    Anchor selection (the crux): ``SCHEME_HEAD_RE`` is ``^``-anchored, so
-    the ``<code>-name`` line must lead the joined blob. We try each
-    region line as the lead — floating it to the front with the remaining
-    lines kept in document order — and take the first that yields a valid
-    match whose code is not ``ARN``. Floating the lead with the rest in
-    document order reproduces the previous stitcher's
-    ``[scheme_line] + parts_above + parts_below`` ordering exactly. This
-    one rule subsumes every old heuristic: bare ``Registrar :`` lines and
-    junk never match as a lead; the ``ARN-…`` advisor-wrap fragment is
-    rejected by the code check; and a header that matches nowhere returns
-    ``None`` (no scheme), the same net effect as before.
 
-    Returns the built :class:`Scheme`, or ``None`` when the region carries
-    no parseable header.
+def _header_member_indices(lines: List[str]) -> List[int]:
+    """Indices of the region lines that form the stitched scheme header.
+
+    A line joins if it carries header content (`_is_header_line`) or if
+    the previous member left a marker value dangling
+    (`_expects_continuation`). Everything else — load/disclaimer text,
+    dates, addresses — is ignored; junk in the region is harmless
+    because it never joins the stitched text.
+    """
+    out: List[int] = []
+    forced = False
+    for idx, ln in enumerate(lines):
+        if forced or _is_header_line(ln):
+            out.append(idx)
+            forced = _expects_continuation(ln)
+        else:
+            forced = False
+    return out
+
+
+def _region_candidate(buf: List[str]) -> Optional[tuple[List[str], int, List[int], str]]:
+    """Locate a scheme-header candidate in a region buffer.
+
+    Returns ``(lines, scheme_line_index, member_indices, header_text)``
+    when the region holds a scheme line AND ``Registrar`` evidence in
+    its stitched member text — the shared gate for building a scheme
+    and for warning about a region that was discarded unbuilt. ``None``
+    means the region is routine junk (trailing load / disclaimer text):
+    a hyphenated word can look like a ``<code>-`` line, but it never
+    comes with a ``Registrar`` label.
     """
     lines = [s.strip() for s in buf if s.strip()]
     if not lines:
         return None
-
-    scheme_text = None
-    m = None
-    code = None
-    for k, cand in enumerate(lines):
-        if "-" not in cand:
-            continue
-        rest = [lines[j] for j in range(len(lines)) if j != k]
-        candidate_text = " ".join([cand] + rest)
-        if "Registrar" not in candidate_text:
-            continue
-        cm = SCHEME_HEAD_RE.match(candidate_text)
-        if not cm:
-            continue
-        cand_code = cm.group("code").strip()
-        # "ARN" is a distributor's AMFI registration prefix, never a
-        # scheme RTA code — a header anchored on the wrapped advisor value
-        # ("ARN-28283) ...") rather than the real scheme line. Reject it.
-        if cand_code.upper() == "ARN":
-            continue
-        scheme_text, m, code = candidate_text, cm, cand_code
-        break
-
-    if m is None:
+    s_idx = _find_scheme_line(lines)
+    if s_idx is None:
         return None
+    members = _header_member_indices(lines)
+    header_text = " ".join(lines[k] for k in members)
+    if "Registrar" not in header_text:
+        return None
+    return lines, s_idx, members, header_text
 
-    raw_name = m.group("name")
-    # Advisor / ISIN can sit in the name OR in the stitched registrar
-    # annotation that follows `Registrar :` (templates emit them in either
-    # order), so search the whole stitched header, not just the name.
-    isin_m = INLINE_ISIN_RE.search(scheme_text)
+
+def _build_scheme_from_buffer(
+    buf: List[str], statement_period: Optional[StatementPeriod]
+) -> Optional[Scheme]:
+    """Build a :class:`Scheme` from an accumulated scheme-header region.
+
+    ``buf`` holds *every* line between the folio line / previous
+    scheme's footer and this scheme's ``Opening Unit Balance`` (minus
+    recognised anchors and the transaction-column-header window), in
+    document order. The accumulation loop is deliberately dumb; all
+    judgment lives here, where the whole region is visible at once:
+
+    1. locate the ``<code>-<name>`` scheme line;
+    2. select the member lines that form the wrapped header — marker
+       lines, RTA tokens, and dangling-value continuations;
+    3. extract each field independently with unanchored searches over
+       the stitched member text. There is no single do-everything
+       header regex, so a stray region line can pollute at most the
+       one field whose pattern it happens to match.
+
+    The scheme *name* is the only positional field: the scheme line's
+    text after ``<code>-`` plus any member lines that follow it, cut at
+    the first annotation marker.
+
+    Returns the built :class:`Scheme`, or ``None`` when the region has
+    no scheme line or no ``Registrar`` evidence (every known template
+    carries the label somewhere in the header; without it a ``<code>-``
+    line is a footnote, not a scheme).
+    """
+    cand = _region_candidate(buf)
+    if cand is None:
+        return None
+    lines, s_idx, members, header_text = cand
+
+    code, _, scheme_rest = lines[s_idx].partition("-")
+    code = code.strip()
+    name_text = " ".join([scheme_rest] + [lines[k] for k in members if k > s_idx])
+    cut = _NAME_CUT_RE.search(name_text)
+    raw_name = name_text[: cut.start()] if cut else name_text
+    name = get_parsed_scheme_name(raw_name)
+
+    isin_m = INLINE_ISIN_RE.search(header_text)
     inline_isin = isin_m.group(1).strip() if isin_m else None
     # The value after "ISIN:" can wrap, so the labelled capture may grab
     # the following "Registrar" label or a truncated stub. If it isn't a
     # full ISIN, look for a complete one anywhere in the stitched header.
     if not inline_isin or not FULL_ISIN_RE.match(inline_isin):
-        anywhere = ISIN_ANYWHERE_RE.search(scheme_text)
+        anywhere = ISIN_ANYWHERE_RE.search(header_text)
         inline_isin = anywhere.group(0) if anywhere else None
-    adv_m = INLINE_ADVISOR_RE.search(scheme_text)
+
+    adv_m = INLINE_ADVISOR_RE.search(header_text)
     advisor = adv_m.group(1).strip() if adv_m else None
     # When the advisor value wrapped below an interleaved "Registrar :
     # <RTA>", the captured blob looks like "Registrar : CAMS ARN-28283" —
     # narrow it to the actual distributor (ARN-xxxx) / RIA (INAxxxx) code.
-    if advisor:
-        adv_code = re.search(r"\b(ARN-?\d+|INA\d+)\b", advisor, re.I)
-        if adv_code:
-            advisor = adv_code.group(1)
-    raw_name = INLINE_ISIN_RE.sub("", raw_name)
-    raw_name = INLINE_ADVISOR_RE.sub("", raw_name)
-    # The name capture stops at the first "Registrar :", which for the
-    # interleaved "(Advisor: Registrar : CAMS" wrap leaves a dangling,
-    # unclosed "(Advisor:" on the tail.
-    raw_name = re.sub(r"[\s-]*\(\s*Advisor\s*:?\s*$", "", raw_name)
-    name = get_parsed_scheme_name(raw_name)
+    if advisor and (adv_code := _ADVISOR_CODE_RE.search(advisor)):
+        advisor = adv_code.group(1)
+
     # The registrar name is not reliably the first token after
-    # `Registrar :` — pick the recognised RTA token from the stitched
-    # header, falling back to the regex capture and finally to CAMS.
-    rta_m = RTA_TOKEN_RE.search(scheme_text)
-    rta = (rta_m.group(1).upper() if rta_m else (m.group("rta") or "").strip()) or "CAMS"
+    # `Registrar :` — prefer the recognised RTA token anywhere in the
+    # stitched header, then the first post-label token (covers RTAs
+    # outside the known set, e.g. FTAMIL), then CAMS.
+    if rta_m := RTA_TOKEN_RE.search(header_text):
+        rta = rta_m.group(1).upper()
+    else:
+        label_m = SCHEME_HEAD_RTA_RE.search(header_text)
+        rta = (label_m.group(1).strip() if label_m else "") or "CAMS"
     isin, amfi, scheme_type = isin_search(name, rta, code, isin=inline_isin)
     # Nominees are matched per region line, not on the joined blob, because
     # NOMINEE_RE is `$`-anchored — the nominee text must sit at end-of-line.
@@ -569,6 +615,22 @@ def _build_scheme_from_buffer(buf: List[str], statement_period) -> Optional[Sche
             value=Decimal(0),
         ),
         transactions=[],
+    )
+
+
+def _abandoned_region_warning(buf: List[str], where: str) -> Optional[str]:
+    """Warning text for an open header region discarded at ``where``
+    without its ``Opening Unit Balance`` anchor — that scheme and all of
+    its transactions are silently skipped otherwise. Reported only when
+    the region passes the same candidate gate as scheme building, so the
+    routine junk after a folio's last scheme footer stays quiet."""
+    cand = _region_candidate(buf)
+    if cand is None:
+        return None
+    lines, s_idx, _, _ = cand
+    return (
+        f"scheme header region discarded at {where} without an 'Opening Unit "
+        f"Balance' anchor; its scheme and transactions were skipped: {lines[s_idx][:80]!r}"
     )
 
 
@@ -605,7 +667,11 @@ def parse(
     # page loop so a header split across a page break still accumulates.
     header_buf: List[str] = []
     header_active: bool = False
-    force_buf_next: bool = False  # pull the next line despite the membership filter
+
+    # Non-fatal data-quality warnings. Region anomalies (an unparseable
+    # or abandoned header) are appended during the loop; the per-scheme
+    # balance reconciliation extends the list afterwards.
+    parse_warnings: List[str] = []
 
     for page in pages:
         header_pos = detect_txn_columns(page.lines, 0)
@@ -630,10 +696,12 @@ def parse(
             # --- AMC ---
             if m := AMC_RE.match(text.strip()):
                 current_amc = m.group(0)
-                # An AMC boundary ends any dangling header region.
+                # An AMC boundary ends any dangling header region —
+                # loudly, if it still held an unconsumed scheme line.
+                if header_active and (w := _abandoned_region_warning(header_buf, "AMC boundary")):
+                    parse_warnings.append(w)
                 header_buf = []
                 header_active = False
-                force_buf_next = False
                 continue
 
             # --- Folio header ---
@@ -655,9 +723,10 @@ def parse(
                 current_scheme = None
                 # The lines until this folio's first Opening Unit Balance
                 # are its first scheme's header region.
+                if header_active and (w := _abandoned_region_warning(header_buf, "folio boundary")):
+                    parse_warnings.append(w)
                 header_buf = []
                 header_active = True
-                force_buf_next = False
                 continue
 
             # --- Opening Unit Balance: closes the scheme-header region and
@@ -667,9 +736,20 @@ def parse(
                     current_scheme = _build_scheme_from_buffer(header_buf, statement_period)
                     if current_scheme is not None:
                         current_folio.schemes.append(current_scheme)
+                    else:
+                        # An Opening Unit Balance implies a scheme header
+                        # above it; failing to parse one means this whole
+                        # scheme — transactions included — is dropped.
+                        # Never let that happen silently.
+                        region = [s.strip() for s in header_buf if s.strip()]
+                        snippet = " / ".join(region[:2])[:120]
+                        parse_warnings.append(
+                            f"unparseable scheme header region before 'Opening Unit "
+                            f"Balance' on page {page.number}; the scheme and its "
+                            f"transactions were skipped: {snippet!r}"
+                        )
                     header_active = False
                     header_buf = []
-                    force_buf_next = False
                 if current_scheme is not None:
                     current_scheme.open = _decimal(m.group(1)) or Decimal(0)
                     current_scheme.close_calculated = current_scheme.open
@@ -688,7 +768,6 @@ def parse(
                     current_scheme.close = _decimal(m.group(1)) or Decimal(0)
                     header_buf = []
                     header_active = True
-                    force_buf_next = False
                     consumed_footer = True
                 if m := NAV_RE.search(text):
                     current_scheme.valuation.date = dateparse.parse(m.group(1)).date()
@@ -711,16 +790,13 @@ def parse(
 
             # --- Scheme-header region accumulation. Reached only while a
             #     region is open; skip the footer anchors just consumed and
-            #     the transaction-column-header window, collect the rest. ---
+            #     the transaction-column-header window, buffer everything
+            #     else. Deliberately judgment-free: which lines form the
+            #     header is decided in `_build_scheme_from_buffer`, where
+            #     the whole region is visible at once. ---
             if header_active:
                 if not consumed_footer and not (col_first <= i <= header_idx):
-                    if force_buf_next or _is_header_line(text):
-                        header_buf.append(text)
-                        # A dangling marker pulls the (possibly markerless)
-                        # value-continuation line that follows it.
-                        force_buf_next = _expects_continuation(text)
-                    else:
-                        force_buf_next = False
+                    header_buf.append(text)
                 continue
 
             if current_scheme is None:
@@ -772,6 +848,11 @@ def parse(
                     )
                 )
 
+    # A region still open at end-of-document with a scheme line inside
+    # means the closing anchor never arrived — report, don't swallow.
+    if header_active and (w := _abandoned_region_warning(header_buf, "end of document")):
+        parse_warnings.append(w)
+
     # Cross-check each scheme's transactions against the running
     # `Unit Balance` column and fix cosmetic-parens sign mis-parses
     # (e.g. KFin Franklin `Payment - Units Extinguished-Reversed`
@@ -781,7 +862,6 @@ def parse(
     # (the statement's own checksum) and surface any discontinuity as a
     # non-fatal warning — the cheapest possible signal for the otherwise
     # silent "a row was dropped / mis-parsed" failure mode.
-    parse_warnings: List[str] = []
     for folio in folios.values():
         for scheme in folio.schemes:
             _apply_balance_sign_fix(scheme)
