@@ -1,0 +1,504 @@
+{
+  "$defs": {
+    "CASFileType": {
+      "description": "Enum for CAS file type",
+      "enum": [
+        "UNKNOWN",
+        "SUMMARY",
+        "DETAILED"
+      ],
+      "title": "CASFileType",
+      "type": "string"
+    },
+    "FileType": {
+      "description": "Enum for CAS file source.",
+      "enum": [
+        "UNKNOWN",
+        "CAMS",
+        "KFINTECH",
+        "CDSL",
+        "NSDL"
+      ],
+      "title": "FileType",
+      "type": "string"
+    },
+    "Folio": {
+      "description": "Mutual Fund Folio data structure.",
+      "properties": {
+        "KYC": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kyc"
+        },
+        "PAN": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pan"
+        },
+        "PANKYC": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pankyc"
+        },
+        "amc": {
+          "title": "Amc",
+          "type": "string"
+        },
+        "folio": {
+          "title": "Folio",
+          "type": "string"
+        },
+        "schemes": {
+          "items": {
+            "$ref": "#/$defs/Scheme"
+          },
+          "title": "Schemes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "folio",
+        "amc",
+        "schemes"
+      ],
+      "title": "Folio",
+      "type": "object"
+    },
+    "InvestorInfo": {
+      "description": "Investor Info data structure.",
+      "properties": {
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "mobile": {
+          "title": "Mobile",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "address",
+        "mobile"
+      ],
+      "title": "InvestorInfo",
+      "type": "object"
+    },
+    "Scheme": {
+      "description": "Mutual Fund Scheme data structure.",
+      "properties": {
+        "advisor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Advisor"
+        },
+        "amfi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amfi"
+        },
+        "close": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Close"
+        },
+        "close_calculated": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Close Calculated"
+        },
+        "isin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isin"
+        },
+        "nominees": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Nominees",
+          "type": "array"
+        },
+        "open": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Open"
+        },
+        "rta": {
+          "title": "Rta",
+          "type": "string"
+        },
+        "rta_code": {
+          "title": "Rta Code",
+          "type": "string"
+        },
+        "scheme": {
+          "title": "Scheme",
+          "type": "string"
+        },
+        "transactions": {
+          "items": {
+            "$ref": "#/$defs/TransactionData"
+          },
+          "title": "Transactions",
+          "type": "array"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "valuation": {
+          "$ref": "#/$defs/SchemeValuation"
+        }
+      },
+      "required": [
+        "scheme",
+        "rta_code",
+        "rta",
+        "open",
+        "close",
+        "close_calculated",
+        "valuation",
+        "transactions"
+      ],
+      "title": "Scheme",
+      "type": "object"
+    },
+    "SchemeValuation": {
+      "description": "Scheme valuation as of a given date.",
+      "properties": {
+        "cost": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Date"
+        },
+        "nav": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Nav"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "date",
+        "nav",
+        "value"
+      ],
+      "title": "SchemeValuation",
+      "type": "object"
+    },
+    "StatementPeriod": {
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "StatementPeriod",
+      "type": "object"
+    },
+    "TransactionData": {
+      "description": "Mutual fund scheme transaction.",
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "balance": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Balance"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Date"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "dividend_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dividend Rate"
+        },
+        "nav": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nav"
+        },
+        "type": {
+          "$ref": "#/$defs/TransactionType"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Units"
+        }
+      },
+      "required": [
+        "date",
+        "description",
+        "type"
+      ],
+      "title": "TransactionData",
+      "type": "object"
+    },
+    "TransactionType": {
+      "enum": [
+        "PURCHASE",
+        "PURCHASE_SIP",
+        "REDEMPTION",
+        "DIVIDEND_PAYOUT",
+        "DIVIDEND_REINVEST",
+        "SWITCH_IN",
+        "SWITCH_IN_MERGER",
+        "SWITCH_OUT",
+        "SWITCH_OUT_MERGER",
+        "STT_TAX",
+        "STAMP_DUTY_TAX",
+        "TDS_TAX",
+        "SEGREGATION",
+        "MISC",
+        "UNKNOWN",
+        "REVERSAL"
+      ],
+      "title": "TransactionType",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "CAS Parser return data type.",
+  "properties": {
+    "cas_type": {
+      "$ref": "#/$defs/CASFileType"
+    },
+    "file_type": {
+      "$ref": "#/$defs/FileType"
+    },
+    "folios": {
+      "items": {
+        "$ref": "#/$defs/Folio"
+      },
+      "title": "Folios",
+      "type": "array"
+    },
+    "investor_info": {
+      "$ref": "#/$defs/InvestorInfo"
+    },
+    "parse_warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Parse Warnings",
+      "type": "array"
+    },
+    "statement_period": {
+      "$ref": "#/$defs/StatementPeriod"
+    }
+  },
+  "required": [
+    "statement_period",
+    "folios",
+    "investor_info",
+    "cas_type",
+    "file_type"
+  ],
+  "title": "CASData",
+  "type": "object"
+}

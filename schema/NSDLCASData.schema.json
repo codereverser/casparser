@@ -1,0 +1,504 @@
+{
+  "$defs": {
+    "Bond": {
+      "description": "Corporate / government bond holding.\n\nTwo source layouts feed this model \u2014 both are present in the same\nNSDL CAS, one per demat-account flavour:\n\n- **NSDL-account summary form** (8 data cells):\n  `ISIN | name | frequency | coupon_rate | maturity | num_bonds |\n  face_value | value`. All optional fields populated.\n- **CDSL-account detailed form** (13 data cells, identical layout to\n  detailed equity rows): we only get `num_bonds`, `market_price`,\n  `value`. `coupon_rate`/`frequency`/`maturity`/`face_value` are\n  `None` here \u2014 the detailed table doesn't include them.",
+      "properties": {
+        "coupon_frequency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coupon Frequency"
+        },
+        "coupon_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coupon Rate"
+        },
+        "face_value": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Face Value"
+        },
+        "isin": {
+          "title": "Isin",
+          "type": "string"
+        },
+        "market_price": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market Price"
+        },
+        "maturity_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maturity Date"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "num_bonds": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Num Bonds",
+          "type": "string"
+        },
+        "value": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "isin",
+        "num_bonds",
+        "value"
+      ],
+      "title": "Bond",
+      "type": "object"
+    },
+    "DematAccount": {
+      "properties": {
+        "balance": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Balance",
+          "type": "string"
+        },
+        "bonds": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Bond"
+          },
+          "title": "Bonds",
+          "type": "array"
+        },
+        "client_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "",
+          "title": "Client Id"
+        },
+        "dp_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "",
+          "title": "Dp Id"
+        },
+        "equities": {
+          "items": {
+            "$ref": "#/$defs/Equity"
+          },
+          "title": "Equities",
+          "type": "array"
+        },
+        "folios": {
+          "title": "Folios",
+          "type": "integer"
+        },
+        "mutual_funds": {
+          "items": {
+            "$ref": "#/$defs/MutualFund"
+          },
+          "title": "Mutual Funds",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "owners": {
+          "items": {
+            "$ref": "#/$defs/DematOwner"
+          },
+          "title": "Owners",
+          "type": "array"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "folios",
+        "balance",
+        "owners",
+        "equities",
+        "mutual_funds"
+      ],
+      "title": "DematAccount",
+      "type": "object"
+    },
+    "DematOwner": {
+      "properties": {
+        "PAN": {
+          "title": "Pan",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "PAN"
+      ],
+      "title": "DematOwner",
+      "type": "object"
+    },
+    "Equity": {
+      "properties": {
+        "exchange": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exchange"
+        },
+        "isin": {
+          "title": "Isin",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "num_shares": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Num Shares",
+          "type": "string"
+        },
+        "price": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Price",
+          "type": "string"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "value": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "isin",
+        "num_shares",
+        "price",
+        "value"
+      ],
+      "title": "Equity",
+      "type": "object"
+    },
+    "FileType": {
+      "description": "Enum for CAS file source.",
+      "enum": [
+        "UNKNOWN",
+        "CAMS",
+        "KFINTECH",
+        "CDSL",
+        "NSDL"
+      ],
+      "title": "FileType",
+      "type": "string"
+    },
+    "InvestorInfo": {
+      "description": "Investor Info data structure.",
+      "properties": {
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "mobile": {
+          "title": "Mobile",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "address",
+        "mobile"
+      ],
+      "title": "InvestorInfo",
+      "type": "object"
+    },
+    "MutualFund": {
+      "properties": {
+        "amfi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amfi"
+        },
+        "avg_cost": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Avg Cost"
+        },
+        "balance": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Balance",
+          "type": "string"
+        },
+        "folio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Folio"
+        },
+        "isin": {
+          "title": "Isin",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "nav": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Nav",
+          "type": "string"
+        },
+        "pnl": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pnl"
+        },
+        "return": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Return"
+        },
+        "total_cost": {
+          "anyOf": [
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Cost"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "ucc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ucc"
+        },
+        "value": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "isin",
+        "balance",
+        "nav",
+        "value"
+      ],
+      "title": "MutualFund",
+      "type": "object"
+    },
+    "StatementPeriod": {
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "StatementPeriod",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "accounts": {
+      "items": {
+        "$ref": "#/$defs/DematAccount"
+      },
+      "title": "Accounts",
+      "type": "array"
+    },
+    "file_type": {
+      "$ref": "#/$defs/FileType"
+    },
+    "investor_info": {
+      "$ref": "#/$defs/InvestorInfo"
+    },
+    "statement_period": {
+      "$ref": "#/$defs/StatementPeriod"
+    }
+  },
+  "required": [
+    "accounts",
+    "statement_period",
+    "investor_info",
+    "file_type"
+  ],
+  "title": "NSDLCASData",
+  "type": "object"
+}

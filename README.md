@@ -74,87 +74,198 @@ csv_str = casparser.read_cas_pdf("/path/to/cas/file.pdf", "password", output="cs
 
 ### Data structure
 
-```json
+`read_cas_pdf` returns a typed [pydantic](https://docs.pydantic.dev) model —
+`CASData` for CAMS / KFintech statements, `NSDLCASData` for NSDL / CDSL demat
+statements (see `casparser.types`). With `output="json"` the same shape is
+serialised to a JSON string.
+
+Machine-readable [JSON Schema](https://json-schema.org) files for both shapes
+are generated from the models and checked in under
+[`schema/`](https://github.com/codereverser/casparser/tree/main/schema) — use
+those for validation or client code generation. The sketches below are for
+humans.
+
+Serialisation notes:
+
+- Decimal fields serialise as **JSON strings** (`"amount": "4999.75"`) to
+  preserve precision — parse them with a decimal type, not a float.
+- Transaction and valuation dates serialise as ISO dates (`"2024-04-01"`);
+  `statement_period` keeps the statement's own `DD-MMM-YYYY` format.
+
+#### CAMS / KFintech — `CASData`
+
+```ts
+// decimal = a JSON string holding an exact decimal number, e.g. "4999.75"
 {
-    "statement_period": {
-        "from": "YYYY-MMM-DD",
-        "to": "YYYY-MMM-DD"
-    },
-    "file_type": "CAMS/KFINTECH/NSDL/CDSL/UNKNOWN",
-    "cas_type": "DETAILED/SUMMARY",
-    "investor_info": {
-        "email": "string",
-        "name": "string",
-        "mobile": "string",
-        "address": "string"
-    },
-    "folios": [
-        {
-            "folio": "string",
-            "amc": "string",
-            "PAN": "string",
-            "KYC": "OK/NOT OK",
-            "PANKYC": "OK/NOT OK",
-            "schemes": [
-                {
-                    "scheme": "string",
-                    "isin": "string",
-                    "amfi": "string",
-                    "advisor": "string",
-                    "rta_code": "string",
-                    "rta": "string",
-                    "type": "string",
-                    "nominees": [
-                      "string",
-                    ],
-                    "open": "number",
-                    "close": "number",
-                    "close_calculated": "number",
-                    "valuation": {
-                      "date": "date",
-                      "nav": "number",
-                      "value": "number",
-                      "cost": "number",
-                    },
-                    "transactions": [
-                        {
-                            "date": "YYYY-MM-DD",
-                            "description": "string",
-                            "amount": "number",
-                            "units": "number",
-                            "nav": "number",
-                            "balance": "number",
-                            "type": "string",
-                            "dividend_rate": "number"
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
+  statement_period: { from: string, to: string },   // "01-Apr-2024"
+  file_type: "CAMS" | "KFINTECH",
+  cas_type: "DETAILED" | "SUMMARY",
+  investor_info: { name: string, email: string, address: string, mobile: string },
+  folios: {
+    folio: string,                       // "12345678 / 90"
+    amc: string,
+    PAN: string | null,
+    KYC: "OK" | "NOT OK" | null,
+    PANKYC: "OK" | "NOT OK" | null,
+    schemes: {
+      scheme: string,
+      advisor: string | null,            // distributor ARN / RIA code
+      rta_code: string,                  // scheme's per-RTA code
+      rta: string,                       // registrar: "CAMS", "KFINTECH", …
+      type: string | null,               // "EQUITY" | "DEBT" | …
+      isin: string | null,
+      amfi: string | null,
+      nominees: string[],
+      open: decimal,                     // opening unit balance
+      close: decimal,                    // closing unit balance (as printed)
+      close_calculated: decimal,         // open + sum of parsed units
+      valuation: { date: string, nav: decimal, cost: decimal | null, value: decimal },
+      transactions: {
+        date: string,                    // ISO: "2024-04-01"
+        description: string,
+        amount: decimal | null,
+        units: decimal | null,           // null for non-unit rows (taxes)
+        nav: decimal | null,
+        balance: decimal | null,         // running unit balance
+        type: string,                    // see transaction types below
+        dividend_rate: decimal | null,   // DIVIDEND_* rows only
+      }[],
+    }[],
+  }[],
+  parse_warnings: string[],
 }
 ```
-Notes:
-- Transaction `type` can be any value from the following
-  - `PURCHASE`
-  - `PURCHASE_SIP`
-  - `REDEMPTION`
-  - `SWITCH_IN`
-  - `SWITCH_IN_MERGER`
-  - `SWITCH_OUT`
-  - `SWITCH_OUT_MERGER`
-  - `DIVIDEND_PAYOUT`
-  - `DIVIDEND_REINVESTMENT`
-  - `SEGREGATION`
-  - `STAMP_DUTY_TAX`
-  - `TDS_TAX`
-  - `STT_TAX`
-  - `MISC`
-- `dividend_rate` is applicable only for `DIVIDEND_PAYOUT` and
-  `DIVIDEND_REINVESTMENT` transactions.
-- NSDL and CDSL statements return a different top-level shape with
-  `accounts[].equities[]` and `accounts[].mutual_funds[]` instead of
-  `folios[].schemes[]`. See `casparser.types.NSDLCASData` for details.
+
+A non-empty `parse_warnings` means at least one scheme's transactions did not
+reconcile against the statement's printed running unit balance — the parse
+still returns, but the flagged scheme's data should not be trusted blindly.
+
+<details>
+<summary>Example (truncated)</summary>
+
+```json
+{
+  "statement_period": { "from": "01-Apr-2024", "to": "31-Mar-2025" },
+  "file_type": "CAMS",
+  "cas_type": "DETAILED",
+  "investor_info": {
+    "name": "JOHN DOE",
+    "email": "john@example.com",
+    "address": "1, MAIN STREET, BENGALURU 560001",
+    "mobile": "+919999999999"
+  },
+  "folios": [
+    {
+      "folio": "12345678 / 90",
+      "amc": "HDFC Mutual Fund",
+      "PAN": "ABCDE1234F",
+      "KYC": "OK",
+      "PANKYC": "OK",
+      "schemes": [
+        {
+          "scheme": "HDFC Flexi Cap Fund - Direct Plan - Growth",
+          "advisor": "ARN-12345",
+          "rta_code": "H1234",
+          "rta": "CAMS",
+          "type": "EQUITY",
+          "isin": "INF179K01VY8",
+          "amfi": "118834",
+          "nominees": ["JANE DOE"],
+          "open": "0.000",
+          "close": "33.412",
+          "close_calculated": "33.412",
+          "valuation": {
+            "date": "2025-03-31",
+            "nav": "165.41",
+            "cost": "4999.75",
+            "value": "5526.68"
+          },
+          "transactions": [
+            {
+              "date": "2024-04-02",
+              "description": "SIP Purchase - Instalment 1/12",
+              "amount": "4999.75",
+              "units": "33.412",
+              "nav": "149.64",
+              "balance": "33.412",
+              "type": "PURCHASE_SIP",
+              "dividend_rate": null
+            },
+            {
+              "date": "2024-04-02",
+              "description": "*** Stamp Duty ***",
+              "amount": "0.25",
+              "units": null,
+              "nav": null,
+              "balance": null,
+              "type": "STAMP_DUTY_TAX",
+              "dividend_rate": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "parse_warnings": []
+}
+```
+
+</details>
+
+#### Transaction types
+
+| `type`                                  | Meaning                                                       |
+| --------------------------------------- | ------------------------------------------------------------- |
+| `PURCHASE` / `PURCHASE_SIP`             | Lump-sum / SIP-instalment purchase                            |
+| `REDEMPTION`                            | Redemption / withdrawal                                       |
+| `SWITCH_IN` / `SWITCH_IN_MERGER`        | Units received from a switch (or scheme merger)               |
+| `SWITCH_OUT` / `SWITCH_OUT_MERGER`      | Units moved out via a switch (or scheme merger)               |
+| `DIVIDEND_PAYOUT` / `DIVIDEND_REINVEST` | IDCW / dividend rows — these carry `dividend_rate`            |
+| `STT_TAX` / `STAMP_DUTY_TAX` / `TDS_TAX`| Tax rows — `amount` only, no units                            |
+| `SEGREGATION`                           | Units allotted in a segregated (side-pocketed) portfolio      |
+| `REVERSAL`                              | Reversed / rejected transaction                               |
+| `MISC` / `UNKNOWN`                      | Anything that doesn't match the above                         |
+
+#### NSDL / CDSL — `NSDLCASData`
+
+Demat statements return holdings (no transactions), grouped per demat account:
+
+```ts
+{
+  statement_period: { from: string, to: string },
+  file_type: "NSDL" | "CDSL",
+  investor_info: { name: string, email: string, address: string, mobile: string },
+  accounts: {
+    name: string,                        // account / DP name
+    type: string,                        // "NSDL" | "CDSL"
+    dp_id: string | null,
+    client_id: string | null,
+    folios: number,                      // count of MF folios in the account
+    balance: decimal,                    // total account valuation
+    owners: { name: string, PAN: string }[],
+    equities: {
+      isin: string, name: string | null,
+      num_shares: decimal, price: decimal, value: decimal,
+      symbol: string | null, exchange: string | null,   // from the ISIN DB
+    }[],
+    mutual_funds: {
+      isin: string, name: string | null,
+      amfi: string | null, type: string | null,         // from the ISIN DB
+      balance: decimal, nav: decimal, value: decimal,
+      avg_cost: decimal | null, total_cost: decimal | null,
+      ucc: string | null, folio: string | null,
+      pnl: decimal | null, return: decimal | null,
+    }[],
+    bonds: {
+      isin: string, name: string | null,
+      num_bonds: decimal, value: decimal,
+      face_value: decimal | null, coupon_rate: decimal | null,
+      coupon_frequency: string | null, maturity_date: string | null,
+      market_price: decimal | null,
+    }[],
+  }[],
+}
+```
 
 ### CLI
 
