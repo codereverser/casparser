@@ -429,13 +429,26 @@ _SCHEME_CODE_RE = re.compile(r"^\s*(?=[A-Z0-9 ]{0,40}[A-Z])[A-Z0-9]+(?: [A-Z0-9]
 # distributor code) — the member that follows a dangling line joins the
 # header regardless of its own content.
 _TRAILING_MARKER_RE = re.compile(r"(Registrar\s*:|Advisor\s*:|ISIN\s*:|\(\s*Advisor\s*:)\s*$", re.I)
-# Cut point for the scheme *name*: the first annotation that follows the
-# name text on the scheme line or its wrap lines. Subsumes the old
-# "strip ISIN / advisor / dangling '(Advisor:' back out of the name
-# capture" passes.
-_NAME_CUT_RE = re.compile(
+# Scheme-name cleanup happens in two passes, mirroring the old parser:
+#
+# 1. EXCISE annotations that templates splice into the *middle* of the
+#    name — a closed `(Advisor: …)` and a valued `- ISIN: INFxxx` — so
+#    text on BOTH sides survives. CAMS IDCW templates routinely emit
+#    `… - IDCW - ISIN: INF090I01155 - Payout (Advisor:…)`: cutting at
+#    the first annotation would amputate the `- Payout` / `- Reinvest`
+#    qualifier that distinguishes the two IDCW variants.
+# 2. CUT at the first marker that genuinely terminates the name —
+#    `Registrar`, a nominee label, an RTA token, a bare ARN/INA code
+#    (an advisor value that wrapped outside its parens), or a dangling
+#    `(Advisor:` opener (necessarily unclosed after pass 1).
+#
+# A valueless `ISIN:` (its value wrapped behind the `Registrar :` label)
+# is deliberately NOT excised or cut: the old parser let it ride into
+# `get_parsed_scheme_name`'s trailing-punctuation cleanup, and name-level
+# output compatibility matters more than cosmetics here.
+_NAME_EXCISE_ISIN_RE = re.compile(r"[-\s]*ISIN\s*:\s*INF[A-Z0-9]*", re.I)
+_NAME_TERMINATOR_RE = re.compile(
     r"\(\s*Advisor\s*:"
-    r"|ISIN\s*:"
     r"|Registrar\s*:?"
     r"|Nominee\s+\d"
     r"|\bARN-?\d+\b|\bINA\d+\b"
@@ -554,7 +567,11 @@ def _build_scheme_from_buffer(
     code, _, scheme_rest = lines[s_idx].partition("-")
     code = code.strip()
     name_text = " ".join([scheme_rest] + [lines[k] for k in members if k > s_idx])
-    cut = _NAME_CUT_RE.search(name_text)
+    # Excise mid-name annotations first (both sides survive), then cut
+    # at the first true name terminator. See the regex comments above.
+    name_text = INLINE_ADVISOR_RE.sub("", name_text)
+    name_text = _NAME_EXCISE_ISIN_RE.sub("", name_text)
+    cut = _NAME_TERMINATOR_RE.search(name_text)
     raw_name = name_text[: cut.start()] if cut else name_text
     name = get_parsed_scheme_name(raw_name)
 
