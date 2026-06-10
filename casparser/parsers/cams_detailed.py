@@ -103,7 +103,9 @@ HEADER_WINDOW_Y = 15.0  # vertical span (pts) that constitutes one logical
 # /(INR)/Balance at bottom).
 
 
-def detect_txn_columns(lines: List[Line], start_idx: int) -> Optional[tuple[int, List[Column]]]:
+def detect_txn_columns(
+    lines: List[Line], start_idx: int
+) -> Optional[tuple[int, int, List[Column]]]:
     """Find the next transaction-table header at or after start_idx.
 
     A header is a y-window of consecutive lines (top-down) spanning ≤ HEADER_
@@ -112,8 +114,9 @@ def detect_txn_columns(lines: List[Line], start_idx: int) -> Optional[tuple[int,
     "Unit"/"Balance" stacked over 2 baselines or KFin's 4-baseline split
     behave the same.
 
-    Returns (index_of_last_line_in_header, ordered columns). Transaction
-    parsing should start at index + 1.
+    Returns (first_line_index, last_line_index, ordered columns) for the
+    header window. Transaction parsing should start at last_line_index + 1;
+    the [first, last] span is excluded from the scheme-header region buffer.
     """
     for i in range(start_idx, len(lines)):
         window = [lines[i]]
@@ -129,7 +132,7 @@ def detect_txn_columns(lines: List[Line], start_idx: int) -> Optional[tuple[int,
         if len(labels) < TXN_MIN_HITS:
             continue
         last_idx = i + len(window) - 1
-        return last_idx, _build_columns(all_words)
+        return i, last_idx, _build_columns(all_words)
     return None
 
 
@@ -412,6 +415,163 @@ def _reconcile_balances(scheme: Scheme) -> List[str]:
     return warnings
 
 
+# Membership filter for the scheme-header region buffer. A line is header
+# content if it carries a header marker (Registrar/Advisor/ISIN/Nominee), an
+# advisor code (ARN-xxxx / INAxxxx), an RTA token (CAMS/KFINTECH/...), or is a
+# scheme-code line `<code>-...` whose code contains a letter. The
+# letter-in-code rule is what separates a real scheme line ("128TSGPG-Axis…",
+# "HGFG-HDFC…") from the investor-name, address, date-range and trailing
+# load/disclaimer lines that also sit between the folio line and `Opening Unit
+# Balance` ("Entry Load - NIL…" has a space before its dash; "01-Jan-1990…"
+# has a digits-only leading token; an investor name has no dash at all).
+_HEADER_MARKER_RE = re.compile(
+    r"Registrar\s*:|Advisor\s*:|ISIN\s*:|Nominee\s+\d|\bARN-?\d+\b|\bINA\d+\b", re.I
+)
+_SCHEME_CODE_RE = re.compile(r"^\s*[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*-")
+# A trailing, unfinished marker means the value continues on the next document
+# line, which may carry no marker of its own (e.g. "(Advisor: Registrar : CAMS"
+# wrapping to "ARN-28283)", or a bare "WEALTH)" distributor code). When the
+# last buffered line ends like this we force the very next line into the buffer
+# regardless of the membership filter — the region-bounded equivalent of the
+# old `unclosed_advisor` / `trailing_incomplete` one-line lookahead.
+_TRAILING_MARKER_RE = re.compile(r"(Registrar\s*:|Advisor\s*:|ISIN\s*:|\(\s*Advisor\s*:)\s*$", re.I)
+
+
+def _is_header_line(text: str) -> bool:
+    return bool(
+        _HEADER_MARKER_RE.search(text) or RTA_TOKEN_RE.search(text) or _SCHEME_CODE_RE.match(text)
+    )
+
+
+def _expects_continuation(text: str) -> bool:
+    """True if `text` leaves a marker value dangling onto the next line."""
+    if _TRAILING_MARKER_RE.search(text.strip()):
+        return True
+    adv = re.search(r"\(\s*Advisor\s*:", text, re.I)
+    return bool(adv) and ")" not in text[adv.end() :]
+
+
+def _build_scheme_from_buffer(buf: List[str], statement_period) -> Optional[Scheme]:
+    """Build a :class:`Scheme` from an accumulated scheme-header region.
+
+    ``buf`` holds the region's lines in document (top-down) order — every
+    line between the folio line / previous scheme's footer and this
+    scheme's ``Opening Unit Balance``, minus recognised anchors and the
+    transaction-column-header window. The header wraps unpredictably, so
+    rather than stitch by proximity we join the whole region and extract
+    fields once.
+
+    Anchor selection (the crux): ``SCHEME_HEAD_RE`` is ``^``-anchored, so
+    the ``<code>-name`` line must lead the joined blob. We try each
+    region line as the lead — floating it to the front with the remaining
+    lines kept in document order — and take the first that yields a valid
+    match whose code is not ``ARN``. Floating the lead with the rest in
+    document order reproduces the previous stitcher's
+    ``[scheme_line] + parts_above + parts_below`` ordering exactly. This
+    one rule subsumes every old heuristic: bare ``Registrar :`` lines and
+    junk never match as a lead; the ``ARN-…`` advisor-wrap fragment is
+    rejected by the code check; and a header that matches nowhere returns
+    ``None`` (no scheme), the same net effect as before.
+
+    Returns the built :class:`Scheme`, or ``None`` when the region carries
+    no parseable header.
+    """
+    lines = [s.strip() for s in buf if s.strip()]
+    if not lines:
+        return None
+
+    scheme_text = None
+    m = None
+    code = None
+    for k, cand in enumerate(lines):
+        if "-" not in cand:
+            continue
+        rest = [lines[j] for j in range(len(lines)) if j != k]
+        candidate_text = " ".join([cand] + rest)
+        if "Registrar" not in candidate_text:
+            continue
+        cm = SCHEME_HEAD_RE.match(candidate_text)
+        if not cm:
+            continue
+        cand_code = cm.group("code").strip()
+        # "ARN" is a distributor's AMFI registration prefix, never a
+        # scheme RTA code — a header anchored on the wrapped advisor value
+        # ("ARN-28283) ...") rather than the real scheme line. Reject it.
+        if cand_code.upper() == "ARN":
+            continue
+        scheme_text, m, code = candidate_text, cm, cand_code
+        break
+
+    if m is None:
+        return None
+
+    raw_name = m.group("name")
+    # Advisor / ISIN can sit in the name OR in the stitched registrar
+    # annotation that follows `Registrar :` (templates emit them in either
+    # order), so search the whole stitched header, not just the name.
+    isin_m = INLINE_ISIN_RE.search(scheme_text)
+    inline_isin = isin_m.group(1).strip() if isin_m else None
+    # The value after "ISIN:" can wrap, so the labelled capture may grab
+    # the following "Registrar" label or a truncated stub. If it isn't a
+    # full ISIN, look for a complete one anywhere in the stitched header.
+    if not inline_isin or not FULL_ISIN_RE.match(inline_isin):
+        anywhere = ISIN_ANYWHERE_RE.search(scheme_text)
+        inline_isin = anywhere.group(0) if anywhere else None
+    adv_m = INLINE_ADVISOR_RE.search(scheme_text)
+    advisor = adv_m.group(1).strip() if adv_m else None
+    # When the advisor value wrapped below an interleaved "Registrar :
+    # <RTA>", the captured blob looks like "Registrar : CAMS ARN-28283" —
+    # narrow it to the actual distributor (ARN-xxxx) / RIA (INAxxxx) code.
+    if advisor:
+        adv_code = re.search(r"\b(ARN-?\d+|INA\d+)\b", advisor, re.I)
+        if adv_code:
+            advisor = adv_code.group(1)
+    raw_name = INLINE_ISIN_RE.sub("", raw_name)
+    raw_name = INLINE_ADVISOR_RE.sub("", raw_name)
+    # The name capture stops at the first "Registrar :", which for the
+    # interleaved "(Advisor: Registrar : CAMS" wrap leaves a dangling,
+    # unclosed "(Advisor:" on the tail.
+    raw_name = re.sub(r"[\s-]*\(\s*Advisor\s*:?\s*$", "", raw_name)
+    name = get_parsed_scheme_name(raw_name)
+    # The registrar name is not reliably the first token after
+    # `Registrar :` — pick the recognised RTA token from the stitched
+    # header, falling back to the regex capture and finally to CAMS.
+    rta_m = RTA_TOKEN_RE.search(scheme_text)
+    rta = (rta_m.group(1).upper() if rta_m else (m.group("rta") or "").strip()) or "CAMS"
+    isin, amfi, scheme_type = isin_search(name, rta, code, isin=inline_isin)
+    # Nominees are matched per region line, not on the joined blob, because
+    # NOMINEE_RE is `$`-anchored — the nominee text must sit at end-of-line.
+    nominees: List[str] = []
+    for ln in lines:
+        if nm := NOMINEE_RE.search(ln):
+            noms = [
+                (nm.group("n1") or "").strip(),
+                (nm.group("n2") or "").strip(),
+                (nm.group("n3") or "").strip(),
+            ]
+            nominees = [n for n in noms if n]
+            break
+    return Scheme(
+        scheme=name,
+        advisor=advisor,
+        rta=rta,
+        rta_code=code,
+        isin=isin,
+        amfi=amfi,
+        type=scheme_type or "N/A",
+        nominees=nominees,
+        open=Decimal(0),
+        close=Decimal(0),
+        close_calculated=Decimal(0),
+        valuation=SchemeValuation(
+            date=statement_period.to if statement_period else "1970-01-01",
+            nav=Decimal(0),
+            value=Decimal(0),
+        ),
+        transactions=[],
+    )
+
+
 # -----------------------------------------------------------------------------
 # Top-level parse
 # -----------------------------------------------------------------------------
@@ -436,24 +596,28 @@ def parse(
     current_scheme: Optional[Scheme] = None
     last_columns: List[Column] = []  # inherited if current page lacks header
 
+    # Scheme-header region accumulator. The header is the only part of the
+    # grammar that wraps unpredictably; everything else (folio line, Opening
+    # /Closing Unit Balance, NAV/Valuation footer) is a single, never-wrapping
+    # anchor. So instead of stitching adjacent lines by proximity, we collect
+    # every line of the region (folio line / previous footer → next Opening
+    # Unit Balance) into `header_buf` and parse it once. Declared outside the
+    # page loop so a header split across a page break still accumulates.
+    header_buf: List[str] = []
+    header_active: bool = False
+    force_buf_next: bool = False  # pull the next line despite the membership filter
+
     for page in pages:
         header_pos = detect_txn_columns(page.lines, 0)
         if header_pos:
-            header_idx, columns = header_pos
+            col_first, header_idx, columns = header_pos
             last_columns = columns
         else:
             # Continuation page — no header. Inherit from previous.
-            # header_idx=-1 means transactions can start from line 0.
-            header_idx = -1
+            # header_idx=-1 means transactions can start from line 0; the
+            # empty [col_first, header_idx] window then excludes nothing.
+            col_first = header_idx = -1
             columns = last_columns
-
-        # Line indices already absorbed as a scheme header's wrapped
-        # continuation. The header can wrap *anywhere* (mid-ISIN,
-        # mid-advisor, mid-name), so a continuation line may itself
-        # start with "<x>-..." and, by stitching the real header line
-        # above it, look like a second scheme. Once a line has been
-        # consumed by a header it must not anchor another one.
-        consumed_below: set[int] = set()
 
         for i, line in enumerate(page.lines):
             text = line.text
@@ -466,6 +630,10 @@ def parse(
             # --- AMC ---
             if m := AMC_RE.match(text.strip()):
                 current_amc = m.group(0)
+                # An AMC boundary ends any dangling header region.
+                header_buf = []
+                header_active = False
+                force_buf_next = False
                 continue
 
             # --- Folio header ---
@@ -485,211 +653,78 @@ def parse(
                     )
                 current_folio = folios[folio_key]
                 current_scheme = None
+                # The lines until this folio's first Opening Unit Balance
+                # are its first scheme's header region.
+                header_buf = []
+                header_active = True
+                force_buf_next = False
                 continue
 
-            # --- Scheme header ---
-            # The scheme block can span up to 3 baselines depending on AMC
-            # and statement template:
-            #
-            #   Older CAMS:                            Newer CAMS:
-            #   <code>-<name> ... Registrar : CAMS    Registrar :
-            #   WEALTH)                                <code>-<name> ... (Advisor:...)
-            #                                          KFINTECH
-            #
-            # We stitch up to 2 lines above and 2 lines below the
-            # current line (within Y_BAND pts y-distance) if those
-            # adjacent lines contain Registrar / Advisor / ISIN markers
-            # or look like the standalone RTA value (CAMS / KFINTECH).
-            #
-            # A long "(Non Demat)" scheme name wraps to a second baseline
-            # ~8pt below carrying `(Advisor:...) <RTA>`, so the band must
-            # reach beyond a single ~8pt line; the content filter below
-            # keeps unrelated rows (transactions, nominees) out.
-            Y_BAND = 10.0
-            if current_folio is not None and "-" in text and i not in consumed_below:
-                parts_above = []
-                parts_below = []
-                below_indices: List[int] = []
-                base_y = page.lines[i].baseline
-                for offset in (1, 2):
-                    j = i - offset
-                    if j < 0:
-                        break
-                    if page.lines[j].baseline - base_y > Y_BAND:
-                        break
-                    t_above = page.lines[j].text.strip()
-                    if re.fullmatch(r"Registrar\s*:?", t_above, re.I) or re.search(
-                        r"Registrar\s*:|Advisor\s*:|ISIN\s*:", t_above, re.I
-                    ):
-                        parts_above.insert(0, t_above)
-                # When the scheme line ENDS with an incomplete trailing
-                # marker (e.g. "(Advisor: Registrar :"), take the next
-                # baseline below as the value continuation regardless of
-                # its content — the value tokens (ARN-XYZ, INAxxxxx,
-                # CAMS, KFINTECH) don't all match a fixed pattern.
-                trailing_incomplete = bool(
-                    re.search(
-                        r"(Registrar\s*:|Advisor\s*:|ISIN\s*:|\(\s*Advisor\s*:)\s*$",
-                        text.strip(),
-                        re.I,
-                    )
-                )
-                # Some CAMS templates render the advisor value on a wrapped
-                # line *below* the header, with "Registrar : <RTA>" interleaved
-                # ahead of it, e.g.
-                #     "<code>-<name> ... (Advisor: Registrar : CAMS"
-                #     "ARN-28283)"
-                # The "(Advisor:" opener mid-line has no matching ")" — its
-                # value sits on the next baseline. We must pull that line in
-                # AND mark it consumed, else the lone "ARN-28283)" line (a "-"
-                # below a Registrar line) re-anchors as a bogus scheme whose
-                # code parses as "ARN".
-                adv_open = re.search(r"\(\s*Advisor\s*:", text, re.I)
-                unclosed_advisor = bool(adv_open) and ")" not in text[adv_open.end() :]
-                for offset in (1, 2):
-                    j = i + offset
-                    if j >= len(page.lines):
-                        break
-                    if base_y - page.lines[j].baseline > Y_BAND:
-                        break
-                    t_below = page.lines[j].text.strip()
-                    if (
-                        re.fullmatch(r"(CAMS|KFINTECH|KFIN)\)?", t_below, re.I)
-                        or re.search(r"Registrar\s*:|Advisor\s*:|ISIN\s*:", t_below, re.I)
-                        # The wrap line often carries only the registrar
-                        # name (possibly with a stray watermark fragment,
-                        # e.g. "KFINTECH 4."), which the markers above miss.
-                        or RTA_TOKEN_RE.search(t_below)
-                        or (offset == 1 and (trailing_incomplete or unclosed_advisor))
-                    ):
-                        parts_below.append(t_below)
-                        below_indices.append(j)
-                # Scheme line FIRST so SCHEME_HEAD_RE can anchor to `<code>-`.
-                # Then append annotations from any direction.
-                scheme_text = " ".join([text.strip()] + parts_above + parts_below)
-                # Trailing "Registrar :" with the value on the next line —
-                # append the WHOLE next line (not just its first token) so
-                # the registrar name comes along even when an advisor / ISIN
-                # fragment precedes it.
-                if scheme_text.endswith("Registrar :") or scheme_text.endswith("Registrar:"):
-                    if i + 1 < len(page.lines):
-                        nxt = page.lines[i + 1].text.strip()
-                        if nxt:
-                            scheme_text = scheme_text + " " + nxt
-                            below_indices.append(i + 1)
-                if "Registrar" in scheme_text and (m := SCHEME_HEAD_RE.match(scheme_text)):
-                    # Lines pulled in below us are this header's wrap, not
-                    # separate schemes — block them from anchoring again.
-                    consumed_below.update(below_indices)
-                    code = m.group("code").strip()
-                    # "ARN" is a distributor's AMFI registration prefix, never
-                    # a scheme RTA code. A header matching with code == "ARN"
-                    # is an advisor-value wrap line ("ARN-28283) ...") that got
-                    # mis-anchored on top of the real header above it — skip it
-                    # (defensive; the unclosed-advisor stitch above normally
-                    # consumes the wrap line before it reaches here).
-                    if code.upper() == "ARN":
-                        continue
-                    raw_name = m.group("name")
-                    # Pull `(Advisor: …)` and `- ISIN: …` out of name
-                    # (templates emit them in either order). Capture
-                    # values first, then `re.sub` both fragments so we
-                    # don't have to track shifted span offsets.
-                    # Advisor / ISIN can sit in the name OR in the stitched
-                    # registrar annotation that follows `Registrar :` (some
-                    # templates wrap the ISIN or put `(Advisor:...)` between
-                    # the label and the RTA name), so search the whole
-                    # stitched header, not just the name chunk.
-                    isin_m = INLINE_ISIN_RE.search(scheme_text)
-                    inline_isin = isin_m.group(1).strip() if isin_m else None
-                    # The value after "ISIN:" can wrap, so the labelled
-                    # capture may grab the following "Registrar" label or a
-                    # truncated stub. If it isn't a full ISIN, look for a
-                    # complete one anywhere in the stitched header (the real
-                    # value often sits on the wrapped continuation line, as
-                    # for `... - ISIN: Registrar : CAMS  INF179K01CW2`).
-                    # Trusting the PDF's own ISIN keeps the correct IDCW
-                    # payout/reinvest variant that a name-only lookup loses.
-                    if not inline_isin or not FULL_ISIN_RE.match(inline_isin):
-                        anywhere = ISIN_ANYWHERE_RE.search(scheme_text)
-                        inline_isin = anywhere.group(0) if anywhere else None
-                    adv_m = INLINE_ADVISOR_RE.search(scheme_text)
-                    advisor = adv_m.group(1).strip() if adv_m else None
-                    # When the advisor value wrapped below an interleaved
-                    # "Registrar : <RTA>", the captured blob looks like
-                    # "Registrar : CAMS ARN-28283" — narrow it to the actual
-                    # distributor code (ARN-xxxx) or RIA code (INAxxxx).
-                    if advisor:
-                        adv_code = re.search(r"\b(ARN-?\d+|INA\d+)\b", advisor, re.I)
-                        if adv_code:
-                            advisor = adv_code.group(1)
-                    raw_name = INLINE_ISIN_RE.sub("", raw_name)
-                    raw_name = INLINE_ADVISOR_RE.sub("", raw_name)
-                    # The name capture stops at the first "Registrar :", which
-                    # for the interleaved "(Advisor: Registrar : CAMS" wrap
-                    # leaves a dangling, unclosed "(Advisor:" on the tail.
-                    raw_name = re.sub(r"[\s-]*\(\s*Advisor\s*:?\s*$", "", raw_name)
-                    name = get_parsed_scheme_name(raw_name)
-                    # The registrar name is not reliably the first token
-                    # after `Registrar :` — pick the recognised RTA token
-                    # from the stitched header, falling back to the regex
-                    # capture and finally to CAMS.
-                    rta_m = RTA_TOKEN_RE.search(scheme_text)
-                    rta = (
-                        rta_m.group(1).upper() if rta_m else (m.group("rta") or "").strip()
-                    ) or "CAMS"
-                    isin, amfi, scheme_type = isin_search(
-                        name,
-                        rta,
-                        code,
-                        isin=inline_isin,
-                    )
-                    current_scheme = Scheme(
-                        scheme=name,
-                        advisor=advisor,
-                        rta=rta,
-                        rta_code=code,
-                        isin=isin,
-                        amfi=amfi,
-                        type=scheme_type or "N/A",
-                        open=Decimal(0),
-                        close=Decimal(0),
-                        close_calculated=Decimal(0),
-                        valuation=SchemeValuation(
-                            date=statement_period.to if statement_period else "1970-01-01",
-                            nav=Decimal(0),
-                            value=Decimal(0),
-                        ),
-                        transactions=[],
-                    )
-                    current_folio.schemes.append(current_scheme)
-                    continue
+            # --- Opening Unit Balance: closes the scheme-header region and
+            #     builds the scheme from the accumulated buffer. ---
+            if m := OPEN_BAL_RE.search(text):
+                if header_active:
+                    current_scheme = _build_scheme_from_buffer(header_buf, statement_period)
+                    if current_scheme is not None:
+                        current_folio.schemes.append(current_scheme)
+                    header_active = False
+                    header_buf = []
+                    force_buf_next = False
+                if current_scheme is not None:
+                    current_scheme.open = _decimal(m.group(1)) or Decimal(0)
+                    current_scheme.close_calculated = current_scheme.open
+                continue
+
+            # --- Footer rows (attach to the just-closed scheme). `Closing
+            #     Unit Balance` re-opens the region for the next scheme; the
+            #     NAV / Valuation / Cost lines that follow are this scheme's
+            #     footer and are consumed here, never buffered. Nominee lines
+            #     belong to the *next* scheme's header, so while a region is
+            #     open they fall through to the buffer and are extracted in
+            #     `_build_scheme_from_buffer`. ---
+            consumed_footer = False
+            if current_scheme is not None:
+                if m := CLOSE_BAL_RE.search(text):
+                    current_scheme.close = _decimal(m.group(1)) or Decimal(0)
+                    header_buf = []
+                    header_active = True
+                    force_buf_next = False
+                    consumed_footer = True
+                if m := NAV_RE.search(text):
+                    current_scheme.valuation.date = dateparse.parse(m.group(1)).date()
+                    current_scheme.valuation.nav = _decimal(m.group(2)) or Decimal(0)
+                    consumed_footer = True
+                if m := VALUATION_RE.search(text):
+                    current_scheme.valuation.date = dateparse.parse(m.group(1)).date()
+                    current_scheme.valuation.value = _decimal(m.group(2)) or Decimal(0)
+                    consumed_footer = True
+                if m := COST_VALUE_RE.search(text):
+                    current_scheme.valuation.cost = _decimal(m.group(1))
+                    consumed_footer = True
+                if not header_active and (m := NOMINEE_RE.search(text)):
+                    noms = [
+                        (m.group("n1") or "").strip(),
+                        (m.group("n2") or "").strip(),
+                        (m.group("n3") or "").strip(),
+                    ]
+                    current_scheme.nominees = [n for n in noms if n]
+
+            # --- Scheme-header region accumulation. Reached only while a
+            #     region is open; skip the footer anchors just consumed and
+            #     the transaction-column-header window, collect the rest. ---
+            if header_active:
+                if not consumed_footer and not (col_first <= i <= header_idx):
+                    if force_buf_next or _is_header_line(text):
+                        header_buf.append(text)
+                        # A dangling marker pulls the (possibly markerless)
+                        # value-continuation line that follows it.
+                        force_buf_next = _expects_continuation(text)
+                    else:
+                        force_buf_next = False
+                continue
 
             if current_scheme is None:
                 continue
-
-            # --- Labeled rows ---
-            if m := OPEN_BAL_RE.search(text):
-                current_scheme.open = _decimal(m.group(1)) or Decimal(0)
-                current_scheme.close_calculated = current_scheme.open
-                continue
-            if m := CLOSE_BAL_RE.search(text):
-                current_scheme.close = _decimal(m.group(1)) or Decimal(0)
-            if m := NAV_RE.search(text):
-                current_scheme.valuation.date = dateparse.parse(m.group(1)).date()
-                current_scheme.valuation.nav = _decimal(m.group(2)) or Decimal(0)
-            if m := VALUATION_RE.search(text):
-                current_scheme.valuation.date = dateparse.parse(m.group(1)).date()
-                current_scheme.valuation.value = _decimal(m.group(2)) or Decimal(0)
-            if m := COST_VALUE_RE.search(text):
-                current_scheme.valuation.cost = _decimal(m.group(1))
-            if m := NOMINEE_RE.search(text):
-                noms = [
-                    (m.group("n1") or "").strip(),
-                    (m.group("n2") or "").strip(),
-                    (m.group("n3") or "").strip(),
-                ]
-                current_scheme.nominees = [n for n in noms if n]
 
             # --- Transaction row (only when we have columns AND we're past
             #     the header block on this page) ---
