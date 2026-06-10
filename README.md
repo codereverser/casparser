@@ -354,3 +354,17 @@ Apache-2.0 / BSD-3), so casparser is now pure MIT end-to-end.
 2. [CAS from Karvy/Kfintech](https://mfs.kfintech.com/investor/General/ConsolidatedAccountStatement)
 3. [NSDL Consolidated Account Statement](https://nsdlcas.nsdl.com/)
 4. [CDSL Consolidated Account Statement](https://www.cdslindia.com/Investors/Cas.html)
+
+## Support
+
+`casparser` is free and maintained in my spare time. Statement formats (CAMS,
+KFintech, NSDL, CDSL) change without notice, and keeping the parsers working
+takes ongoing effort.
+
+If this library saved you time and you'd like to support continued development,
+consider leaving a tip:
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github-sponsors&logoColor=white)](https://github.com/sponsors/codereverser)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/codereverser)
+
+Completely optional — issues and pull requests are always welcome regardless.
