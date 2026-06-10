@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.1.0
+
+### New
+
+- **`CASData.parse_warnings`.** The CAMS/KFin DETAILED parser now reconciles each
+  scheme's transactions against its printed running `Unit Balance` column — the
+  statement's own checksum — and records a non-fatal warning on any
+  discontinuity (`prev_balance + units != printed balance`) or closing-balance
+  mismatch. A non-empty list means a transaction row was likely dropped or
+  mis-parsed; the parse still returns, but that scheme's data should not be
+  trusted blindly. The region-based header parser additionally warns when a
+  scheme-header region is discarded without its `Opening Unit Balance` anchor
+  (folio/AMC boundary, end of document, or an unparseable header) — previously
+  such a scheme and all its transactions vanished silently. Warnings are printed
+  by the CLI after a successful parse.
+- **JSON Schemas for the output models.** `schema/CASData.schema.json` and
+  `schema/NSDLCASData.schema.json` are generated from the Pydantic models
+  (`scripts/generate_schema.py`); the README shape documentation was reworked
+  around them.
+
+### Fixed
+
+- **Dividend reinvest misclassification.** `DIVIDEND_RE` carried an inline
+  `(reinvest)*` group inside two lazy quantifiers that never backtracked to
+  capture, so `"Reinvestment of IDCW @ Rs…"` and `"IDCW - Reinvest @ Rs…"` were
+  classified as `DIVIDEND_PAYOUT`. Reinvest is now detected with a separate
+  substring search.
+- **Folio collisions across AMCs.** Folios were keyed by folio number alone, but
+  folio numbers are RTA-scoped, not globally unique — two AMCs sharing one
+  silently merged the second AMC's schemes into the first's folio. Now keyed by
+  `(amc, folio_no)`.
+- **Advisor-wrap header mis-parsed as a bogus `ARN` scheme.** A wrapped
+  `(Advisor: ARN-xxxxx)` continuation line could anchor a spurious scheme whose
+  RTA code parsed as `ARN`, splitting one holding into an empty stub plus a
+  mis-coded duplicate.
+
+### Changed
+
+- **Scheme-header parsing rewritten as anchor-delimited regions.** The CAMS/KFin
+  DETAILED parser no longer stitches headers by line-local proximity
+  (`Y_BAND` / `consumed_below` lookahead). It accumulates the lines between the
+  folio line (or the previous scheme's footer) and the next `Opening Unit
+  Balance` into one region and parses fields from it once — bounded by the
+  document's reliable single-line anchors, so it tolerates arbitrary header wrap
+  distance and stitches headers across page breaks (which the old code could
+  not). Output is compatible with 1.0.1; the only changes on the private corpus
+  are cleaner scheme names (interleaved-ISIN IDCW names keep their
+  `Payout` / `Reinvest` qualifier; leaked advisor / ISIN fragments are removed).
+
 ## 1.0.1
 
 ### New
