@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/casparser)](https://pypi.org/project/casparser/)
 [![CI](https://github.com/codereverser/casparser/actions/workflows/run-pytest.yml/badge.svg?branch=main)](https://github.com/codereverser/casparser/actions/workflows/run-pytest.yml)
 [![codecov](https://codecov.io/gh/codereverser/casparser/graph/badge.svg?token=DYZ7TXWRGI)](https://codecov.io/gh/codereverser/casparser)
-[![Downloads](https://img.shields.io/pypi/dm/casparser)](https://pypi.org/project/casparser/)
+[![Downloads](https://static.pepy.tech/badge/casparser/month)](https://pepy.tech/projects/casparser)
 [![Python versions](https://img.shields.io/pypi/pyversions/casparser)](https://pypi.org/project/casparser/)
 [![License](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
 [![code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
