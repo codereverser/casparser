@@ -1,10 +1,12 @@
 # CASParser
 
+[![PyPI](https://img.shields.io/pypi/v/casparser)](https://pypi.org/project/casparser/)
+[![CI](https://github.com/codereverser/casparser/actions/workflows/run-pytest.yml/badge.svg?branch=main)](https://github.com/codereverser/casparser/actions/workflows/run-pytest.yml)
+[![codecov](https://codecov.io/gh/codereverser/casparser/graph/badge.svg?token=DYZ7TXWRGI)](https://codecov.io/gh/codereverser/casparser)
+[![Downloads](https://img.shields.io/pypi/dm/casparser)](https://pypi.org/project/casparser/)
+[![Python versions](https://img.shields.io/pypi/pyversions/casparser)](https://pypi.org/project/casparser/)
+[![License](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
 [![code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![GitHub](https://img.shields.io/github/license/codereverser/casparser)](https://github.com/codereverser/casparser/blob/main/LICENSE)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/codereverser/casparser/run-pytest.yml?branch=main)
-[![codecov](https://codecov.io/gh/codereverser/casparser/branch/main/graph/badge.svg?token=DYZ7TXWRGI)](https://codecov.io/gh/codereverser/casparser)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/casparser)
 
 Parse Consolidated Account Statement (CAS) PDF files generated from
 CAMS, KFintech, NSDL, and CDSL.
@@ -338,6 +340,19 @@ casparser-isin --update
 
 If it still fails, please raise an issue at [casparser-isin](https://github.com/codereverser/casparser-isin/issues/new) with the
 failing scheme name(s).
+
+## Related projects
+
+`casparser` powers a small ecosystem of tools for working with your CAS data:
+
+- [folioman](https://github.com/codereverser/folioman) — self-hosted mutual
+  fund portfolio tracker. Imports your CAS via `casparser` and tracks holdings,
+  XIRR, and capital gains over time.
+- [casparser-web](https://github.com/codereverser/casparser-web) — parse your
+  CAS in the browser. No install, runs `casparser` so your statement never
+  leaves your machine.
+- [casparser-isin](https://github.com/codereverser/casparser-isin) — the ISIN /
+  AMFI code database used by `casparser` for scheme identification.
 
 ## License
 
