@@ -9,15 +9,50 @@ from casparser.analysis.gains import (
     Fund,
     FundType,
     GainEntry,
+    GiftEntry,
     MergedTransaction,
     _fy_needs_transfer_col,
     _transfer_flag,
     get_fund_type,
 )
 from casparser.analysis.utils import CII, get_fin_year
-from casparser.enums import TransactionType
+from casparser.enums import CASFileType, FileType, TransactionType
 from casparser.exceptions import GainsError
-from casparser.types import TransactionData
+from casparser.types import (
+    CASData,
+    Folio,
+    InvestorInfo,
+    Scheme,
+    SchemeValuation,
+    StatementPeriod,
+    TransactionData,
+)
+
+
+def _cas_with_transactions(transactions, *, scheme_type="EQUITY"):
+    """Build a minimal CASData wrapping a single scheme with the given
+    transactions (zero opening balance) for CapitalGainsReport tests."""
+    scheme = Scheme(
+        scheme="Gift Test Fund - Direct Growth",
+        rta_code="G123",
+        rta="KFINTECH",
+        type=scheme_type,
+        isin="INF123456789",
+        open=Decimal("0"),
+        close=Decimal("0"),
+        close_calculated=Decimal("0"),
+        valuation=SchemeValuation(date="2026-03-31", nav=Decimal("10"), value=Decimal("0")),
+        transactions=transactions,
+    )
+    folio = Folio(folio="12345", amc="Test Mutual Fund", schemes=[scheme])
+    cas = CASData(
+        statement_period=StatementPeriod(from_="2021-04-01", to="2026-03-31"),
+        folios=[folio],
+        investor_info=InvestorInfo(name="X", email="x@x", address="x", mobile="x"),
+        cas_type=CASFileType.DETAILED,
+        file_type=FileType.KFINTECH,
+    )
+    return CapitalGainsReport(cas)
 
 
 class TestGainsClass:
@@ -84,6 +119,39 @@ class TestGainsClass:
             )
         )
         assert get_fund_type(transactions) == FundType.EQUITY
+
+    def test_gift_out_is_not_a_redemption(self):
+        """An outgoing gift carries negative units but is not a taxable
+        transfer for the donor — it must not flag the fund as having
+        redemptions (FundType stays UNKNOWN) nor produce capital gains. (#134)"""
+        transactions = [
+            TransactionData(
+                date="2022-01-01",
+                description="Purchase",
+                amount=Decimal("10000.00"),
+                units=Decimal("1000.000"),
+                nav=Decimal("10"),
+                balance=Decimal("1000.000"),
+                type=TransactionType.PURCHASE,
+                dividend_rate=None,
+            ),
+            TransactionData(
+                date="2025-11-14",
+                description="Gifting of units-TO Folio No: 12345678901",
+                amount=Decimal("-50000.00"),
+                units=Decimal("-1000.000"),
+                nav=Decimal("50"),
+                balance=Decimal("0.000"),
+                type=TransactionType.GIFT_OUT,
+                dividend_rate=None,
+            ),
+        ]
+        # No real redemption -> fund type cannot be inferred.
+        assert get_fund_type(transactions) == FundType.UNKNOWN
+        # FIFO must not record any disposal for the gift.
+        fund = Fund("Gift Fund", "123", "INF123456789", "EQUITY")
+        fifo = FIFOUnits(fund, transactions)
+        assert fifo.gains == []
 
     def test_merge_transaction(self):
         dt = date(2000, 1, 1)
@@ -458,3 +526,100 @@ class TestStampDutyInCostOfAcquisition:
         assert row.expenditure == Decimal("0.00")  # STT excluded
         assert row.deductions == Decimal("1001.00")
         assert row.balance == Decimal("999.00")
+
+
+class TestGifts:
+    """Inter-folio gift transfers — disclosed informationally, never
+    folded into capital gains. (issue #134)"""
+
+    def _purchase(self):
+        return TransactionData(
+            date="2022-01-01",
+            description="Purchase",
+            amount=Decimal("10000.00"),
+            units=Decimal("1000.000"),
+            nav=Decimal("10"),
+            balance=Decimal("1000.000"),
+            type=TransactionType.PURCHASE,
+            dividend_rate=None,
+        )
+
+    def _gift_out(self):
+        return TransactionData(
+            date="2025-11-14",
+            description="Gifting of units-TO Folio No: 12345678901",
+            amount=Decimal("-50000.00"),
+            units=Decimal("-1000.000"),
+            nav=Decimal("50"),
+            balance=Decimal("0.000"),
+            type=TransactionType.GIFT_OUT,
+            dividend_rate=None,
+            gift_folio="12345678901",
+        )
+
+    def test_gift_entry_from_transaction(self):
+        fund = Fund("F", "12345", "INF123456789", "EQUITY")
+        out = GiftEntry.from_transaction(fund, self._gift_out())
+        assert out.direction == "OUT"
+        # counterparty_folio is carried from the parsed transaction field.
+        assert out.counterparty_folio == "12345678901"
+        assert out.date == date(2025, 11, 14)
+        assert out.fy == "FY2025-26"
+        # Incoming direction.
+        gift_in = TransactionData(
+            date="2025-11-14",
+            description="Gifting of units - From Folio No.87654321",
+            amount=Decimal("50000.00"),
+            units=Decimal("1000.000"),
+            nav=Decimal("50"),
+            balance=Decimal("1000.000"),
+            type=TransactionType.GIFT_IN,
+            dividend_rate=None,
+            gift_folio="87654321",
+        )
+        ein = GiftEntry.from_transaction(fund, gift_in)
+        assert ein.direction == "IN"
+        assert ein.counterparty_folio == "87654321"
+
+    def test_gift_out_disclosed_not_in_gains(self):
+        report = _cas_with_transactions([self._purchase(), self._gift_out()])
+        assert report.has_gifts() is True
+        assert len(report.gifts) == 1
+        assert report.gifts[0].direction == "OUT"
+        # A pure gift-out produces no realised gain and no error.
+        assert report.has_gains() is False
+        assert report.has_error() is False
+        assert "Direction" in report.get_gifts_csv_data()
+
+    def test_recipient_resale_warns_and_excludes(self):
+        """Gifted-in units later redeemed: FIFO can't price them (donor's
+        basis is elsewhere), so the scheme is excluded with a specific,
+        gift-aware message — never the generic FIFO mismatch."""
+        gift_in = TransactionData(
+            date="2024-01-01",
+            description="Gifting of units-FROM Folio No: 12345678901",
+            amount=Decimal("50000.00"),
+            units=Decimal("1000.000"),
+            nav=Decimal("50"),
+            balance=Decimal("1000.000"),
+            type=TransactionType.GIFT_IN,
+            dividend_rate=None,
+        )
+        redemption = TransactionData(
+            date="2025-06-01",
+            description="Redemption",
+            amount=Decimal("-60000.00"),
+            units=Decimal("-1000.000"),
+            nav=Decimal("60"),
+            balance=Decimal("0.000"),
+            type=TransactionType.REDEMPTION,
+            dividend_rate=None,
+        )
+        report = _cas_with_transactions([gift_in, redemption])
+        assert report.has_error() is True
+        assert len(report.errors) == 1
+        _, msg = report.errors[0]
+        assert "gifted-in units" in msg
+        assert "donor" in msg
+        # The gift itself is still disclosed.
+        assert report.has_gifts() is True

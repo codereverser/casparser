@@ -316,11 +316,51 @@ def print_summary(parsed_data: CASData, output_filename=None, include_zero_folio
         console.print(f"File saved : [bold]{output_filename}[/]")
 
 
+def print_gifts(cg: CapitalGainsReport):
+    """Render the informational gift-transfer disclosure table."""
+    table = Table(title="Gift transactions (informational — not in gains)", show_lines=True)
+    table.add_column("FY", no_wrap=True)
+    table.add_column("Fund")
+    table.add_column("Dir")
+    table.add_column("Date", no_wrap=True)
+    table.add_column("Units", justify="right")
+    table.add_column("Value", justify="right")
+    table.add_column("Counterparty Folio")
+    for gift in cg.gifts:
+        table.add_row(
+            gift.fy,
+            gift.fund.name,
+            gift.direction,
+            str(gift.date),
+            f"{gift.units}",
+            f"{formatINR(abs(gift.value))}" if gift.value is not None else "-",
+            gift.counterparty_folio or "-",
+        )
+    console.print(table)
+    console.print(
+        "[bold yellow]Note:[/] Gifts are excluded from capital-gains figures. "
+        "A gift is not a transfer for the donor (Sec 47(iii)). For the recipient, "
+        "cost basis and holding period carry over from the donor (Sec 49(1) / "
+        "2(42A)) and are not available in this statement; the gift itself may be "
+        "taxable as income from other sources (Sec 56(2)(x)) if from a non-relative. "
+        "This is a disclosure, not tax advice."
+    )
+
+
 def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
     cg = CapitalGainsReport(parsed_data)
     data = parsed_data.model_dump(by_alias=True)
     if not cg.has_gains():
         console.print("[bold yellow]Warning:[/] No capital gains info found in CAS")
+        if cg.has_gifts():
+            print_gifts(cg)
+            if isinstance(output_file_path, str):
+                base_path, ext = os.path.splitext(output_file_path)
+                if ext.lower().endswith("csv"):
+                    fname = f"{base_path}-gifts.csv"
+                    with open(fname, "w", newline="", encoding="utf-8") as fp:
+                        fp.write(cg.get_gifts_csv_data())
+                    console.print(f"Gift transactions saved : [bold]{fname}[/]")
         return
 
     summary = cg.get_summary()
@@ -379,6 +419,14 @@ def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
         with open(fname, "w", newline="", encoding="utf-8") as fp:
             fp.write(cg.get_gains_csv_data())
             console.print(f"Detailed gains report saved : [bold]{fname}[/]")
+        if cg.has_gifts():
+            fname = f"{base_path}-gifts.csv"
+            with open(fname, "w", newline="", encoding="utf-8") as fp:
+                fp.write(cg.get_gifts_csv_data())
+                console.print(f"Gift transactions saved : [bold]{fname}[/]")
+
+    if cg.has_gifts():
+        print_gifts(cg)
 
     if cg.has_error():
         console.print("[bold red]WARNING[/] Failed to calculate gains for the following funds.")

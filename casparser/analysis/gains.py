@@ -256,6 +256,44 @@ class GainEntry:
         return Decimal(0.0)
 
 
+@dataclass
+class GiftEntry:
+    """An inter-folio gift transfer — informational only.
+
+    Gifts are deliberately kept out of the capital-gains computation:
+    the donor side is not a transfer (Sec 47(iii) → no gain), and the
+    recipient side needs the *donor's* cost basis and holding period
+    (Sec 49(1) / 2(42A)) which do not exist in a single CAS. This record
+    exists purely to disclose the transfer.
+    """
+
+    fy: str
+    fund: Fund
+    direction: str  # "IN" or "OUT"
+    date: date
+    units: Decimal
+    nav: Decimal
+    value: Decimal
+    counterparty_folio: str
+
+    @classmethod
+    def from_transaction(cls, fund: Fund, txn: TransactionData) -> "GiftEntry":
+        dt = txn.date
+        if isinstance(dt, str):
+            dt = dateparse(dt).date()
+        direction = "IN" if txn.type == TransactionType.GIFT_IN else "OUT"
+        return cls(
+            fy=get_fin_year(dt),
+            fund=fund,
+            direction=direction,
+            date=dt,
+            units=txn.units,
+            nav=txn.nav,
+            value=txn.amount,
+            counterparty_folio=txn.gift_folio or "",
+        )
+
+
 def get_fund_type(transactions: List[TransactionData]) -> FundType:
     """
     Detect Fund Type.
@@ -268,7 +306,9 @@ def get_fund_type(transactions: List[TransactionData]) -> FundType:
     """
     valid = any(
         [
-            x.units is not None and x.units < 0 and x.type != TransactionType.REVERSAL
+            x.units is not None
+            and x.units < 0
+            and x.type not in (TransactionType.REVERSAL, TransactionType.GIFT_OUT)
             for x in transactions
         ]
     )
@@ -398,6 +438,7 @@ class CapitalGainsReport:
     def __init__(self, data: CASData):
         self._data: CASData = data
         self._gains: List[GainEntry] = []
+        self._gifts: List[GiftEntry] = []
         self.errors = []
         self.invested_amount = Decimal(0.0)
         self.current_value = Decimal(0.0)
@@ -407,8 +448,15 @@ class CapitalGainsReport:
     def gains(self) -> List[GainEntry]:
         return list(sorted(self._gains, key=lambda x: (x.fy, x.fund, x.sale_date)))
 
+    @property
+    def gifts(self) -> List[GiftEntry]:
+        return list(sorted(self._gifts, key=lambda x: (x.fy, x.fund, x.date)))
+
     def has_gains(self) -> bool:
         return len(self.gains) > 0
+
+    def has_gifts(self) -> bool:
+        return len(self._gifts) > 0
 
     def has_error(self) -> bool:
         return len(self.errors) > 0
@@ -418,6 +466,7 @@ class CapitalGainsReport:
 
     def process_data(self):
         self._gains = []
+        self._gifts = []
         for folio in self._data.folios:
             for scheme in folio.schemes:
                 transactions = scheme.transactions
@@ -427,6 +476,16 @@ class CapitalGainsReport:
                     isin=scheme.isin,
                     type=scheme.type,
                 )
+                # Disclose every gift transfer, regardless of direction.
+                # These are not part of the capital-gains computation.
+                gift_txns = [
+                    t
+                    for t in transactions
+                    if t.type in (TransactionType.GIFT_IN, TransactionType.GIFT_OUT)
+                ]
+                for txn in gift_txns:
+                    self._gifts.append(GiftEntry.from_transaction(fund, txn))
+                has_gift_in = any(t.type == TransactionType.GIFT_IN for t in transactions)
                 if len(transactions) > 0:
                     if scheme.open >= 0.01:
                         raise IncompleteCASError(
@@ -439,7 +498,24 @@ class CapitalGainsReport:
                         self.current_value += scheme.valuation.value
                         self._gains.extend(fifo.gains)
                     except GainsError as exc:
-                        self.errors.append((fund.name, str(exc)))
+                        # A FIFO shortfall on a scheme that received gifted-in
+                        # units means a later sale is consuming units whose
+                        # cost basis lives in the *donor's* statement, not
+                        # here. Don't surface the generic mismatch; explain it.
+                        if has_gift_in:
+                            self.errors.append(
+                                (
+                                    fund.name,
+                                    "Scheme received gifted-in units; capital "
+                                    "gains on their later sale require the "
+                                    "donor's cost basis and holding period "
+                                    "(Sec 49(1) / 2(42A)), which are not present "
+                                    "in this statement. Scheme excluded from "
+                                    "gains — see the Gift transactions section.",
+                                )
+                            )
+                        else:
+                            self.errors.append((fund.name, str(exc)))
 
     def get_summary(self):
         """Calculate capital gains summary"""
@@ -510,6 +586,39 @@ class CapitalGainsReport:
             csv_fp.seek(0)
             csv_data = csv_fp.read()
             return csv_data
+
+    def get_gifts_csv_data(self) -> str:
+        """Return the informational gift-transfer list as a csv string."""
+        headers = [
+            "FY",
+            "Fund",
+            "ISIN",
+            "Direction",
+            "Date",
+            "Units",
+            "NAV",
+            "Value",
+            "Counterparty Folio",
+        ]
+        with io.StringIO() as csv_fp:
+            writer = csv.writer(csv_fp)
+            writer.writerow(headers)
+            for gift in self.gifts:
+                writer.writerow(
+                    [
+                        gift.fy,
+                        gift.fund.name,
+                        gift.fund.isin,
+                        gift.direction,
+                        gift.date,
+                        gift.units,
+                        gift.nav,
+                        gift.value,
+                        gift.counterparty_folio,
+                    ]
+                )
+            csv_fp.seek(0)
+            return csv_fp.read()
 
     def generate_112a(self, fy) -> List[GainEntry112A]:
         fy_transactions = sorted(
