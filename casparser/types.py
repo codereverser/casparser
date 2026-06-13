@@ -33,6 +33,11 @@ class TransactionData(BaseModel):
     balance: Union[Decimal, float, None] = None
     type: TransactionType
     dividend_rate: Union[Decimal, float, None] = None
+    # For GIFT_IN / GIFT_OUT transfers: the *counterparty* folio named in
+    # the description (the destination for a gift-out, the source for a
+    # gift-in). Lets a donor's statement be linked to the donee's across
+    # two CAS files. None for all other transaction types.
+    gift_folio: Optional[str] = None
 
 
 class SchemeValuation(BaseModel):

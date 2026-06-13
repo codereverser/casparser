@@ -131,6 +131,7 @@ Serialisation notes:
         balance: decimal | null,         // running unit balance
         type: string,                    // see transaction types below
         dividend_rate: decimal | null,   // DIVIDEND_* rows only
+        gift_folio: string | null,       // GIFT_IN/OUT only: counterparty folio
       }[],
     }[],
   }[],
@@ -225,6 +226,7 @@ still returns, but the flagged scheme's data should not be trusted blindly.
 | `DIVIDEND_PAYOUT` / `DIVIDEND_REINVEST` | IDCW / dividend rows — these carry `dividend_rate`            |
 | `STT_TAX` / `STAMP_DUTY_TAX` / `TDS_TAX`| Tax rows — `amount` only, no units                            |
 | `SEGREGATION`                           | Units allotted in a segregated (side-pocketed) portfolio      |
+| `GIFT_IN` / `GIFT_OUT`                  | Units gifted in / out via inter-folio transfer                |
 | `REVERSAL`                              | Reversed / rejected transaction                               |
 | `MISC` / `UNKNOWN`                      | Anything that doesn't match the above                         |
 
@@ -320,7 +322,12 @@ casparser /path/to/cas.pdf -p password -g -o pdf_parsed.csv
    a summary flag (`-s/--summary`) is passed as argument to the CLI. Otherwise, full
    transaction history is included in the export.
    If `-g` flag is present, two additional files '{basename}-gains-summary.csv',
-   '{basename}-gains-detailed.csv' are created with the capital-gains data.
+   '{basename}-gains-detailed.csv' are created with the capital-gains data. If the
+   statement contains inter-folio gift transfers, a '{basename}-gifts.csv' is also
+   written. Gifts are listed in a separate informational section and are **not**
+   included in the capital-gains figures — a gift is not a transfer for the donor,
+   and the recipient's cost basis carries over from the donor (not present in a
+   single CAS). This is a disclosure, not tax advice.
 3. any other extension - The summary table is saved in the file.
 
 

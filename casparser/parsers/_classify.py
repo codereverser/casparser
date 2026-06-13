@@ -37,6 +37,21 @@ DIVIDEND_RE = re.compile(
 )
 REINVEST_RE = re.compile(r"reinvest", re.I)
 
+# Counterparty folio embedded in a gift transfer description. Both RTAs
+# name the other folio but punctuate differently — KFin uses a colon
+# ("Folio No: 12345678901"), CAMS a dot ("Folio No.87654321") — so accept
+# either separator. Used to link a donor's GIFT_OUT to the donee's GIFT_IN
+# across two CAS files.
+GIFT_FOLIO_RE = re.compile(r"Folio\s+No\s*[:.]\s*(\d+)", re.I)
+
+
+def extract_gift_folio(description: str) -> Optional[str]:
+    """Return the counterparty folio number named in a gift description,
+    or None if absent."""
+    if m := GIFT_FOLIO_RE.search(description or ""):
+        return m.group(1)
+    return None
+
 
 def get_transaction_type(
     description: str, units: Optional[Decimal]
@@ -65,7 +80,9 @@ def get_transaction_type(
         else:
             txn_type = TransactionType.MISC
     elif units > 0:
-        if "switch" in description:
+        if "gift" in description:
+            txn_type = TransactionType.GIFT_IN
+        elif "switch" in description:
             txn_type = (
                 TransactionType.SWITCH_IN_MERGER
                 if "merger" in description
@@ -83,7 +100,9 @@ def get_transaction_type(
         else:
             txn_type = TransactionType.PURCHASE
     elif units < 0:
-        if re.search(
+        if "gift" in description:
+            txn_type = TransactionType.GIFT_OUT
+        elif re.search(
             r"reversal|rejection|dishonoured|mismatch|insufficient\s+balance|"
             r"payment\s+not\s+received",
             description,

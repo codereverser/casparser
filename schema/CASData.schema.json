@@ -394,6 +394,18 @@
           "default": null,
           "title": "Dividend Rate"
         },
+        "gift_folio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gift Folio"
+        },
         "nav": {
           "anyOf": [
             {
@@ -453,6 +465,8 @@
         "STAMP_DUTY_TAX",
         "TDS_TAX",
         "SEGREGATION",
+        "GIFT_IN",
+        "GIFT_OUT",
         "MISC",
         "UNKNOWN",
         "REVERSAL"

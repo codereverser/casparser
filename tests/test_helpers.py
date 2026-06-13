@@ -9,12 +9,23 @@ from decimal import Decimal
 
 from casparser.enums import TransactionType
 from casparser.parsers._classify import (
+    extract_gift_folio,
     get_parsed_scheme_name,
     get_transaction_type,
 )
 from casparser.parsers._isin import isin_search
-from casparser.parsers.cams_detailed import _reconcile_balances
+from casparser.parsers.cams_detailed import (
+    DATE_CELL_RE,
+    FOLIO_LINE_RE,
+    _reconcile_balances,
+)
 from casparser.types import Scheme, SchemeValuation, TransactionData
+
+
+def _is_folio_header(text: str) -> bool:
+    """Mirror of the folio-header guard in `cams_detailed.parse`: a real
+    folio header matches FOLIO_LINE_RE and is *not* a dated transaction row."""
+    return bool("Folio No" in text and not DATE_CELL_RE.match(text) and FOLIO_LINE_RE.search(text))
 
 
 def _scheme(open_bal, close_bal, rows):
@@ -88,6 +99,26 @@ class TestTransactionType:
             Decimal("-1.365"),
         ) == (TransactionType.REVERSAL, None)
 
+    def test_gifts(self):
+        # Inter-folio gift transfers. Donor side carries negative units,
+        # recipient side positive. Both CAMS/KFin punctuation variants
+        # ("-TO Folio No:" and " - To Folio No.") must classify on the
+        # "gift" keyword + units sign, not be mistaken for redemptions /
+        # purchases. (issue #134)
+        assert get_transaction_type(
+            "Gifting of units-TO Folio No: 12345678901",
+            Decimal("-4085.662"),
+        ) == (TransactionType.GIFT_OUT, None)
+        assert get_transaction_type(
+            "Gifting of units - To Folio No.87654321",
+            Decimal("-8224.686"),
+        ) == (TransactionType.GIFT_OUT, None)
+        # Recipient side — positive units, phrasing-agnostic.
+        assert get_transaction_type(
+            "Gifting of units-FROM Folio No: 12345678901",
+            Decimal("4085.662"),
+        ) == (TransactionType.GIFT_IN, None)
+
     def test_dividends(self):
         assert get_transaction_type(
             "IDCW Reinvestment @ Rs.2.00 per unit",
@@ -116,6 +147,46 @@ class TestTransactionType:
             "IDCW - Reinvest @ Rs.0.06 per unit",
             Decimal("1"),
         ) == (TransactionType.DIVIDEND_REINVEST, Decimal("0.06"))
+
+
+class TestFolioHeaderGuard:
+    """A gift transaction names the destination folio in its description,
+    so its row contains "Folio No:" and matches FOLIO_LINE_RE. It must not
+    be treated as a folio boundary — doing so dropped the row and, when a
+    scheme's own folio number was redacted/blank, the whole scheme. (#134)"""
+
+    def test_genuine_folio_headers_match(self):
+        assert _is_folio_header("Folio No: 12345678901 PAN: ABCDE1234F KYC: OK PAN: OK")
+        assert _is_folio_header("Folio No: 12124203 / 63 KYC: OK")
+
+    def test_gift_rows_are_not_folio_headers(self):
+        # Both punctuation variants seen in CAMS/KFin statements.
+        assert not _is_folio_header(
+            "14-Nov-2025 Gifting of units-TO Folio No: 12345678901 "
+            "(547,682.99) (4,085.662) 134.05 0.000"
+        )
+        assert not _is_folio_header(
+            "20-Nov-2025 Gifting of units - To Folio No.87654321 "
+            "(776,558.40) (8,224.686) 94.4180 0.000"
+        )
+
+
+class TestExtractGiftFolio:
+    """The counterparty folio is pulled from a gift description for
+    cross-CAS linking. Both RTA punctuations must parse. (#134)"""
+
+    def test_kfin_colon(self):
+        assert extract_gift_folio("Gifting of units-TO Folio No: 12345678901") == "12345678901"
+
+    def test_cams_dot(self):
+        assert extract_gift_folio("Gifting of units - To Folio No.87654321") == "87654321"
+
+    def test_incoming(self):
+        assert extract_gift_folio("Gifting of units-FROM Folio No: 99887766554") == "99887766554"
+
+    def test_no_folio(self):
+        assert extract_gift_folio("Purchase") is None
+        assert extract_gift_folio("") is None
 
 
 class TestParsedSchemeName:

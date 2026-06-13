@@ -28,7 +28,7 @@ from typing import List, Optional
 
 from dateutil import parser as dateparse
 
-from casparser.enums import CASFileType, FileType
+from casparser.enums import CASFileType, FileType, TransactionType
 from casparser.types import (
     CASData,
     Folio,
@@ -38,7 +38,11 @@ from casparser.types import (
     TransactionData,
 )
 
-from ._classify import get_parsed_scheme_name, get_transaction_type
+from ._classify import (
+    extract_gift_folio,
+    get_parsed_scheme_name,
+    get_transaction_type,
+)
 from ._investor import extract_cams_kfin_investor
 from ._isin import isin_search
 from .extract import Char, Line, extract_pages
@@ -722,7 +726,18 @@ def parse(
                 continue
 
             # --- Folio header ---
-            if "Folio No" in text and (m := FOLIO_LINE_RE.search(text)):
+            # A genuine folio header is its own line. A transaction row that
+            # *mentions* a folio number in its description — e.g.
+            # "Gifting of units-TO Folio No: 12345678901" — also contains
+            # "Folio No:" and matches FOLIO_LINE_RE, but always starts with a
+            # transaction date. Reject dated rows so gift transfers are not
+            # mistaken for folio boundaries (which dropped the row and, when a
+            # scheme's own folio number was redacted, the whole scheme).
+            if (
+                "Folio No" in text
+                and not DATE_CELL_RE.match(text)
+                and (m := FOLIO_LINE_RE.search(text))
+            ):
                 # Preserve internal " / " for compatibility with production
                 # parser output format (it keeps "12124203 / 63" style).
                 folio_no = m.group(1).strip()
@@ -850,6 +865,11 @@ def parse(
                 if nav is None and amt is not None and units is not None and units != 0:
                     nav = (amt / units).quantize(Decimal("0.0001"))
                 txn_type, dividend_rate = get_transaction_type(desc, units)
+                gift_folio = (
+                    extract_gift_folio(desc)
+                    if txn_type in (TransactionType.GIFT_IN, TransactionType.GIFT_OUT)
+                    else None
+                )
                 if units is not None:
                     current_scheme.close_calculated += units
                 current_scheme.transactions.append(
@@ -862,6 +882,7 @@ def parse(
                         balance=bal,
                         type=txn_type.name,
                         dividend_rate=dividend_rate,
+                        gift_folio=gift_folio,
                     )
                 )
 
