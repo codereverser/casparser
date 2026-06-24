@@ -119,6 +119,39 @@ class TestTransactionType:
             Decimal("4085.662"),
         ) == (TransactionType.GIFT_IN, None)
 
+    def test_stp(self):
+        # Systematic Transfer Plan legs must classify as SWITCH_OUT (source,
+        # negative units) / SWITCH_IN (target, positive units) regardless of
+        # how the RTA words them. CAMS spells it out ("Systematic Transfer
+        # Plan Switch …", already caught by the "switch" keyword); KFintech
+        # prints it letter-spaced as "S T P In/Out", which previously fell
+        # through to PURCHASE / REDEMPTION. (discussion #141)
+        assert get_transaction_type(
+            "Systematic Transfer Plan Switch Out - To SBI Small Cap Fund Dir Growth-",
+            Decimal("-5.938"),
+        ) == (TransactionType.SWITCH_OUT, None)
+        assert get_transaction_type(
+            "Systematic Transfer Plan Switch In - From SBI Liquid Fund Direct Growth-",
+            Decimal("126.972"),
+        ) == (TransactionType.SWITCH_IN, None)
+        # KFintech, letter-spaced.
+        assert get_transaction_type(
+            "S T P Out (To Axis Mid Cap Fund - Direct Growth F.No:91064932471)",
+            Decimal("-24.933"),
+        ) == (TransactionType.SWITCH_OUT, None)
+        assert get_transaction_type(
+            "S T P In (From Axis Liquid Fund - Direct Growth F.No:91064932471)",
+            Decimal("571.574"),
+        ) == (TransactionType.SWITCH_IN, None)
+
+    def test_sip_not_misread_as_stp(self):
+        # A genuine SIP must stay PURCHASE_SIP — the STP detection must not
+        # swallow "Systematic Investment" or the "SIP" token.
+        assert get_transaction_type(
+            "Systematic Investment-Instalment No 12",
+            Decimal("10"),
+        ) == (TransactionType.PURCHASE_SIP, None)
+
     def test_dividends(self):
         assert get_transaction_type(
             "IDCW Reinvestment @ Rs.2.00 per unit",

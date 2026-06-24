@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1
+
+### Fixed
+
+- Fix mis-classification of STP (Systematic Transfer Plan) for
+  Kfintech-serviced schemes. (discussion #141)
+
 ## 1.2.0
 
 ### New

@@ -37,6 +37,15 @@ DIVIDEND_RE = re.compile(
 )
 REINVEST_RE = re.compile(r"reinvest", re.I)
 
+# Systematic Transfer Plan. A switch by another name — money is moved
+# between two schemes on a schedule. The two RTAs word it differently:
+# CAMS prints "Systematic Transfer Plan Switch In/Out …" (already caught by
+# the "switch" keyword), while KFintech prints it letter-spaced as
+# "S T P In/Out (…)", which matches none of the plain substring checks and
+# used to fall through to PURCHASE / REDEMPTION. Detecting it here — spacing
+# tolerated — lets both RTAs classify consistently as SWITCH_IN / SWITCH_OUT.
+STP_RE = re.compile(r"\bs\s*t\s*p\b|systematic\s+transfer", re.I)
+
 # Counterparty folio embedded in a gift transfer description. Both RTAs
 # name the other folio but punctuate differently — KFin uses a colon
 # ("Folio No: 12345678901"), CAMS a dot ("Folio No.87654321") — so accept
@@ -82,7 +91,7 @@ def get_transaction_type(
     elif units > 0:
         if "gift" in description:
             txn_type = TransactionType.GIFT_IN
-        elif "switch" in description:
+        elif "switch" in description or STP_RE.search(description):
             txn_type = (
                 TransactionType.SWITCH_IN_MERGER
                 if "merger" in description
@@ -109,7 +118,7 @@ def get_transaction_type(
             re.I,
         ):
             txn_type = TransactionType.REVERSAL
-        elif "switch" in description:
+        elif "switch" in description or STP_RE.search(description):
             txn_type = (
                 TransactionType.SWITCH_OUT_MERGER
                 if "merger" in description
