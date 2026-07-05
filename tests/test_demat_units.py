@@ -1307,3 +1307,104 @@ class TestEnrichDematEquities:
         assert eqs["INE002A01018"].exchange == "NSE"
         # Unresolved ISIN stays None, doesn't raise.
         assert eqs["INE000X00X00"].symbol is None
+
+
+class TestNPS:
+    """CDSL NPS holdings parser (`cdsl._parse_nps`). Blocks mirror the real
+    layout: each scheme spans a name-line-1 (+fund-mgr-1), an interleaved
+    units/nav line, and a name-line-2 (+fund-mgr-2)."""
+
+    @staticmethod
+    def _scheme_blocks(asset: str, tier_word: str, units: str, nav: str, y: int):
+        # name/fund-manager wrap across two lines; numerics sit between them.
+        return [
+            _block(
+                _cell("NPS TRUST- A/C HDFC PENSION FUND", 223, 2000, y, y - 40),
+                _cell("HDFC PENSION FUND MANAGEMENT", 2223, 3800, y, y - 40),
+            ),
+            _block(
+                _cell(units, 4379, 5100, y - 45, y - 85),
+                _cell(nav, 5457, 5900, y - 45, y - 85),
+            ),
+            _block(
+                _cell(
+                    f"MANAGEMENT LIMITED SCHEME {asset} - TIER {tier_word}",
+                    223,
+                    2000,
+                    y - 90,
+                    y - 130,
+                ),
+                _cell("LIMITED", 2223, 3000, y - 90, y - 130),
+            ),
+        ]
+
+    def _nps_blocks(self):
+        blocks = [
+            _block(_cell("NPS-SP : PROT PRAN ID : 110099887766", 205, 4000, 7000, 6960)),
+            _block(
+                _cell(
+                    "STATEMENT OF TRANSACTIONS FOR THE PERIOD FROM 01-04-2025 TO 31-03-2026",
+                    1048,
+                    5000,
+                    6800,
+                    6760,
+                )
+            ),
+            # a transaction row mentioning NPS TRUST — must NOT be parsed as a holding
+            _block(
+                _cell("02-Feb-2026", 218, 700, 6700, 6660),
+                _cell(
+                    "NPS TRUST- A/C HDFC PENSION FUND MANAGEMENT LIMITED SCHEME G - TIER I",
+                    829,
+                    2000,
+                    6700,
+                    6660,
+                ),
+                _cell("CR", 3551, 3700, 6700, 6660),
+                _cell("17,828.64", 4177, 4600, 6700, 6660),
+            ),
+            _block(_cell("HOLDING STATEMENT AS ON 31-03-2026", 2044, 4000, 6392, 6352)),
+        ]
+        blocks += self._scheme_blocks("G", "I", "45,982.3138", "27.6140", 6137)
+        blocks += self._scheme_blocks("E", "I", "12,000.0000", "50.0000", 5900)
+        blocks.append(
+            _block(_cell("Portfolio Value ` 8,69,755.61 as on 31-03-2026", 239, 3000, 5433, 5393))
+        )
+        return blocks
+
+    def test_parse_nps_holdings(self):
+        nps = cdsl_p._parse_nps(self._nps_blocks())
+        assert nps is not None
+        assert nps.nps_sp == "PROT"
+        assert nps.pran == "110099887766"
+        assert nps.value == Decimal("869755.61")
+        assert len(nps.schemes) == 2  # transaction row not counted
+        g, e = nps.schemes
+        assert g.asset_class == "G" and g.tier == "I"
+        assert g.units == Decimal("45982.3138") and g.nav == Decimal("27.6140")
+        assert g.value == Decimal("1269755.61")  # units * nav
+        assert g.fund_manager == "HDFC PENSION FUND MANAGEMENT LIMITED"
+        assert e.asset_class == "E" and e.value == Decimal("600000.00")
+
+    def test_parse_nps_skips_redacted_scheme(self):
+        # A scheme whose units/nav are blank (redacted) yields no numerics -> skipped.
+        blocks = [
+            _block(_cell("HOLDING STATEMENT AS ON 31-03-2026", 2044, 4000, 6392, 6352)),
+            _block(
+                _cell("NPS TRUST- A/C HDFC PENSION FUND", 223, 2000, 6137, 6097),
+                _cell("HDFC PENSION FUND MANAGEMENT", 2223, 3800, 6137, 6097),
+            ),
+            _block(_cell("MANAGEMENT LIMITED SCHEME C - TIER I", 223, 2000, 6046, 6006)),
+            _block(_cell("Portfolio Value ` 5,00,000.00 as on 31-03-2026", 239, 3000, 5433, 5393)),
+        ]
+        nps = cdsl_p._parse_nps(blocks)
+        assert nps is not None
+        assert nps.value == Decimal("500000.00")
+        assert nps.schemes == []
+
+    def test_parse_nps_absent_returns_none(self):
+        blocks = [
+            _block(_cell("HOLDING STATEMENT AS ON 31-03-2026", 2044, 4000, 100, 60)),
+            _block(_cell("INE000A01001", 20, 75, 50, 10), _cell("SOME EQUITY", 80, 200, 50, 10)),
+        ]
+        assert cdsl_p._parse_nps(blocks) is None

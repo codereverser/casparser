@@ -270,6 +270,17 @@ Demat statements return holdings (no transactions), grouped per demat account:
     }[],
   }[],
   parse_warnings: string[],              // non-fatal demat data-quality warnings
+  nps: {                                 // National Pension System, if present (CDSL)
+    pran: string | null,                 // PRAN (as printed; often masked)
+    nps_sp: string | null,               // NPS service provider / CRA, e.g. "PROT"
+    value: decimal,                      // reported NPS portfolio value
+    schemes: {
+      scheme: string, fund_manager: string | null,
+      tier: string | null,               // "I" | "II"
+      asset_class: string | null,        // "E" | "C" | "G" | "A"
+      units: decimal, nav: decimal, value: decimal,
+    }[],
+  } | null,
 }
 ```
 

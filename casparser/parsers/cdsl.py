@@ -42,6 +42,8 @@ from casparser.types import (
     DematOwner,
     Equity,
     MutualFund,
+    NPSAccount,
+    NPSScheme,
     NSDLCASData,
     StatementPeriod,
 )
@@ -96,6 +98,23 @@ SECTION_BOID_RE = re.compile(
     r"DP\s*Name\s*:\s*(.+?)\s+(?:BO\s*ID|DPID)\s*:\s*([A-Z0-9]{16})",
     re.I | re.S,
 )
+
+# --- NPS section patterns ---
+# An NPS holding row's scheme name always begins with this marker.
+NPS_SCHEME_MARKER = "nps trust"
+# `NPS-SP : PROT   PRAN ID : <masked>` — service provider (CRA) + PRAN.
+NPS_SP_RE = re.compile(r"NPS[-\s]*SP\s*:\s*([A-Za-z0-9]+)", re.I)
+NPS_PRAN_RE = re.compile(r"PRAN\s*ID\s*:\s*([A-Z0-9]+)", re.I)
+# `Portfolio Value ` 56,05,171.60 as on 31-03-2026` — reported NPS total.
+NPS_VALUE_RE = re.compile(r"Portfolio\s+Value[^\d]*([\d,]+\.\d+)", re.I)
+# Tier ("TIER I"/"TIER II") and asset class ("SCHEME E/C/G/A") in the name.
+NPS_TIER_RE = re.compile(r"\bTIER\s*[-\s]*(I{1,2}|1|2)\b", re.I)
+NPS_ASSET_RE = re.compile(r"\bSCHEME\s+([A-Za-z])\b")
+# Coarse split between the two text columns (scheme name | fund manager).
+# The holding table has exactly two text columns and two numeric columns;
+# numerics are ordered (units, then nav), so only the text split needs an x
+# hint — deliberately loose, well inside the wide inter-column gap.
+_NPS_FUND_MGR_MIN_X = 1500.0
 
 
 # --- decimal helpers ---
@@ -218,6 +237,122 @@ def _split_bo_id(bo_id: str) -> Tuple[str, str, str]:
 
 
 # --- parser entry point ---
+
+
+def _norm_tier(t: str) -> str:
+    return {"1": "I", "2": "II"}.get(t.upper(), t.upper())
+
+
+def _build_nps_scheme(cells: list) -> Optional[NPSScheme]:
+    """Build one NPSScheme from an accumulated holding-row cell buffer.
+
+    A scheme row spans several extractor lines: two text columns (scheme
+    name, fund manager) and two numeric cells (units, then nav). Text is
+    grouped into the two columns by a coarse x split; the numeric cells are
+    assigned by order (left = units, right = nav). value = units * nav.
+    Rows without both numerics (e.g. redacted) are skipped.
+    """
+    text_cells = [c for c in cells if c.text.strip() and not _looks_numeric(c.text)]
+    num_cells = sorted((c for c in cells if _looks_numeric(c.text)), key=lambda c: c.x_left)
+    name_cells = sorted(
+        (c for c in text_cells if c.x_left < _NPS_FUND_MGR_MIN_X), key=lambda c: -c.y_top
+    )
+    fm_cells = sorted(
+        (c for c in text_cells if c.x_left >= _NPS_FUND_MGR_MIN_X), key=lambda c: -c.y_top
+    )
+    scheme = " ".join(c.text.replace("\n", " ").strip() for c in name_cells).strip()
+    scheme = re.sub(r"\s+", " ", scheme)
+    if NPS_SCHEME_MARKER not in scheme.lower():
+        return None
+    if len(num_cells) < 2:
+        return None  # units / nav not present (redacted) — cannot form a holding
+    fund_manager = " ".join(c.text.replace("\n", " ").strip() for c in fm_cells).strip()
+    fund_manager = re.sub(r"\s+", " ", fund_manager) or None
+    units = _to_decimal(num_cells[0].text)
+    nav = _to_decimal(num_cells[1].text)
+    tier = None
+    if m := NPS_TIER_RE.search(scheme):
+        tier = _norm_tier(m.group(1))
+    asset_class = None
+    if m := NPS_ASSET_RE.search(scheme):
+        asset_class = m.group(1).upper()
+    return NPSScheme(
+        scheme=scheme,
+        fund_manager=fund_manager,
+        tier=tier,
+        asset_class=asset_class,
+        units=units,
+        nav=nav,
+        value=(units * nav).quantize(Decimal("0.01")),
+    )
+
+
+def _parse_nps(blocks: List[Block]) -> Optional[NPSAccount]:
+    """Extract the NPS holdings section (if present) from a CDSL CAS.
+
+    Holdings only — the NPS transaction statement is intentionally not
+    parsed. Scans for the NPS `HOLDING STATEMENT` region (identified by its
+    `NPS TRUST-` scheme rows) and reads scheme name / fund manager /
+    units / nav; PRAN + NPS-SP + reported portfolio value from the section
+    text. Returns None when the CAS has no NPS section.
+    """
+    nps_sp: Optional[str] = None
+    pran: Optional[str] = None
+    value: Optional[Decimal] = None
+    schemes: List[NPSScheme] = []
+    mode: Optional[str] = None  # None | "txn" | "holding"
+    buf: list = []
+
+    def flush() -> None:
+        nonlocal buf
+        if buf:
+            sc = _build_nps_scheme(buf)
+            if sc is not None:
+                schemes.append(sc)
+            buf = []
+
+    for b in blocks:
+        txt = b.text()
+        low = txt.lower()
+        if nps_sp is None and (m := NPS_SP_RE.search(txt)):
+            nps_sp = m.group(1)
+        if pran is None and (m := NPS_PRAN_RE.search(txt)):
+            pran = m.group(1)
+        if "statement of transactions" in low:
+            flush()
+            mode = "txn"
+            continue
+        if "holding statement" in low and "as on" in low:
+            flush()
+            mode = "holding"
+            continue
+        if "portfolio value" in low:
+            # Closes the NPS holding region; capture the reported total only
+            # when we are actually closing NPS holdings (schemes seen).
+            if (schemes or buf) and (m := NPS_VALUE_RE.search(txt)):
+                value = _to_decimal(m.group(1))
+            flush()
+            mode = None
+            continue
+        if "nps investment summary" in low:
+            flush()
+            mode = None
+            continue
+        if mode != "holding":
+            continue
+        starts_scheme = any(c.text.strip().lower().startswith(NPS_SCHEME_MARKER) for c in b.cells)
+        if starts_scheme:
+            flush()
+            buf = list(b.cells)
+        elif buf:
+            buf.extend(b.cells)
+    flush()
+
+    if not schemes and value is None and nps_sp is None and pran is None:
+        return None
+    if value is None:
+        value = sum((s.value for s in schemes), Decimal(0))
+    return NPSAccount(pran=pran, nps_sp=nps_sp, value=value, schemes=schemes)
 
 
 def parse_cdsl(
@@ -411,6 +546,7 @@ def parse_cdsl(
             _atoms=atoms,
         ),
         file_type=file_type,
+        nps=_parse_nps(blocks),
     )
 
 

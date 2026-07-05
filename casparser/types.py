@@ -269,11 +269,51 @@ class DematAccount(BaseModel):
         return data
 
 
+class NPSScheme(BaseModel):
+    """A single NPS scheme holding (one asset class within a tier).
+
+    NPS schemes are not securities — they carry no ISIN/AMFI code. The
+    depository CAS prints the pension-fund scheme name, the fund manager,
+    and the unit balance + NAV; `value` is `units * nav`.
+    """
+
+    scheme: str
+    fund_manager: Optional[str] = None
+    tier: Optional[str] = None  # "I" / "II"
+    asset_class: Optional[str] = None  # "E" | "C" | "G" | "A"
+    units: Decimal
+    nav: Decimal
+    value: Decimal
+
+    @model_validator(mode="before")
+    @classmethod
+    def fix_float(cls, data: dict):
+        for k, v in data.items():
+            try:
+                if issubclass(Decimal, cls.__annotations__[k]) and isinstance(v, str):
+                    data[k] = v.replace(",", "")
+            except TypeError:
+                pass
+        return data
+
+
+class NPSAccount(BaseModel):
+    """NPS holdings for a single PRAN, as printed in the depository CAS."""
+
+    pran: Optional[str] = None  # PRAN as printed (often masked)
+    nps_sp: Optional[str] = None  # NPS Service Provider / CRA (e.g. "PROT" = Protean)
+    value: Decimal  # reported "Portfolio Value" total for the PRAN
+    schemes: List[NPSScheme] = []
+
+
 class NSDLCASData(BaseModel):
     accounts: List[DematAccount]
     statement_period: StatementPeriod
     investor_info: InvestorInfo
     file_type: FileType
+    # National Pension System holdings, when the CAS includes an NPS
+    # section (holdings only — the transaction ledger is not parsed).
+    nps: Optional[NPSAccount] = None
     # Non-fatal data-quality warnings from NSDL demat parsing (e.g. a
     # holdings row whose nav/value could not be confirmed arithmetically).
     parse_warnings: List[str] = []

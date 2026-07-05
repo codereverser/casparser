@@ -455,6 +455,121 @@
       "title": "MutualFund",
       "type": "object"
     },
+    "NPSAccount": {
+      "description": "NPS holdings for a single PRAN, as printed in the depository CAS.",
+      "properties": {
+        "nps_sp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nps Sp"
+        },
+        "pran": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pran"
+        },
+        "schemes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NPSScheme"
+          },
+          "title": "Schemes",
+          "type": "array"
+        },
+        "value": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "NPSAccount",
+      "type": "object"
+    },
+    "NPSScheme": {
+      "description": "A single NPS scheme holding (one asset class within a tier).\n\nNPS schemes are not securities \u2014 they carry no ISIN/AMFI code. The\ndepository CAS prints the pension-fund scheme name, the fund manager,\nand the unit balance + NAV; `value` is `units * nav`.",
+      "properties": {
+        "asset_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Class"
+        },
+        "fund_manager": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fund Manager"
+        },
+        "nav": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Nav",
+          "type": "string"
+        },
+        "scheme": {
+          "title": "Scheme",
+          "type": "string"
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tier"
+        },
+        "units": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Units",
+          "type": "string"
+        },
+        "value": {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "units",
+        "nav",
+        "value"
+      ],
+      "title": "NPSScheme",
+      "type": "object"
+    },
     "StatementPeriod": {
       "properties": {
         "from": {
@@ -488,6 +603,17 @@
     },
     "investor_info": {
       "$ref": "#/$defs/InvestorInfo"
+    },
+    "nps": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NPSAccount"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "parse_warnings": {
       "default": [],
