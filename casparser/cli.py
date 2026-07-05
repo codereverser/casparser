@@ -157,6 +157,35 @@ def print_nsdl(parsed_data: NSDLCASData):
 
     console.print(table)
 
+    # NPS holdings (CDSL, holdings-only)
+    if parsed_data.nps and parsed_data.nps.schemes:
+        nps = parsed_data.nps
+        nps_table = Table(title="NPS Holdings", show_lines=True)
+        nps_table.add_column("Scheme")
+        nps_table.add_column("Class")
+        nps_table.add_column("Tier")
+        nps_table.add_column("Units", justify="right")
+        nps_table.add_column("NAV", justify="right")
+        nps_table.add_column("Value", justify="right")
+        for s in nps.schemes:
+            nps_table.add_row(
+                s.scheme,
+                s.asset_class or "",
+                s.tier or "",
+                format_number(s.units),
+                format_number(s.nav),
+                formatINR(s.value),
+            )
+        console.print(nps_table)
+        meta = []
+        if nps.nps_sp:
+            meta.append(f"NPS-SP: [bold]{nps.nps_sp}[/]")
+        if nps.pran:
+            meta.append(f"PRAN: [bold]{nps.pran}[/]")
+        meta.append(f"Value: [bold green]{formatINR(nps.value)}[/]")
+        console.print("   ".join(meta))
+        console.print("")
+
     # Asset class breakdown
     equities_total = Decimal(0)
     mf_demat_total = Decimal(0)
@@ -186,7 +215,10 @@ def print_nsdl(parsed_data: NSDLCASData):
         asset_table.add_row("  Mutual Funds (demat)", formatINR(mf_demat_total))
     if mf_folio_total > 0:
         asset_table.add_row("  Mutual Fund Folios", formatINR(mf_folio_total))
-    total_all = debts_total + equities_total + mf_demat_total + mf_folio_total
+    nps_total = parsed_data.nps.value if parsed_data.nps else Decimal(0)
+    if nps_total > 0:
+        asset_table.add_row("  National Pension System", formatINR(nps_total))
+    total_all = debts_total + equities_total + mf_demat_total + mf_folio_total + nps_total
     asset_table.add_row("  " + "─" * 20, "")
     asset_table.add_row(
         f"  Total Portfolio Value [As of {data['statement_period']['to']}]",
