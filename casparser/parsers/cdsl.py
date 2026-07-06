@@ -110,11 +110,18 @@ NPS_VALUE_RE = re.compile(r"Portfolio\s+Value[^\d]*([\d,]+\.\d+)", re.I)
 # Tier ("TIER I"/"TIER II") and asset class ("SCHEME E/C/G/A") in the name.
 NPS_TIER_RE = re.compile(r"\bTIER\s*[-\s]*(I{1,2}|1|2)\b", re.I)
 NPS_ASSET_RE = re.compile(r"\bSCHEME\s+([A-Za-z])\b")
-# Coarse split between the two text columns (scheme name | fund manager).
-# The holding table has exactly two text columns and two numeric columns;
-# numerics are ordered (units, then nav), so only the text split needs an x
-# hint — deliberately loose, well inside the wide inter-column gap.
-_NPS_FUND_MGR_MIN_X = 1500.0
+# Text that marks a block as genuine NPS holding content (scheme name /
+# fund manager lines). Used to skip page furniture (bank header, tab bar,
+# investor name, column headers, "Page N of M" footer) that gets interleaved
+# when a scheme row straddles a page break.
+NPS_HOLDING_TEXT_RE = re.compile(
+    r"NPS\s+TRUST|PENSION\s+FUND|MANAGEMENT\s+LIMITED|SCHEME\s+[A-Z0-9]\s*-\s*TIER",
+    re.I,
+)
+# Minimum x-gap (points) that separates the two text columns (scheme name |
+# fund manager). Wrapped lines within a column share an x, so any gap this
+# large is a real column boundary — layout-independent, unlike a fixed x.
+_NPS_COL_GAP_MIN = 150.0
 
 
 # --- decimal helpers ---
@@ -243,6 +250,19 @@ def _norm_tier(t: str) -> str:
     return {"1": "I", "2": "II"}.get(t.upper(), t.upper())
 
 
+def _is_nps_holding_block(block: Block) -> bool:
+    """True when a block is part of an NPS holding row — it carries a numeric
+    (units/nav) cell or scheme/fund-manager text. Everything else in the
+    holding region (bank header, tab bar, investor name, column headers,
+    "Page N of M" footer) is page furniture and is skipped."""
+    for c in block.cells:
+        if _looks_numeric(c.text):
+            return True
+        if NPS_HOLDING_TEXT_RE.search(c.text):
+            return True
+    return False
+
+
 def _build_nps_scheme(cells: list) -> Optional[NPSScheme]:
     """Build one NPSScheme from an accumulated holding-row cell buffer.
 
@@ -254,12 +274,19 @@ def _build_nps_scheme(cells: list) -> Optional[NPSScheme]:
     """
     text_cells = [c for c in cells if c.text.strip() and not _looks_numeric(c.text)]
     num_cells = sorted((c for c in cells if _looks_numeric(c.text)), key=lambda c: c.x_left)
-    name_cells = sorted(
-        (c for c in text_cells if c.x_left < _NPS_FUND_MGR_MIN_X), key=lambda c: -c.y_top
-    )
-    fm_cells = sorted(
-        (c for c in text_cells if c.x_left >= _NPS_FUND_MGR_MIN_X), key=lambda c: -c.y_top
-    )
+    # Split the two text columns (scheme name | fund manager) by the largest
+    # x-gap rather than a fixed threshold — column x-positions drift between
+    # CAS versions. Left cluster = scheme name, right = fund manager.
+    by_x = sorted(text_cells, key=lambda c: c.x_left)
+    split = len(by_x)
+    if len(by_x) >= 2:
+        max_gap, at = max(
+            (by_x[i + 1].x_left - by_x[i].x_left, i + 1) for i in range(len(by_x) - 1)
+        )
+        if max_gap >= _NPS_COL_GAP_MIN:
+            split = at
+    name_cells = sorted(by_x[:split], key=lambda c: -c.y_top)
+    fm_cells = sorted(by_x[split:], key=lambda c: -c.y_top)
     scheme = " ".join(c.text.replace("\n", " ").strip() for c in name_cells).strip()
     scheme = re.sub(r"\s+", " ", scheme)
     if NPS_SCHEME_MARKER not in scheme.lower():
@@ -344,7 +371,11 @@ def _parse_nps(blocks: List[Block]) -> Optional[NPSAccount]:
         if starts_scheme:
             flush()
             buf = list(b.cells)
-        elif buf:
+        elif buf and _is_nps_holding_block(b):
+            # Only holding content extends the row buffer; page furniture
+            # (bank header, tab bar, investor name, column headers, footer)
+            # interleaved across a page break is skipped so it doesn't leak
+            # into the scheme name of a row that straddles two pages.
             buf.extend(b.cells)
     flush()
 

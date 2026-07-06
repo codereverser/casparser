@@ -1408,3 +1408,54 @@ class TestNPS:
             _block(_cell("INE000A01001", 20, 75, 50, 10), _cell("SOME EQUITY", 80, 200, 50, 10)),
         ]
         assert cdsl_p._parse_nps(blocks) is None
+
+    def test_parse_nps_scheme_spanning_page_break(self):
+        """A scheme row straddling a page break must not absorb the next
+        page's furniture (bank header, tab bar, investor name, column header,
+        footer), and the scheme/fund-manager split must not depend on a fixed
+        x (fund manager here sits at x=1000, below the old threshold)."""
+        blocks = [
+            _block(_cell("HOLDING STATEMENT AS ON 31-05-2026", 2044, 4000, 700, 660)),
+            # scheme line 1 (name @200, fund-manager @1000) + units/nav
+            _block(
+                _cell("NPS TRUST A/C HDFC PENSION FUND", 200, 900, 600, 560),
+                _cell("HDFC PENSION FUND MANAGEMENT", 1000, 1800, 600, 560),
+            ),
+            _block(
+                _cell("45,982.3138", 4000, 4600, 555, 515), _cell("27.6140", 5000, 5400, 555, 515)
+            ),
+            # --- page break: furniture that must be skipped ---
+            _block(_cell("Central Depository Services (India) Limited", 2000, 3500, 550, 510)),
+            _block(
+                _cell(
+                    "CONSOLIDATED ACCOUNT STATEMENT (CAS) FOR SECURITIES HELD IN DEMAT",
+                    800,
+                    4000,
+                    540,
+                    500,
+                )
+            ),
+            _block(_cell("VINEET MENON", 250, 900, 530, 490)),
+            _block(
+                _cell("Scheme Name", 800, 1500, 520, 480),
+                _cell("Fund Manager", 2000, 2800, 520, 480),
+            ),
+            _block(_cell("Page 18 of 21", 500, 900, 510, 470)),
+            # scheme line 2 (continuation) + fund-manager line 2
+            _block(
+                _cell("MANAGEMENT LIMITED SCHEME G - TIER I GS", 200, 900, 500, 460),
+                _cell("LIMITED", 1000, 1400, 500, 460),
+            ),
+            _block(_cell("Portfolio Value ` 12,69,755.61 as on 31-05-2026", 239, 3000, 440, 400)),
+        ]
+        nps = cdsl_p._parse_nps(blocks)
+        assert nps is not None
+        assert len(nps.schemes) == 1
+        s = nps.schemes[0]
+        assert s.scheme == "NPS TRUST A/C HDFC PENSION FUND MANAGEMENT LIMITED SCHEME G - TIER I GS"
+        assert s.fund_manager == "HDFC PENSION FUND MANAGEMENT LIMITED"
+        assert s.asset_class == "G" and s.tier == "I"
+        assert s.units == Decimal("45982.3138") and s.nav == Decimal("27.6140")
+        # no page furniture leaked into the scheme name
+        for junk in ("VINEET", "Central", "Page", "CONSOLIDATED", "Scheme Name"):
+            assert junk not in s.scheme
