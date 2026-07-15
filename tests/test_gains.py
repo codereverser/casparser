@@ -15,6 +15,7 @@ from casparser.analysis.gains import (
     _consolidate_ae_112a,
     _fy_consolidates_ae,
     _fy_needs_transfer_col,
+    _quarter_index,
     _transfer_flag,
     get_fund_type,
 )
@@ -592,6 +593,85 @@ class TestSchedule112A:
         assert c[12] == "2002"  # Total deductions(13) = 7 + 12
         assert c[13] == "1998"  # Balance(14) = 6 - 13 = 4000 - 2002
         assert "." not in data[0]  # no decimals anywhere
+
+
+def _entry(fy, ftype, purchase_date, sale_date):
+    """Generic GainEntry for the quarterly-split tests: purchase 1000 + 1
+    stamp, sale 2000. The fund type + hold length decide the category."""
+    fund = Fund(f"{ftype} Fund", "X", "INF000X01001", ftype)
+    return GainEntry(
+        fy=fy,
+        fund=fund,
+        type=ftype,
+        purchase_date=purchase_date,
+        purchase_nav=Decimal("10.0"),
+        purchase_value=Decimal("1000.00"),
+        stamp_duty=Decimal("1.00"),
+        sale_date=sale_date,
+        sale_nav=Decimal("20.0"),
+        sale_value=Decimal("2000.00"),
+        stt=Decimal("2.00"),
+        units=Decimal("100.000"),
+    )
+
+
+class TestQuarterlyGains:
+    """Schedule CG Section F — realised gains split into the five advance-tax
+    installment windows by date of transfer (drives the 234C calc)."""
+
+    def test_quarter_index_boundaries(self):
+        # Windows are inclusive of the closing date, in fiscal (Apr-Mar) order.
+        assert _quarter_index(date(2025, 4, 1)) == 0  # start of FY
+        assert _quarter_index(date(2025, 6, 15)) == 0
+        assert _quarter_index(date(2025, 6, 16)) == 1
+        assert _quarter_index(date(2025, 9, 15)) == 1
+        assert _quarter_index(date(2025, 9, 16)) == 2
+        assert _quarter_index(date(2025, 12, 15)) == 2
+        assert _quarter_index(date(2025, 12, 16)) == 3
+        assert _quarter_index(date(2026, 1, 31)) == 3  # Jan folds into Q4
+        assert _quarter_index(date(2026, 3, 15)) == 3
+        assert _quarter_index(date(2026, 3, 16)) == 4  # 16-31 Mar sliver
+        assert _quarter_index(date(2026, 3, 31)) == 4
+
+    def test_equity_ltcg_buckets_and_112a_reconciliation(self):
+        f1 = Fund("Fund A", "A", "INF000A01001", "EQUITY")
+        f2 = Fund("Fund B", "B", "INF000A01002", "EQUITY")
+        gains = [
+            _ltcg_entry("FY2025-26", f1, date(2022, 1, 1), date(2025, 5, 1)),  # Q1
+            _ltcg_entry("FY2025-26", f2, date(2023, 1, 1), date(2026, 3, 20)),  # Q5
+        ]
+        rep = _report_with_gains(gains)
+        buckets = rep.quarterly_gains("FY2025-26")
+        # taxable per lot (AE) = 2000 - (1000 + 1 stamp) = 999
+        assert buckets["Equity LTCG"][0] == Decimal("999.00")
+        assert buckets["Equity LTCG"][4] == Decimal("999.00")
+        assert buckets["Equity LTCG"][1] == Decimal("0")
+        # The equity-LTCG total ties out to the Schedule 112A balance total.
+        balance_total = sum(r.balance for r in rep.generate_112a("FY2025-26"))
+        assert sum(buckets["Equity LTCG"]) == balance_total
+
+    def test_categorises_equity_debt_ltcg_stcg(self):
+        gains = [
+            _entry("FY2025-26", "EQUITY", date(2025, 4, 1), date(2025, 8, 1)),  # eq STCG Q2
+            _entry("FY2025-26", "DEBT", date(2024, 1, 1), date(2025, 6, 1)),  # debt STCG Q1
+            _entry("FY2025-26", "DEBT", date(2020, 1, 1), date(2025, 10, 1)),  # debt LTCG Q3
+        ]
+        b = _report_with_gains(gains).quarterly_gains("FY2025-26")
+        # STCG = sale - (purchase + stamp) = 2000 - 1001 = 999
+        assert b["Equity STCG"][1] == Decimal("999.00")
+        assert sum(b["Equity STCG"]) == Decimal("999.00")
+        assert b["Debt STCG"][0] == Decimal("999.00")
+        assert b["Debt LTCG"][2] > 0  # indexed-cost LTCG lands in Q3
+        assert sum(b["Equity LTCG"]) == Decimal("0")
+
+    def test_only_requested_fy_included(self):
+        f = Fund("Fund A", "A", "INF000A01001", "EQUITY")
+        gains = [
+            _ltcg_entry("FY2024-25", f, date(2022, 1, 1), date(2024, 5, 1)),
+            _ltcg_entry("FY2025-26", f, date(2022, 1, 1), date(2025, 5, 1)),
+        ]
+        b = _report_with_gains(gains).quarterly_gains("FY2025-26")
+        assert sum(sum(qs) for qs in b.values()) == Decimal("999.00")
 
 
 class TestStampDutyInCostOfAcquisition:

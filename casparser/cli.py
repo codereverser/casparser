@@ -14,7 +14,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from . import __version__, read_cas_pdf
-from .analysis.gains import CapitalGainsReport
+from .analysis.gains import QUARTER_LABELS, QUARTERLY_CATEGORIES, CapitalGainsReport
 from .enums import CASFileType, FileType
 from .exceptions import GainsError, IncompleteCASError, ParserException
 from .parsers.utils import cas2csv, cas2csv_summary, cas2json, is_close
@@ -392,6 +392,58 @@ def print_gifts(cg: CapitalGainsReport):
     )
 
 
+def print_quarterly(cg: CapitalGainsReport):
+    """Print the quarterly split of realised gains (Schedule CG, Section F) —
+    one table per FY, bucketed by date of transfer into the five advance-tax
+    installment windows that drive the 234C interest calc."""
+
+    # Whole-rupee INR (tax figures are integers; keeps the 7-column table narrow).
+    def inr0(x):
+        return formatINR(Decimal(round(x))).removesuffix(".00")
+
+    for fy in cg.get_fy_list():
+        buckets = cg.quarterly_gains(fy)
+        # Skip categories with no activity in the year to keep the table tight.
+        active = {cat: qs for cat, qs in buckets.items() if any(qs)}
+        if not active:
+            continue
+
+        table = Table(
+            title=f"Quarterly Capital Gains {fy} (taxable, by date of transfer)",
+            show_lines=True,
+        )
+        table.add_column("Category", no_wrap=True)
+        for label in QUARTER_LABELS:
+            table.add_column(label, justify="right")
+        table.add_column("Total", justify="right")
+
+        column_totals = [Decimal(0)] * len(QUARTER_LABELS)
+        for cat in QUARTERLY_CATEGORIES:
+            if cat not in active:
+                continue
+            quarters = active[cat]
+            row_total = sum(quarters)
+            table.add_row(
+                cat,
+                *[inr0(q) for q in quarters],
+                f"[bold]{inr0(row_total)}[/]",
+            )
+            column_totals = [a + b for a, b in zip(column_totals, quarters)]
+
+        grand_total = sum(column_totals)
+        table.add_row(
+            "[bold]Total[/]",
+            *[f"[bold {get_color(t)}]{inr0(t)}[/]" for t in column_totals],
+            f"[bold {get_color(grand_total)}]{inr0(grand_total)}[/]",
+        )
+        console.print(table)
+    console.print(
+        "[dim]Equity LTCG totals reconcile with the Schedule 112A report. "
+        "Gains are placed by date of transfer; the five windows are the "
+        "advance-tax installment periods (uneven — the last is 16–31 Mar).[/]"
+    )
+
+
 def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
     cg = CapitalGainsReport(parsed_data)
     data = parsed_data.model_dump(by_alias=True)
@@ -441,6 +493,8 @@ def print_gains(parsed_data: CASData, output_file_path=None, gains_112a=""):
             f"[bold {get_color(stcg_total)}]{formatINR(stcg_total)}[/]",
         )
     console.print(table)
+
+    print_quarterly(cg)
 
     if gains_112a != "":
         if output_file_path is None:

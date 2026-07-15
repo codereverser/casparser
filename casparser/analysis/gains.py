@@ -84,6 +84,46 @@ def _rupees(x: Decimal) -> str:
     return str(int(Decimal(str(x)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
 
 
+# Schedule CG "Section F" (and the CAMS/KFin desktop gains statements) split
+# the year's realised gains into the five advance-tax installment windows, by
+# date of transfer — this is what drives the 234C interest calc. The windows
+# are uneven and the last is a 16-day sliver; boundaries below are inclusive of
+# the closing date (15 Jun / 15 Sep / 15 Dec / 15 Mar).
+QUARTER_LABELS = (
+    "Upto 15/6",
+    "16/6 to 15/9",
+    "16/9 to 15/12",
+    "16/12 to 15/3",
+    "16/3 to 31/3",
+)
+
+# The four gain categories casparser can distinguish for the quarterly split.
+# casparser knows equity vs debt (fund type) and LTCG vs STCG (holding period);
+# it cannot know the taxpayer's slab, so debt is left as one "applicable-rate"
+# bucket rather than split by rate.
+QUARTERLY_CATEGORIES = (
+    "Equity LTCG",
+    "Equity STCG",
+    "Debt LTCG",
+    "Debt STCG",
+)
+
+
+def _quarter_index(d: date) -> int:
+    """Index (0-4) of the ITR advance-tax installment window a transfer on
+    `d` falls in, in fiscal-year order (Apr-Mar)."""
+    md = (d.month, d.day)
+    if d.month <= 3:  # Jan-Mar — the tail of the financial year
+        return 4 if md >= (3, 16) else 3
+    if md <= (6, 15):
+        return 0
+    if md <= (9, 15):
+        return 1
+    if md <= (12, 15):
+        return 2
+    return 3  # 16 Dec - 31 Dec
+
+
 @dataclass
 class GainEntry112A:
     """GainEntry for schedule 112A of ITR."""
@@ -309,6 +349,24 @@ class GainEntry:
         if self.gain_type == GainType.STCG:
             return self.gain
         return Decimal(0.0)
+
+
+def _taxable_112a(txn: "GainEntry") -> Decimal:
+    """Per-lot taxable equity LTCG matching Schedule 112A col-14 (balance),
+    so the quarterly split reconciles with :meth:`generate_112a`.
+
+    Mirrors ``GainEntry112A.balance`` at the transaction level: the
+    grandfathering substitution (min of FMV & sale value) applies only to
+    lots acquired on/before 31-Jan-2018, and buy-side stamp duty is part of
+    the cost of acquisition (s.55). Because 112A consolidation is linear
+    (sum-then-subtract), summing this over a fund's lots equals that fund's
+    consolidated 112A-row balance.
+    """
+    consideration = (
+        min(txn.fmv, txn.sale_value) if txn.purchase_date <= date(2018, 1, 31) else Decimal(0)
+    )
+    actual_coa = max(txn.purchase_value, consideration) + txn.stamp_duty
+    return txn.sale_value - actual_coa
 
 
 @dataclass
@@ -824,3 +882,31 @@ class CapitalGainsReport:
             csv_fp.seek(0)
             csv_data = csv_fp.read()
             return csv_data
+
+    def quarterly_gains(self, fy) -> "dict[str, List[Decimal]]":
+        """Realised taxable gains for `fy` split into the five ITR advance-tax
+        installment windows (Schedule CG, Section F) by date of transfer.
+
+        Returns an ordered mapping of category (see ``QUARTERLY_CATEGORIES``)
+        to a five-element list of :class:`~decimal.Decimal` amounts aligned
+        with ``QUARTER_LABELS``. The **Equity LTCG** row uses the same taxable
+        measure as :meth:`generate_112a`, so its total reconciles with the
+        112A report exactly (grandfathering and stamp duty handled per-lot).
+        The other rows use the realised STCG / indexed-LTCG figures.
+        """
+        buckets: dict[str, List[Decimal]] = {
+            cat: [Decimal(0)] * len(QUARTER_LABELS) for cat in QUARTERLY_CATEGORIES
+        }
+        for gain in self.gains:
+            if gain.fy != fy:
+                continue
+            q = _quarter_index(gain.sale_date)
+            is_equity = gain.fund.type == FundType.EQUITY.name
+            if gain.gain_type == GainType.LTCG:
+                if is_equity:
+                    buckets["Equity LTCG"][q] += _taxable_112a(gain)
+                else:
+                    buckets["Debt LTCG"][q] += gain.ltcg_taxable
+            else:
+                buckets["Equity STCG" if is_equity else "Debt STCG"][q] += gain.stcg
+        return buckets
