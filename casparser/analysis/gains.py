@@ -5,8 +5,8 @@ import re
 from collections import deque
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
-from typing import List
+from decimal import ROUND_HALF_UP, Decimal
+from typing import List, Optional
 
 from dateutil.parser import parse as dateparse
 from dateutil.relativedelta import relativedelta
@@ -41,9 +41,22 @@ SALE_TXNS = {
 # side of this date each *transfer* (sale) falls on.
 LTCG_REGIME_CUTOFF = date(2024, 7, 23)
 
-# Schedule 112A column 1b only exists on the AY 2025-26 (FY 2024-25) utility
-# and later. We emit it when the report's FY starts in 2024 or later.
-TRANSFER_COL_FROM_FY_START_YEAR = 2024
+# Schedule 112A column 1b ("Share/Unit Transferred") exists only on the
+# AY 2025-26 (FY 2024-25) utility — the single financial year straddling the
+# 23-Jul-2024 LTCG-rate change, where transfers before/after the cutoff are
+# taxed differently. FY2025-26 onward is a single regime again, so the column
+# is gone.
+TRANSFER_COL_FY_START_YEAR = 2024
+# FY2025-26 onward the ITR utility accepts a single consolidated row for all
+# after-31-Jan-2018 acquisitions instead of per-scrip rows.
+CONSOLIDATED_AE_FROM_FY_START_YEAR = 2025
+CONSOLIDATED_AE_ISIN = "INNOTREQUIRD"
+CONSOLIDATED_AE_NAME = "CONSOLIDATED"
+
+
+def _fy_start_year(fy: str) -> Optional[int]:
+    m = re.match(r"FY(\d{4})", fy or "")
+    return int(m.group(1)) if m else None
 
 
 def _transfer_flag(sale_date: date) -> str:
@@ -53,10 +66,22 @@ def _transfer_flag(sale_date: date) -> str:
 
 
 def _fy_needs_transfer_col(fy: str) -> bool:
-    """True if `fy` (e.g. ``FY2024-25``) is FY2024-25 or later, i.e. the
-    Schedule 112A column 1b applies."""
-    m = re.match(r"FY(\d{4})", fy or "")
-    return bool(m) and int(m.group(1)) >= TRANSFER_COL_FROM_FY_START_YEAR
+    """True only for FY2024-25 — the one year the Schedule 112A column 1b
+    applies (the 23-Jul-2024 rate split)."""
+    return _fy_start_year(fy) == TRANSFER_COL_FY_START_YEAR
+
+
+def _fy_consolidates_ae(fy: str) -> bool:
+    """True for FY2025-26 onward, where the ITR accepts a single consolidated
+    row for all after-31-Jan-2018 acquisitions."""
+    y = _fy_start_year(fy)
+    return y is not None and y >= CONSOLIDATED_AE_FROM_FY_START_YEAR
+
+
+def _rupees(x: Decimal) -> str:
+    """Whole-rupee integer string — the ITR Schedule 112A utility rejects
+    decimals in the amount fields."""
+    return str(int(Decimal(str(x)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
 
 
 @dataclass
@@ -103,6 +128,36 @@ class GainEntry112A:
     @property
     def balance(self):
         return self.sale_value - self.deductions
+
+
+def _consolidate_ae_112a(rows: List[GainEntry112A]) -> List[GainEntry112A]:
+    """Collapse all after-31-Jan-2018 (AE) rows into a single consolidated
+    row, keeping grandfathered (BE) rows itemised.
+
+    FY2025-26 onward the ITR Schedule 112A utility accepts one line for all
+    after-2018 acquisitions — Name ``CONSOLIDATED``, ISIN ``INNOTREQUIRD``,
+    quantity 0, with only the Full Value (6) and Cost (8) totals. BE rows
+    stay per-scrip because each needs its own 31-Jan-2018 FMV.
+    """
+    ae = [r for r in rows if r.acquired != "BE"]
+    if not ae:
+        return rows
+    be = [r for r in rows if r.acquired == "BE"]
+    merged = GainEntry112A(
+        acquired="AE",
+        transferred="AE",
+        isin=CONSOLIDATED_AE_ISIN,
+        name=CONSOLIDATED_AE_NAME,
+        units=Decimal(0),
+        sale_nav=Decimal(0),
+        sale_value=sum((r.sale_value for r in ae), Decimal(0)),
+        purchase_value=sum((r.purchase_value for r in ae), Decimal(0)),
+        fmv_nav=Decimal(0),
+        fmv=Decimal(0),
+        stt=sum((r.stt for r in ae), Decimal(0)),
+        stamp_duty=sum((r.stamp_duty for r in ae), Decimal(0)),
+    )
+    return be + [merged]
 
 
 @dataclass
@@ -684,6 +739,8 @@ class CapitalGainsReport:
                     ce.sale_nav = Decimal(round(txn.sale_value / txn.units, 3))
             rows.extend(entries)
             rows.extend(consolidated.values())
+        if _fy_consolidates_ae(fy):
+            rows = _consolidate_ae_112a(rows)
         return rows
 
     def generate_112a_csv_data(self, fy):
@@ -715,22 +772,52 @@ class CapitalGainsReport:
             writer.writerow(headers)
 
             for row in self.generate_112a(fy):
-                values = [
-                    row.acquired,
-                    row.isin,
-                    row.name,
-                    str(row.units),
-                    str(row.sale_nav),
-                    str(row.sale_value),
-                    str(row.actual_coa),
-                    str(row.purchase_value),
-                    str(row.consideration_value),
-                    str(row.fmv_nav),
-                    str(row.fmv),
-                    str(row.expenditure),
-                    str(row.deductions),
-                    str(row.balance),
-                ]
+                if row.acquired == "AE":
+                    # After-31-Jan-2018: the utility takes Full Value (6), Cost
+                    # of acquisition (8) and Expenditure (12); the grandfathering
+                    # cols 9/10/11 are N/A. We also fill the derived cols the
+                    # utility computes (7 = higher of 8/9 = 8 here, 13 = 7+12,
+                    # 14 = 6-13) so the CSV is self-consistent rather than
+                    # relying on the import to recompute. Buy-side stamp duty is
+                    # part of the cost of acquisition (s.55) → folded into 8;
+                    # STT is not deductible (s.48) → excluded.
+                    sale = int(_rupees(row.sale_value))
+                    cost = int(_rupees(row.purchase_value + row.stamp_duty))
+                    values = [
+                        row.acquired,
+                        row.isin,
+                        row.name,
+                        "0",  # 4  No. of units (not used for AE)
+                        "0",  # 5  Sale-price per unit (not used for AE)
+                        str(sale),  # 6  Full Value of Consideration (gross)
+                        str(cost),  # 7  Cost w/o indexation = higher of 8, 9
+                        str(cost),  # 8  Cost of acquisition (incl. stamp)
+                        "0",  # 9  N/A (grandfathering)
+                        "0",  # 10 N/A
+                        "0",  # 11 N/A
+                        "0",  # 12 Expenditure (STT not deductible)
+                        str(cost),  # 13 Total deductions = 7 + 12
+                        str(sale - cost),  # 14 Balance = 6 - 13
+                    ]
+                else:
+                    # BE (grandfathered) — itemised, per-scrip FMV. Rupee amounts
+                    # rounded to whole rupees; units / per-unit NAVs kept exact.
+                    values = [
+                        row.acquired,
+                        row.isin,
+                        row.name,
+                        str(row.units),
+                        str(row.sale_nav),
+                        _rupees(row.sale_value),
+                        _rupees(row.actual_coa),
+                        _rupees(row.purchase_value),
+                        _rupees(row.consideration_value),
+                        str(row.fmv_nav),
+                        _rupees(row.fmv),
+                        _rupees(row.expenditure),
+                        _rupees(row.deductions),
+                        _rupees(row.balance),
+                    ]
                 if with_transfer_col:
                     values.insert(1, row.transferred)
                 writer.writerow(values)

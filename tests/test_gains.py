@@ -9,8 +9,11 @@ from casparser.analysis.gains import (
     Fund,
     FundType,
     GainEntry,
+    GainEntry112A,
     GiftEntry,
     MergedTransaction,
+    _consolidate_ae_112a,
+    _fy_consolidates_ae,
     _fy_needs_transfer_col,
     _transfer_flag,
     get_fund_type,
@@ -429,11 +432,86 @@ class TestSchedule112A:
         assert _transfer_flag(date(2020, 1, 1)) == "BE"
 
     def test_fy_needs_transfer_col(self):
+        # Column 1b exists only for FY2024-25 — the single year straddling
+        # the 23-Jul-2024 rate change. FY2025-26 onward is one regime again.
         assert _fy_needs_transfer_col("FY2024-25") is True
-        assert _fy_needs_transfer_col("FY2025-26") is True
+        assert _fy_needs_transfer_col("FY2025-26") is False
+        assert _fy_needs_transfer_col("FY2026-27") is False
         assert _fy_needs_transfer_col("FY2023-24") is False
         assert _fy_needs_transfer_col("FY2020-21") is False
         assert _fy_needs_transfer_col("") is False
+
+    def test_fy_consolidates_ae(self):
+        assert _fy_consolidates_ae("FY2025-26") is True
+        assert _fy_consolidates_ae("FY2026-27") is True
+        assert _fy_consolidates_ae("FY2024-25") is False
+        assert _fy_consolidates_ae("FY2023-24") is False
+        assert _fy_consolidates_ae("") is False
+
+    def test_consolidate_ae_112a(self):
+        def _ae(isin, sale, cost, stt, stamp):
+            return GainEntry112A(
+                "AE",
+                "AE",
+                isin,
+                isin,
+                Decimal("10"),
+                Decimal("5"),
+                Decimal(sale),
+                Decimal(cost),
+                Decimal(0),
+                Decimal(0),
+                Decimal(stt),
+                Decimal(stamp),
+            )
+
+        be = GainEntry112A(
+            "BE",
+            "AE",
+            "INF000A01001",
+            "Grandfathered Fund",
+            Decimal("5"),
+            Decimal("100"),
+            Decimal("500"),
+            Decimal("300"),
+            Decimal("80"),
+            Decimal("400"),
+            Decimal("1"),
+            Decimal("2"),
+        )
+        rows = [
+            be,
+            _ae("INF000A01002", "1000", "800", "1", "3"),
+            _ae("INF000A01003", "2000", "1500", "2", "4"),
+        ]
+        out = _consolidate_ae_112a(rows)
+        assert len(out) == 2  # BE kept + one merged AE
+        assert out[0] is be  # grandfathered row itemised, untouched
+        m = out[1]
+        assert m.acquired == "AE" and m.isin == "INNOTREQUIRD" and m.name == "CONSOLIDATED"
+        assert m.units == Decimal(0) and m.sale_nav == Decimal(0)
+        assert m.sale_value == Decimal("3000")  # 1000 + 2000
+        assert m.purchase_value == Decimal("2300")  # 800 + 1500
+        # cost of acquisition folds in stamp duty (s.55); STT excluded
+        assert m.deductions == Decimal("2307")  # 2300 + (3+4) stamp
+        assert m.balance == Decimal("693")  # 3000 - 2307
+
+    def test_consolidate_ae_112a_no_ae_rows(self):
+        be = GainEntry112A(
+            "BE",
+            "AE",
+            "INF000A01001",
+            "F",
+            Decimal("5"),
+            Decimal("100"),
+            Decimal("500"),
+            Decimal("300"),
+            Decimal("80"),
+            Decimal("400"),
+            Decimal("1"),
+            Decimal("2"),
+        )
+        assert _consolidate_ae_112a([be]) == [be]
 
     def test_ae_lots_split_across_cutoff(self):
         """An after-31-Jan-2018-acquired fund sold both before and on/after
@@ -488,6 +566,32 @@ class TestSchedule112A:
         cols = header.split(",")
         assert cols[0] == "Share/Unit acquired(1a)"
         assert cols[1] == "ISIN Code(2)"
+
+    def test_csv_fy2025_26_consolidated_ae_integers(self):
+        """FY2025-26: all after-2018 lots collapse into one CONSOLIDATED row;
+        only Full Value(6)/Cost(8)/Expenditure(12) carry values, amounts are
+        whole rupees, and stamp duty is folded into the cost (col 8)."""
+        f1 = Fund("Fund A", "A", "INF000A01001", "EQUITY")
+        f2 = Fund("Fund B", "B", "INF000A01002", "EQUITY")
+        gains = [
+            _ltcg_entry("FY2025-26", f1, date(2022, 1, 1), date(2025, 6, 1)),
+            _ltcg_entry("FY2025-26", f2, date(2023, 1, 1), date(2025, 7, 1)),
+        ]
+        csv_data = _report_with_gains(gains).generate_112a_csv_data("FY2025-26")
+        assert "Transferred(1b)" not in csv_data.splitlines()[0]  # no 1b col
+        data = csv_data.splitlines()[1:]
+        assert len(data) == 1  # single consolidated row across both funds
+        c = data[0].split(",")
+        assert c[0] == "AE" and c[1] == "INNOTREQUIRD" and c[2] == "CONSOLIDATED"
+        assert c[3] == "0" and c[4] == "0"  # units / sale-price unused for AE
+        assert c[5] == "4000"  # Full Value(6) = 2000 + 2000 (gross, units*nav)
+        assert c[6] == "2002"  # Cost w/o indexation(7) = higher of 8, 9 = 8
+        assert c[7] == "2002"  # Cost(8) = (1000+1000) + (1+1) stamp duty
+        assert c[8:11] == ["0"] * 3  # cols 9,10,11 N/A (grandfathering)
+        assert c[11] == "0"  # Expenditure(12) — STT not deductible
+        assert c[12] == "2002"  # Total deductions(13) = 7 + 12
+        assert c[13] == "1998"  # Balance(14) = 6 - 13 = 4000 - 2002
+        assert "." not in data[0]  # no decimals anywhere
 
 
 class TestStampDutyInCostOfAcquisition:
