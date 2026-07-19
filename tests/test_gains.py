@@ -74,6 +74,7 @@ class TestGainsClass:
         assert CII["FY2023-24"] == 348
         assert CII["FY2024-25"] == 363
         assert CII["FY2025-26"] == 376
+        assert CII["FY2026-27"] == 384
 
         # Checks for out-of-range FYs
         today = date.today()
