@@ -105,6 +105,12 @@ class Folio(BaseModel):
 
     folio: str
     amc: str
+    # First/primary holder's name as printed in the folio header. Newer
+    # CAMS/KFintech DETAILED templates print it on the line after
+    # `Folio No:`; older templates omit it entirely, so None means
+    # "not present in the statement" — fall back to investor_info.name
+    # only for single-investor statements. See issue #145.
+    name: Optional[str] = None
     PAN: Optional[str] = None
     KYC: Optional[str] = None
     PANKYC: Optional[str] = None

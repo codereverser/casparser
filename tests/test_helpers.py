@@ -94,8 +94,7 @@ class TestTransactionType:
         # A failed-SIP "payment not received" row carries negative units
         # but is a reversal of a provisional purchase, not a redemption.
         assert get_transaction_type(
-            "SIP Purchase151/Payment not received from investor Banker "
-            "Physical - Instalment No 1",
+            "SIP Purchase151/Payment not received from investor Banker Physical - Instalment No 1",
             Decimal("-1.365"),
         ) == (TransactionType.REVERSAL, None)
 
@@ -464,3 +463,164 @@ class TestBalanceSignFix:
         _apply_balance_sign_fix(scheme)
         t = scheme.transactions[0]
         assert t.units == Decimal("50")
+
+
+class TestHolderNameLine:
+    """Newer CAMS/KFin DETAILED templates print the folio holder's name
+    on the line after `Folio No:`; `_looks_like_holder_name` is the
+    guard that separates it from everything else that can occupy that
+    slot — scheme lines (old format), dates, loads, KYC fragments. (#145)"""
+
+    def test_names_match(self):
+        from casparser.parsers.cams_detailed import _looks_like_holder_name
+
+        assert _looks_like_holder_name("JOHN DOE")
+        assert _looks_like_holder_name("John Doe")  # same template, other blocks
+        assert _looks_like_holder_name("JOHN MICHAEL DOE")
+        assert _looks_like_holder_name("DOE J M")
+        assert _looks_like_holder_name("J M DOE")
+        assert _looks_like_holder_name("MARY D'SOUZA")
+        assert _looks_like_holder_name("Mary D'Souza")
+        assert _looks_like_holder_name("JOHN DOE & JANE DOE")
+        assert _looks_like_holder_name("  JOHN   DOE  ")  # stray spacing
+
+    def test_non_names_rejected(self):
+        from casparser.parsers.cams_detailed import _looks_like_holder_name
+
+        # old-format: scheme line directly follows the folio line
+        assert not _looks_like_holder_name(
+            "128TSGPG-Axis Long Term Equity Fund - Growth - "
+            "ISIN: INF846K01131(Advisor: ARN-12345) Registrar : CAMS"
+        )
+        assert not _looks_like_holder_name("Folio No: 12345678 / 0 PAN: ABCDE1234F")
+        assert not _looks_like_holder_name("KYC: OK")
+        assert not _looks_like_holder_name("Opening Unit Balance: 0.000")
+        assert not _looks_like_holder_name("01-Jan-2021 To 31-Dec-2021")
+        assert not _looks_like_holder_name("Entry Load - NIL. Exit Load - NIL")
+        assert not _looks_like_holder_name("Nominee 1: JANE DOE")
+        assert not _looks_like_holder_name("KFINTECH")  # RTA wrap line
+        assert not _looks_like_holder_name("ARN-28283)")  # advisor wrap line
+        assert not _looks_like_holder_name(
+            "REGISTERED OFFICE MUMBAI INDIA CORPORATE PARK TOWER B FLOOR NINE UNIT FOUR"
+        )  # >8 words
+        assert not _looks_like_holder_name("TOTAL")  # single word
+        assert not _looks_like_holder_name("")
+        # transaction-column header directly after a page break
+        assert not _looks_like_holder_name("Date Transaction Amount Units Price Unit")
+        # mixed-case prose: not every word capitalized
+        assert not _looks_like_holder_name("Units held as on date")
+
+
+class TestFolioHolderNameParse:
+    """End-to-end name capture through `cams_detailed.parse`, on a
+    synthetic two-investor statement (new-format folios carry a name
+    line, old-format folios don't). (#145)"""
+
+    @staticmethod
+    def _line(text: str, baseline: float):
+        from casparser.parsers.extract import Char, Line
+
+        chars = [
+            Char(text=ch, x0=i * 5.0, y0=baseline, x1=i * 5.0 + 5.0, y1=baseline + 10.0)
+            for i, ch in enumerate(text)
+        ]
+        return Line(page=1, baseline=baseline, chars=chars)
+
+    def _parse(self, monkeypatch, text_lines):
+        import casparser.parsers.cams_detailed as mod
+        from casparser.parsers.extract import Page
+        from casparser.types import InvestorInfo
+
+        lines = [self._line(t, 800.0 - 12.0 * i) for i, t in enumerate(text_lines)]
+        monkeypatch.setattr(mod, "extract_pages", lambda *a, **k: [Page(number=1, lines=lines)])
+        monkeypatch.setattr(
+            mod,
+            "extract_cams_kfin_investor",
+            lambda *a, **k: InvestorInfo(name="JOHN DOE", email="", address="", mobile=""),
+        )
+        return mod.parse("synthetic.pdf", "")
+
+    SCHEME_LINE = (
+        "128TSGPG-Axis Long Term Equity Fund - Growth - "
+        "ISIN: INF846K01131(Advisor: ARN-12345) Registrar : CAMS"
+    )
+
+    def test_new_format_names_per_folio(self, monkeypatch):
+        data = self._parse(
+            monkeypatch,
+            [
+                "01-Jan-2021 To 31-Dec-2021",
+                "Axis Mutual Fund",
+                "Folio No: 11111111 / 0 PAN: AAAAA1111A KYC: OK PAN: OK",
+                "JOHN DOE",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+                "Folio No: 22222222 / 0 PAN: BBBBB2222B KYC: OK PAN: OK",
+                "JANE ROE",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+            ],
+        )
+        by_folio = {f.folio: f for f in data.folios}
+        assert by_folio["11111111 / 0"].name == "JOHN DOE"
+        assert by_folio["11111111 / 0"].PAN == "AAAAA1111A"
+        assert by_folio["22222222 / 0"].name == "JANE ROE"
+        assert by_folio["22222222 / 0"].PAN == "BBBBB2222B"
+
+    def test_old_format_has_no_name(self, monkeypatch):
+        # scheme line directly after the folio line — name stays None
+        data = self._parse(
+            monkeypatch,
+            [
+                "01-Jan-2021 To 31-Dec-2021",
+                "Axis Mutual Fund",
+                "Folio No: 33333333 / 0 PAN: CCCCC3333C KYC: OK PAN: OK",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+            ],
+        )
+        assert data.folios[0].name is None
+        assert data.folios[0].PAN == "CCCCC3333C"
+
+    def test_name_backfilled_from_later_folio_block(self, monkeypatch):
+        # First occurrence misses the name (e.g. page-break junk ate the
+        # window); the folio line repeats per scheme and the second
+        # block's name must backfill the same Folio object.
+        data = self._parse(
+            monkeypatch,
+            [
+                "01-Jan-2021 To 31-Dec-2021",
+                "Axis Mutual Fund",
+                "Folio No: 44444444 / 0 PAN: DDDDD4444D KYC: OK PAN: OK",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+                "Folio No: 44444444 / 0 PAN: DDDDD4444D KYC: OK PAN: OK",
+                "JOHN DOE",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+            ],
+        )
+        assert len(data.folios) == 1
+        assert data.folios[0].name == "JOHN DOE"
+
+    def test_nominee_not_mistaken_for_holder(self, monkeypatch):
+        # Nominee line right after the folio line (no holder name printed)
+        # must not be captured — it carries a header marker.
+        data = self._parse(
+            monkeypatch,
+            [
+                "01-Jan-2021 To 31-Dec-2021",
+                "Axis Mutual Fund",
+                "Folio No: 55555555 / 0 PAN: EEEEE5555E KYC: OK PAN: OK",
+                "Nominee 1: JANE DOE  Nominee 2:  Nominee 3:",
+                self.SCHEME_LINE,
+                "Opening Unit Balance: 0.000",
+                "Closing Unit Balance: 0.000",
+            ],
+        )
+        assert data.folios[0].name is None

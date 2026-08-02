@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Folio holder name (CAMS/KFintech detailed).** `folios[].name` carries the
+  holder's name as printed in each folio header, so multi-investor statements
+  can associate each PAN with its holder instead of the statement addressee.
+  `null` on older templates that don't print a per-folio name. (#145)
+
 ## 1.3.0
 
 ### New

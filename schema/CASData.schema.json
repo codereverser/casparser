@@ -69,6 +69,18 @@
           "title": "Folio",
           "type": "string"
         },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
         "schemes": {
           "items": {
             "$ref": "#/$defs/Scheme"

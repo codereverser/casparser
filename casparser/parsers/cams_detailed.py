@@ -468,6 +468,32 @@ def _is_header_line(text: str) -> bool:
     )
 
 
+# Holder-name line: newer CAMS/KFin DETAILED templates print the folio
+# holder's name on the line right after `Folio No:` (older templates
+# jump straight to the scheme line). The case varies by template — the
+# same statement prints "JOHN DOE" in some blocks and "John Doe" in
+# others — so the guards are structural: letters-only with name
+# punctuation (any digit or colon marks a date / amount / `KYC: OK`
+# fragment), every word capitalized (rejects load/disclaimer prose),
+# not a transaction-column header (follows the folio line across a page
+# break), and not a scheme/registrar line (`_is_header_line`).
+_HOLDER_NAME_CHARS_RE = re.compile(r"^[A-Z][A-Za-z .'&-]*$")
+
+
+def _looks_like_holder_name(text: str) -> bool:
+    t = " ".join(text.split())
+    words = t.split()
+    if not (2 <= len(words) <= 8 and len(t) <= 80):
+        return False
+    if not _HOLDER_NAME_CHARS_RE.match(t):
+        return False
+    if not all(w == "&" or w[0].isupper() for w in words):
+        return False
+    if sum(w in TXN_HEADER_LABELS for w in words) >= TXN_MIN_HITS:
+        return False
+    return not _is_header_line(t)
+
+
 def _expects_continuation(text: str) -> bool:
     """True if `text` leaves a marker value dangling onto the next line."""
     if _TRAILING_MARKER_RE.search(text.strip()):
@@ -689,6 +715,15 @@ def parse(
     header_buf: List[str] = []
     header_active: bool = False
 
+    # Lines still eligible to be the current folio's holder-name line.
+    # Opened (=2) at each folio header whose folio has no name yet — the
+    # name sits on the very next line, with one line of tolerance for
+    # interleaved junk (page-break banners, watermark fragments). Any
+    # scheme-header evidence closes the window: old-format statements
+    # print no name at all, and the window must not creep into the
+    # scheme region and mistake later caps-only text for a name.
+    holder_name_lines_left: int = 0
+
     # Non-fatal data-quality warnings. Region anomalies (an unparseable
     # or abandoned header) are appended during the loop; the per-scheme
     # balance reconciliation extends the list afterwards.
@@ -723,6 +758,7 @@ def parse(
                     parse_warnings.append(w)
                 header_buf = []
                 header_active = False
+                holder_name_lines_left = 0
                 continue
 
             # --- Folio header ---
@@ -753,6 +789,9 @@ def parse(
                     )
                 current_folio = folios[folio_key]
                 current_scheme = None
+                # The folio line repeats for every scheme, so a name
+                # missed once (page break) is retried on the next one.
+                holder_name_lines_left = 2 if current_folio.name is None else 0
                 # The lines until this folio's first Opening Unit Balance
                 # are its first scheme's header region.
                 if header_active and (w := _abandoned_region_warning(header_buf, "folio boundary")):
@@ -760,6 +799,19 @@ def parse(
                 header_buf = []
                 header_active = True
                 continue
+
+            # --- Folio holder name (issue #145): observe — never consume —
+            #     the first line(s) after a folio header. The line still
+            #     flows into the scheme-header region buffer below, where
+            #     it is inert (it carries no header markers). ---
+            if holder_name_lines_left and current_folio is not None:
+                holder_name_lines_left -= 1
+                stripped = text.strip()
+                if _looks_like_holder_name(stripped):
+                    current_folio.name = " ".join(stripped.split())
+                    holder_name_lines_left = 0
+                elif _is_header_line(stripped) or OPEN_BAL_RE.search(stripped):
+                    holder_name_lines_left = 0
 
             # --- Opening Unit Balance: closes the scheme-header region and
             #     builds the scheme from the accumulated buffer. ---

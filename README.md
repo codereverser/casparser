@@ -107,6 +107,8 @@ Serialisation notes:
   folios: {
     folio: string,                       // "12345678 / 90"
     amc: string,
+    name: string | null,                 // folio holder's name as printed;
+                                         // null on older templates that omit it
     PAN: string | null,
     KYC: "OK" | "NOT OK" | null,
     PANKYC: "OK" | "NOT OK" | null,
@@ -162,6 +164,7 @@ still returns, but the flagged scheme's data should not be trusted blindly.
     {
       "folio": "12345678 / 90",
       "amc": "HDFC Mutual Fund",
+      "name": "JOHN DOE",
       "PAN": "ABCDE1234F",
       "KYC": "OK",
       "PANKYC": "OK",
