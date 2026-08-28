@@ -371,7 +371,7 @@ def _apply_balance_sign_fix(scheme: Scheme) -> None:
             if t.amount is not None:
                 t.amount = -Decimal(str(t.amount))
             new_type, new_div = get_transaction_type(t.description, flipped_units)
-            t.type = new_type.name
+            t.type = new_type
             t.dividend_rate = new_div
         prev_balance = balance
 
@@ -944,7 +944,7 @@ def parse(
                         txn = current_scheme.transactions[-1]
                         txn.description = f"{txn.description} {tail}"
                         txn_type, dividend_rate = get_transaction_type(txn.description, txn.units)
-                        txn.type = txn_type.name
+                        txn.type = txn_type
                         txn.dividend_rate = dividend_rate
                         if txn_type in (TransactionType.GIFT_IN, TransactionType.GIFT_OUT):
                             txn.gift_folio = extract_gift_folio(txn.description)
@@ -993,7 +993,7 @@ def parse(
                         units=units,
                         nav=nav,
                         balance=bal,
-                        type=txn_type.name,
+                        type=txn_type,
                         dividend_rate=dividend_rate,
                         gift_folio=gift_folio,
                     )

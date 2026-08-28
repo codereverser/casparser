@@ -386,6 +386,10 @@ class TestBalanceSignFix:
         # units + a non-SIP/non-switch/non-segregat description maps
         # to PURCHASE in the classifier's positive branch.
         assert t.type == TransactionType.PURCHASE
+        # ... and as the enum itself, not its `.name` str — attribute
+        # assignment bypasses pydantic validation, and a raw str trips
+        # serializer warnings on JSON export.
+        assert isinstance(t.type, TransactionType)
         # close_calculated reflects the corrected sum.
         assert scheme.close_calculated == Decimal("729.903")
 

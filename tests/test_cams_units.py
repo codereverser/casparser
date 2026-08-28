@@ -236,6 +236,24 @@ class TestContinuationMerge:
         txns = _txns(parse_lines(rows))
         assert txns[0].description == "Purchase - BSE -"
 
+    def test_reclassified_type_stays_enum_and_serializes_clean(self, parse_lines):
+        # Post-construction `txn.type` assignment bypasses pydantic
+        # validation; assigning `.name` (a str) into the enum-typed field
+        # trips PydanticSerializationUnexpectedValue on every JSON export
+        # (issue #118 follow-up). The merge path must assign the enum.
+        import warnings as _warnings
+
+        from casparser.enums import TransactionType as TT
+
+        rows = [PURCHASE_ROW, L(672.5, (75, "Instalment 5/18")), REDEMPTION_ROW]
+        data = parse_lines(rows)
+        for t in _txns(data):
+            assert isinstance(t.type, TT), f"{t.description!r}: {type(t.type)}"
+        with _warnings.catch_warnings(record=True) as caught:
+            _warnings.simplefilter("always")
+            data.model_dump_json()
+        assert [str(w.message) for w in caught] == []
+
     def test_balances_still_reconcile(self, parse_lines):
         rows = [PURCHASE_ROW, L(672.5, (75, "Instalment 5/18")), REDEMPTION_ROW]
         data = parse_lines(rows)
