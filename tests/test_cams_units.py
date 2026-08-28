@@ -170,9 +170,10 @@ class TestContinuationMerge:
         txns = _txns(parse_lines(rows))
         assert txns[0].description == "Purchase - BSE - Instalment 5/18 via Internet"
 
-    def test_marker_row_tail_is_not_glued_to_earlier_txn(self, parse_lines):
-        # A dated marker row (no amount, no units) is skipped; the wrap
-        # below it must be dropped with it, not appended to the Purchase.
+    def test_marker_row_emits_misc_and_absorbs_its_tail(self, parse_lines):
+        # A dated ***marker*** row (no amount, no units) is emitted as a
+        # MISC transaction; the wrap below it merges into IT — never into
+        # the Purchase above (the original issue-#118 report's row).
         rows = [
             PURCHASE_ROW,
             L(672.5, (30, "02-Jan-2024"), (75, "***Registration of Nominee***")),
@@ -180,9 +181,42 @@ class TestContinuationMerge:
             REDEMPTION_ROW,
         ]
         txns = _txns(parse_lines(rows))
+        assert len(txns) == 3
+        assert txns[0].description == "Purchase - BSE -"
+        misc = txns[1]
+        assert misc.type == "MISC"
+        assert misc.description == "***Registration of Nominee*** MFC-12345-98765***"
+        assert misc.amount is None and misc.units is None and misc.nav is None
+
+    def test_stray_dated_footnote_still_skipped(self, parse_lines):
+        # Dated, but no ***, no amount/units, and no printed balance —
+        # the stray-footnote shape stays out of the transaction list,
+        # and its follow-up line is dropped with it.
+        rows = [
+            PURCHASE_ROW,
+            L(672.5, (30, "01-Apr-2019"), (75, "onwards exit load is nil")),
+            L(665.0, (75, "for all schemes")),
+            REDEMPTION_ROW,
+        ]
+        txns = _txns(parse_lines(rows))
         assert len(txns) == 2
         assert txns[0].description == "Purchase - BSE -"
-        assert "MFC" not in txns[0].description
+
+    def test_balance_restatement_row_emits_misc_with_balance(self, parse_lines):
+        # Transmission/Transformation restatements print no ***, but do
+        # print the running Unit Balance — emitted as MISC, and the
+        # printed balance must reconcile cleanly.
+        rows = [
+            PURCHASE_ROW,
+            L(672.5, (30, "02-Jan-2024"), (75, "Transformation In"), (R(550, "10.000"), "10.000")),
+            REDEMPTION_ROW,
+        ]
+        data = parse_lines(rows)
+        txns = _txns(data)
+        assert len(txns) == 3
+        assert txns[1].type == "MISC"
+        assert txns[1].balance == Decimal("10.000")
+        assert data.parse_warnings == []
 
     def test_distant_dateless_line_is_not_a_continuation(self, parse_lines):
         # Same cell shape, but ~34pt below the row (a stray footer):

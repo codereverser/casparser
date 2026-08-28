@@ -12,16 +12,16 @@ Handles:
   text in the Transaction column, directly below its row) is appended to
   the previous transaction's description and the row is re-classified on
   the merged text (issue #118)
+- Informational marker rows (`***Registration of Nominee***`, address/KYC
+  updates, Transmission restatements) — dated rows with no amount and no
+  units — are emitted as `MISC` transactions with `amount`/`units` None
+  (issue #118)
 - "Opening Unit Balance", "Closing Unit Balance", "NAV on", "Valuation on"
   labeled rows
 - ISIN / AMFI enrichment (via `_isin.isin_search`), nominees, Total Cost
   Value, and investor info / statement period
 
 Known limitations:
-- Dated marker rows with no amount and no units (`***Registration of
-  Nominee***`, address/KYC updates, …) are informational and are not
-  emitted as transactions; their own wrapped continuations are dropped
-  with them.
 - Segregated portfolios are classified as `SEGREGATION` transactions but
   are not fully supported by the capital-gains module.
 """
@@ -933,9 +933,8 @@ def parse(
                     #     creation below — the tail can carry the deciding
                     #     keyword ("Instalment 5/18" → PURCHASE_SIP) or a
                     #     dividend rate. A tail below a *skipped* row
-                    #     (dated marker rows like ***Registration of
-                    #     Nominee***) fails the adjacency check and is
-                    #     dropped with its parent. ---
+                    #     (a stray dated footnote) fails the adjacency
+                    #     check and is dropped with its parent. ---
                     if (
                         i == cont_line_idx + 1
                         and cont_baseline - line.baseline <= CONTINUATION_MAX_GAP
@@ -961,10 +960,16 @@ def parse(
                 units = _decimal(cells.get("Units", ""))
                 nav = _decimal(cells.get("Price", "") or cells.get("NAV", ""))
                 bal = _decimal(cells.get("Unit Balance", ""))
-                # A row with no amount AND no units is not a real transaction
-                # (usually a stray date in a footnote like "Effective from
-                # 01-Apr-2019…"). Skip these.
-                if amt is None and units is None:
+                # A dated row with no amount AND no units is either an
+                # informational marker row or a stray footnote date.
+                # Marker rows — ***Registration of Nominee***, address/KYC
+                # updates, Transmission/Transformation restatements — are
+                # emitted as MISC transactions (amount/units None) so the
+                # statement's event trail survives (issue #118). Corpus-wide
+                # every such row either starts with "***" or prints a
+                # running Unit Balance; a stray footnote date ("Effective
+                # from 01-Apr-2019…") does neither, and is skipped.
+                if amt is None and units is None and bal is None and not desc.startswith("***"):
                     continue
                 # Some older CAMS / KFin templates omit the per-row Price
                 # column for transactions but always carry Amount + Units.

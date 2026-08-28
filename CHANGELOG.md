@@ -14,6 +14,15 @@
 
 ### New
 
+- **Informational marker rows (CAMS/KFintech detailed).** Dated rows with no
+  amount and no units — `***Registration of Nominee***`, address/KYC updates,
+  `Transmission In`/`Transformation In` balance restatements — are now emitted
+  as `MISC` transactions with `amount`/`units`/`nav` set to `null`, so the
+  statement's full event trail survives parsing. Their wrapped continuation
+  lines merge into the row's description like any other transaction.
+  Stray dated footnote lines (no `***` prefix, no printed unit balance) are
+  still skipped. (#118)
+
 - **Folio holder name (CAMS/KFintech detailed).** `folios[].name` carries the
   holder's name as printed in each folio header, so multi-investor statements
   can associate each PAN with its holder instead of the statement addressee.
