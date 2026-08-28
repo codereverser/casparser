@@ -8,13 +8,20 @@ Handles:
 - Multi-page, multi-AMC statements with one folio/scheme header per block
 - Transaction table with the 6 standard columns (Date / Transaction /
   Amount / Units / Price / Unit Balance)
+- Multi-line transaction descriptions: a wrapped continuation line (all
+  text in the Transaction column, directly below its row) is appended to
+  the previous transaction's description and the row is re-classified on
+  the merged text (issue #118)
 - "Opening Unit Balance", "Closing Unit Balance", "NAV on", "Valuation on"
   labeled rows
 - ISIN / AMFI enrichment (via `_isin.isin_search`), nominees, Total Cost
   Value, and investor info / statement period
 
 Known limitations:
-- Multi-line transaction descriptions keep the first line only.
+- Dated marker rows with no amount and no units (`***Registration of
+  Nominee***`, address/KYC updates, …) are informational and are not
+  emitted as transactions; their own wrapped continuations are dropped
+  with them.
 - Segregated portfolios are classified as `SEGREGATION` transactions but
   are not fully supported by the capital-gains module.
 """
@@ -285,6 +292,23 @@ AMC_RE = re.compile(
 # regex anchors only at start so it survives stray trailing chars
 # (e.g. KFin's instalment number "1" leaking from the description column).
 DATE_CELL_RE = re.compile(r"^\s*(\d{1,2}[-\s]*[A-Za-z]{3}[-\s]*\d{4})")
+
+# A transaction description too wide for the Transaction column wraps onto
+# its own physical line directly below the row (issue #118).
+CONTINUATION_MAX_GAP = 10.0
+
+
+def _continuation_text(cells: dict[str, str]) -> Optional[str]:
+    """The description text of a wrapped-continuation line, or ``None``.
+
+    A continuation has content in the Transaction column and nowhere else.
+    Any glyph in Date or a numeric column means the line is something
+    else (a dated row, a straddling footer fragment) — not a wrap.
+    """
+    filled = [label for label, value in cells.items() if value.strip()]
+    if filled != ["Transaction"]:
+        return None
+    return cells["Transaction"].strip() or None
 
 
 def _decimal(s: str) -> Optional[Decimal]:
@@ -741,6 +765,13 @@ def parse(
             col_first = header_idx = -1
             columns = last_columns
 
+        # Wrapped-description adjacency trackers (issue #118): page-line
+        # index and baseline of the last line that emitted (or extended)
+        # a transaction. Per-page — a table row never splits across a
+        # page break, so a wrap can't either.
+        cont_line_idx = -2
+        cont_baseline = 0.0
+
         for i, line in enumerate(page.lines):
             text = line.text
 
@@ -894,6 +925,31 @@ def parse(
                 desc = cells.get("Transaction", "").strip()
                 m_date = DATE_CELL_RE.match(date_str)
                 if not m_date:
+                    # --- Wrapped description continuation (issue #118):
+                    #     a dateless, Transaction-column-only line directly
+                    #     below the line that emitted the last transaction
+                    #     is the rest of its description. Merge and
+                    #     re-classify on the merged text, mirroring row
+                    #     creation below — the tail can carry the deciding
+                    #     keyword ("Instalment 5/18" → PURCHASE_SIP) or a
+                    #     dividend rate. A tail below a *skipped* row
+                    #     (dated marker rows like ***Registration of
+                    #     Nominee***) fails the adjacency check and is
+                    #     dropped with its parent. ---
+                    if (
+                        i == cont_line_idx + 1
+                        and cont_baseline - line.baseline <= CONTINUATION_MAX_GAP
+                        and current_scheme.transactions
+                        and (tail := _continuation_text(cells))
+                    ):
+                        txn = current_scheme.transactions[-1]
+                        txn.description = f"{txn.description} {tail}"
+                        txn_type, dividend_rate = get_transaction_type(txn.description, txn.units)
+                        txn.type = txn_type.name
+                        txn.dividend_rate = dividend_rate
+                        if txn_type in (TransactionType.GIFT_IN, TransactionType.GIFT_OUT):
+                            txn.gift_folio = extract_gift_folio(txn.description)
+                        cont_line_idx, cont_baseline = i, line.baseline
                     continue
                 if not desc:
                     continue  # row with date but no description: skip
@@ -937,6 +993,7 @@ def parse(
                         gift_folio=gift_folio,
                     )
                 )
+                cont_line_idx, cont_baseline = i, line.baseline
 
     # A region still open at end-of-document with a scheme line inside
     # means the closing anchor never arrived — report, don't swallow.

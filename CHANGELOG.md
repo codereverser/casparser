@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Wrapped transaction descriptions (CAMS/KFintech detailed).** A description
+  too wide for the Transaction column wraps onto its own line in the PDF; the
+  parser previously kept the first line only (e.g. dropping the
+  `Instalment 5/18` tail from Switch-In/SIP rows). The continuation line is now
+  appended to the transaction's description, and the row is re-classified on
+  the merged text (a `Purchase` whose tail says `Instalment N/M` becomes
+  `PURCHASE_SIP`), restoring pre-1.0 output. (#118)
+
 ### New
 
 - **Folio holder name (CAMS/KFintech detailed).** `folios[].name` carries the
