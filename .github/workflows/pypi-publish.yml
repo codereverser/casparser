@@ -1,8 +1,12 @@
 name: Upload Python Package
 
+# `published` (not `created`): a release drafted first and published later
+# only fires `published` — `created` fires at draft time, when workflows
+# don't run. `workflow_dispatch` allows re-firing a missed release manually.
 on:
   release:
-    types: [created]
+    types: [published]
+  workflow_dispatch:
 
 jobs:
   deploy:
