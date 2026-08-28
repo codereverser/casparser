@@ -1,6 +1,36 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
+
+### New
+
+- **Quarterly gains split (Schedule CG Section F).**
+  `CapitalGainsReport.quarterly_gains(fy)` buckets realised gains by date of
+  transfer into the five advance-tax installment windows (Upto 15/6, 16/6–15/9,
+  16/9–15/12, 16/12–15/3, 16/3–31/3) per category (equity/debt × LTCG/STCG),
+  matching the CAMS/KFin desktop gains statements. The Equity LTCG row uses the
+  same per-lot taxable measure as Schedule 112A, so it reconciles with
+  `generate_112a` exactly. The CLI prints one whole-rupee table per FY.
+- **Schedule 112A consolidation for FY2025-26+.** The latest ITR utility
+  accepts a single consolidated row for equity/units acquired after
+  31-Jan-2018; after-2018 rows are now collapsed into one
+  (`Name=CONSOLIDATED`, `ISIN=INNOTREQUIRD`) with grandfathered rows kept
+  itemised, whole-rupee integers only, buy-side stamp duty folded into cost
+  of acquisition, and the FY2024-25-specific "Share/Unit Transferred (1b)"
+  column dropped for FY2025-26 onward.
+- **Cost Inflation Index for FY2026-27** (384, CBDT Notification 85/2026).
+- **Informational marker rows (CAMS/KFintech detailed).** Dated rows with no
+  amount and no units — `***Registration of Nominee***`, address/KYC updates,
+  `Transmission In`/`Transformation In` balance restatements — are now emitted
+  as `MISC` transactions with `amount`/`units`/`nav` set to `null`, so the
+  statement's full event trail survives parsing. Their wrapped continuation
+  lines merge into the row's description like any other transaction.
+  Stray dated footnote lines (no `***` prefix, no printed unit balance) are
+  still skipped. (#118)
+- **Folio holder name (CAMS/KFintech detailed).** `folios[].name` carries the
+  holder's name as printed in each folio header, so multi-investor statements
+  can associate each PAN with its holder instead of the statement addressee.
+  `null` on older templates that don't print a per-folio name. (#145)
 
 ### Fixed
 
@@ -12,21 +42,14 @@
   the merged text (a `Purchase` whose tail says `Instalment N/M` becomes
   `PURCHASE_SIP`), restoring pre-1.0 output. (#118)
 
-### New
+### Note
 
-- **Informational marker rows (CAMS/KFintech detailed).** Dated rows with no
-  amount and no units — `***Registration of Nominee***`, address/KYC updates,
-  `Transmission In`/`Transformation In` balance restatements — are now emitted
-  as `MISC` transactions with `amount`/`units`/`nav` set to `null`, so the
-  statement's full event trail survives parsing. Their wrapped continuation
-  lines merge into the row's description like any other transaction.
-  Stray dated footnote lines (no `***` prefix, no printed unit balance) are
-  still skipped. (#118)
-
-- **Folio holder name (CAMS/KFintech detailed).** `folios[].name` carries the
-  holder's name as printed in each folio header, so multi-investor statements
-  can associate each PAN with its holder instead of the statement addressee.
-  `null` on older templates that don't print a per-folio name. (#145)
+- Parsed output for CAMS/KFintech DETAILED statements grows in this release:
+  informational `MISC` rows are new, wrapped descriptions are longer, and some
+  SIP purchases move from `PURCHASE` to `PURCHASE_SIP` on the merged text.
+  Pipelines that diff casparser output across versions should expect these
+  additive changes. Balance arithmetic and capital-gains numbers are
+  unaffected.
 
 ## 1.3.0
 
