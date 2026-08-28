@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+
+### Hotfix
+
+- **Pydantic serializer warnings on JSON export**
+
 ## 1.4.0
 
 ### New

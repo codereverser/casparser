@@ -15,7 +15,7 @@ __all__ = [
     "CapitalGainsReport",
 ]
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 
 
 def __getattr__(name: str):
