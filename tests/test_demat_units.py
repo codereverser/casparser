@@ -872,6 +872,13 @@ class TestNSDLHelpers:
         assert ac.folios == 12
         assert ac.balance == Decimal("10400929.50")
 
+        assert cdsl_p._is_summary_demat_row(block)
+        cdsl_ac, cdsl_key = cdsl_p._account_from_summary_row(block, owners=[])
+        assert cdsl_key == ("NSDL", "IN123456", "99998888")
+        assert cdsl_ac.name == "ACME BROKER LIMITED"
+        assert cdsl_ac.folios == 12
+        assert cdsl_ac.balance == Decimal("10400929.50")
+
     def test_summary_demat_row_5_cell(self):
         """5-cell variant: broker name and DP/Client line as separate
         cells (observed on CDSL rows in some NSDL CAS layouts)."""
@@ -890,6 +897,13 @@ class TestNSDLHelpers:
         assert ac.folios == 25
         assert ac.balance == Decimal("9734823.11")
 
+        assert cdsl_p._is_summary_demat_row(block)
+        cdsl_ac, cdsl_key = cdsl_p._account_from_summary_row(block, owners=[])
+        assert cdsl_key == ("CDSL", "11112222", "33334444")
+        assert cdsl_ac.name == "BETA BROKER LIMITED"
+        assert cdsl_ac.folios == 25
+        assert cdsl_ac.balance == Decimal("9734823.11")
+
     def test_summary_demat_row_rejects_wrong_cell_count(self):
         # 3 cells: too short.
         block = _block(
@@ -899,6 +913,7 @@ class TestNSDLHelpers:
             page=2,
         )
         assert not nsdl_p._is_summary_demat_row(block)
+        assert not cdsl_p._is_summary_demat_row(block)
 
     def test_parse_bond_summary_row(self):
         """NSDL-flavour summary bonds row — discriminates frequency
