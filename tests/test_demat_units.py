@@ -904,6 +904,21 @@ class TestNSDLHelpers:
         assert cdsl_ac.folios == 25
         assert cdsl_ac.balance == Decimal("9734823.11")
 
+    def test_summary_demat_row_reconstructs_broker_split_across_cells(self):
+        block = _block(
+            _cell("CDSL Demat Account"),
+            _cell("EXAMPLE BROKER PRIVATE"),
+            _cell("LIMITED\nDP ID:11112222 Client ID:33334444"),
+            _cell("25"),
+            _cell("97,34,823.11"),
+            page=2,
+        )
+
+        ac, key = cdsl_p._account_from_summary_row(block, owners=[])
+
+        assert key == ("CDSL", "11112222", "33334444")
+        assert ac.name == "EXAMPLE BROKER PRIVATE LIMITED"
+
     def test_summary_demat_row_rejects_wrong_cell_count(self):
         # 3 cells: too short.
         block = _block(

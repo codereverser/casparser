@@ -624,17 +624,13 @@ def _account_from_summary_row(
     dpc = SUMMARY_DPC_RE.search(dp_cell_text)
     dp_id = dpc.group(1) if dpc else ""
     client_id = dpc.group(2) if dpc else ""
-    broker_lines = [
-        line.strip()
-        for line in dp_cell_text.split("\n")
-        if line.strip() and not SUMMARY_DPC_RE.search(line)
-    ]
-    if broker_lines:
-        broker = broker_lines[0]
-    elif dp_cell_idx >= 2:
-        broker = block.cells[dp_cell_idx - 1].text.strip()
-    else:
-        broker = ""
+    broker_fragments = []
+    for cell in block.cells[1 : dp_cell_idx + 1]:
+        for line in cell.text.split("\n"):
+            fragment = SUMMARY_DPC_RE.sub("", line).strip()
+            if fragment:
+                broker_fragments.append(fragment)
+    broker = " ".join(broker_fragments)
     folios = int(_to_decimal(block.cells[-2].text))
     balance = _to_decimal(block.cells[-1].text)
     ac = DematAccount(
