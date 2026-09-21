@@ -585,11 +585,20 @@ def parse_cdsl(
 
 
 def _is_summary_demat_row(block: Block) -> bool:
-    if len(block.cells) != 4:
+    """Recognise both physical layouts of the page-2 demat summary row.
+
+    PDFium can either join the broker and DP/client details into one
+    cell or expose them as two adjacent cells.  Both layouts represent
+    the same logical row::
+
+        Type | "<BROKER>\nDP Id:... Client Id:..." | folios | value
+        Type | <BROKER> | "DP Id:... Client Id:..." | folios | value
+    """
+    if len(block.cells) not in (4, 5):
         return False
     if not DEMAT_TYPE_RE.match(block.cells[0].text.strip()):
         return False
-    return bool(SUMMARY_DPC_RE.search(block.cells[1].text))
+    return any(SUMMARY_DPC_RE.search(cell.text) for cell in block.cells[1:])
 
 
 def _is_summary_mf_folios_row(block: Block) -> bool:
@@ -601,15 +610,33 @@ def _is_summary_mf_folios_row(block: Block) -> bool:
 def _account_from_summary_row(
     block: Block, owners: List[DematOwner]
 ) -> Tuple[DematAccount, Tuple[str, str, str]]:
+    """Build an account from either supported page-2 summary layout."""
     type_word = DEMAT_TYPE_RE.match(block.cells[0].text.strip()).group(1).upper()
-    broker_dp = block.cells[1].text
-    lines = [ln.strip() for ln in broker_dp.split("\n") if ln.strip()]
-    broker = lines[0] if lines else ""
-    dpc = SUMMARY_DPC_RE.search(broker_dp)
+    dp_cell_idx = next(
+        (
+            index
+            for index in range(1, len(block.cells))
+            if SUMMARY_DPC_RE.search(block.cells[index].text)
+        ),
+        1,
+    )
+    dp_cell_text = block.cells[dp_cell_idx].text
+    dpc = SUMMARY_DPC_RE.search(dp_cell_text)
     dp_id = dpc.group(1) if dpc else ""
     client_id = dpc.group(2) if dpc else ""
-    folios = int(_to_decimal(block.cells[2].text))
-    balance = _to_decimal(block.cells[3].text)
+    broker_lines = [
+        line.strip()
+        for line in dp_cell_text.split("\n")
+        if line.strip() and not SUMMARY_DPC_RE.search(line)
+    ]
+    if broker_lines:
+        broker = broker_lines[0]
+    elif dp_cell_idx >= 2:
+        broker = block.cells[dp_cell_idx - 1].text.strip()
+    else:
+        broker = ""
+    folios = int(_to_decimal(block.cells[-2].text))
+    balance = _to_decimal(block.cells[-1].text)
     ac = DematAccount(
         name=broker,
         type=_full_type(type_word),
