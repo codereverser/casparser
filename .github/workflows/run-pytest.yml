@@ -11,7 +11,21 @@ on:
       - main
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v8.1.0
+    - name: Run pre-commit hooks
+      run: uvx pre-commit run --all-files --show-diff-on-failure
+
   build:
+    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
