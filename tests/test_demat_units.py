@@ -419,9 +419,7 @@ class TestNSDLHelpers:
     def test_is_table_header(self):
         # Multiple header keywords + no ISIN → header.
         hdr = _block(
-            _cell(
-                "ISIN Description    No. of\nUnits    Stock Symbol    " "Market Price    Value in"
-            )
+            _cell("ISIN Description    No. of\nUnits    Stock Symbol    Market Price    Value in")
         )
         assert nsdl_p._is_table_header(hdr)
         # Carrying an ISIN → data row, not header.

@@ -62,9 +62,9 @@ def assert_scheme_well_formed(scheme):
     # ISIN / watermark fragment into this field (e.g. "(Advisor:", "iv",
     # "01101(Advisor:") — assert the shape rather than an allowlist so
     # legitimate self-RTAs aren't false-flagged.
-    assert re.fullmatch(
-        r"[A-Z]{3,12}", scheme.rta or ""
-    ), f"scheme {scheme.scheme!r}: malformed RTA {scheme.rta!r}"
+    assert re.fullmatch(r"[A-Z]{3,12}", scheme.rta or ""), (
+        f"scheme {scheme.scheme!r}: malformed RTA {scheme.rta!r}"
+    )
     assert scheme.valuation is not None
     assert _D(scheme.valuation.nav) > 0, f"scheme {scheme.scheme!r}: zero/negative NAV"
 
@@ -89,9 +89,9 @@ def assert_scheme_name_clean(scheme):
     disclaimer paragraphs that follow the holdings table.
     """
     name = scheme.scheme or ""
-    assert not _FOOTER_BLEED_RE.search(
-        name
-    ), f"scheme name has footer/disclaimer text bled in: {name!r}"
+    assert not _FOOTER_BLEED_RE.search(name), (
+        f"scheme name has footer/disclaimer text bled in: {name!r}"
+    )
     # A real fund name (even with a "(formerly ...)" suffix + plan +
     # option) stays well under this; the bled names ran 170-280 chars.
     assert len(name) <= 150, f"scheme name implausibly long ({len(name)} chars): {name!r}"
@@ -105,9 +105,9 @@ def assert_scheme_valuation_arithmetic(scheme):
     close = _D(scheme.close)
     if close == 0:
         # Fully redeemed schemes legitimately have value = 0.
-        assert (
-            _D(scheme.valuation.value) == 0
-        ), f"scheme {scheme.scheme!r}: close=0 but value={scheme.valuation.value}"
+        assert _D(scheme.valuation.value) == 0, (
+            f"scheme {scheme.scheme!r}: close=0 but value={scheme.valuation.value}"
+        )
         return
     derived = close * _D(scheme.valuation.nav)
     assert_relclose(
@@ -138,14 +138,14 @@ def assert_scheme_transaction_units_close(scheme):
     )
     diff = abs(o + sum_u - c)
     assert diff <= _D("0.001"), (
-        f"scheme {scheme.scheme!r}: open={o} + Σ(units)={sum_u} " f"!= close={c} (diff={diff})"
+        f"scheme {scheme.scheme!r}: open={o} + Σ(units)={sum_u} != close={c} (diff={diff})"
     )
 
 
 def assert_folio_well_formed(folio):
-    assert PAN_RE.match(
-        folio.PAN or ""
-    ), f"folio {folio.folio!r}: PAN {folio.PAN!r} fails {PAN_RE.pattern}"
+    assert PAN_RE.match(folio.PAN or ""), (
+        f"folio {folio.folio!r}: PAN {folio.PAN!r} fails {PAN_RE.pattern}"
+    )
     assert folio.amc, f"folio {folio.folio!r}: empty AMC"
     assert folio.schemes, f"folio {folio.folio!r}: no schemes"
 
@@ -227,9 +227,9 @@ def assert_bond_summary_form(bd):
     # Summary form doesn't carry market price.
     assert bd.market_price is None, f"bond {bd.isin}: unexpected market_price on summary row"
     derived = _D(bd.num_bonds) * _D(bd.face_value)
-    assert derived == _D(
-        bd.value
-    ), f"bond {bd.isin}: num_bonds*face_value={derived} != value={bd.value}"
+    assert derived == _D(bd.value), (
+        f"bond {bd.isin}: num_bonds*face_value={derived} != value={bd.value}"
+    )
 
 
 def assert_bond_detailed_form(bd):
@@ -276,9 +276,9 @@ def assert_demat_account_well_formed(account):
     ), f"account: unexpected type {account.type!r}"
     if account.type == "NSDL Demat Account":
         # NSDL DP IDs look like 'IN######' (IN + 6 digits).
-        assert re.match(
-            r"^IN\d{6}$", account.dp_id or ""
-        ), f"NSDL demat: bad DP ID {account.dp_id!r}"
+        assert re.match(r"^IN\d{6}$", account.dp_id or ""), (
+            f"NSDL demat: bad DP ID {account.dp_id!r}"
+        )
         # Client IDs are 8-digit.
         assert re.match(r"^\d{8}$", account.client_id or ""), "NSDL demat: bad Client ID format"
     elif account.type == "CDSL Demat Account":

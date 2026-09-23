@@ -737,9 +737,9 @@ class CapitalGainsReport:
         fy_transactions = sorted(
             list(
                 filter(
-                    lambda x: x.fy == fy
-                    and x.fund.type == "EQUITY"
-                    and x.gain_type == GainType.LTCG,
+                    lambda x: (
+                        x.fy == fy and x.fund.type == "EQUITY" and x.gain_type == GainType.LTCG
+                    ),
                     self.gains,
                 )
             ),

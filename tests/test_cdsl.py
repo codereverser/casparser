@@ -46,10 +46,10 @@ class TestCDSLStatement:
             ac = cdsl_data.accounts[i]
             assert ac.type == exp_type, f"acc {i}: type {ac.type!r}"
             assert len(ac.equities) == n_eq, (
-                f"acc {i} ({exp_type}): expected {n_eq} equities, " f"got {len(ac.equities)}"
+                f"acc {i} ({exp_type}): expected {n_eq} equities, got {len(ac.equities)}"
             )
             assert len(ac.mutual_funds) == n_mf, (
-                f"acc {i} ({exp_type}): expected {n_mf} MFs, " f"got {len(ac.mutual_funds)}"
+                f"acc {i} ({exp_type}): expected {n_mf} MFs, got {len(ac.mutual_funds)}"
             )
             assert len(ac.bonds) == n_bd
 

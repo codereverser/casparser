@@ -59,20 +59,20 @@ class TestNSDLStatement:
             ac = nsdl_data.accounts[i]
             assert ac.type == exp_type, f"acc {i}: type {ac.type!r}"
             assert len(ac.equities) == n_eq, (
-                f"acc {i} ({exp_type}): expected {n_eq} equities, " f"got {len(ac.equities)}"
+                f"acc {i} ({exp_type}): expected {n_eq} equities, got {len(ac.equities)}"
             )
             assert len(ac.mutual_funds) == n_mf, (
-                f"acc {i} ({exp_type}): expected {n_mf} MFs, " f"got {len(ac.mutual_funds)}"
+                f"acc {i} ({exp_type}): expected {n_mf} MFs, got {len(ac.mutual_funds)}"
             )
             summary_bonds = sum(1 for b in ac.bonds if b.face_value is not None)
             detailed_bonds = sum(1 for b in ac.bonds if b.market_price is not None)
             assert len(ac.bonds) == n_bd_sum + n_bd_det
-            assert (
-                summary_bonds == n_bd_sum
-            ), f"acc {i}: expected {n_bd_sum} summary-form bonds, got {summary_bonds}"
-            assert (
-                detailed_bonds == n_bd_det
-            ), f"acc {i}: expected {n_bd_det} detailed-form bonds, got {detailed_bonds}"
+            assert summary_bonds == n_bd_sum, (
+                f"acc {i}: expected {n_bd_sum} summary-form bonds, got {summary_bonds}"
+            )
+            assert detailed_bonds == n_bd_det, (
+                f"acc {i}: expected {n_bd_det} detailed-form bonds, got {detailed_bonds}"
+            )
 
     def test_investor_name_set(self, nsdl_data):
         # NSDL/CDSL investor extractor populates `name`; mobile/email
