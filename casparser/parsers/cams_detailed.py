@@ -974,9 +974,12 @@ def parse(
                 # Some older CAMS / KFin templates omit the per-row Price
                 # column for transactions but always carry Amount + Units.
                 # Derive `nav = amount / units` so downstream capital-gains
-                # FIFO calculations don't crash on `nav=None`.
+                # FIFO calculations don't crash on `nav=None`, and flag it:
+                # the derived value can differ from the NAV the fund applied.
+                nav_derived = False
                 if nav is None and amt is not None and units is not None and units != 0:
                     nav = (amt / units).quantize(Decimal("0.0001"))
+                    nav_derived = True
                 txn_type, dividend_rate = get_transaction_type(desc, units)
                 gift_folio = (
                     extract_gift_folio(desc)
@@ -992,6 +995,7 @@ def parse(
                         amount=amt,
                         units=units,
                         nav=nav,
+                        nav_derived=nav_derived,
                         balance=bal,
                         type=txn_type,
                         dividend_rate=dividend_rate,

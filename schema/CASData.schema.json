@@ -384,6 +384,11 @@
           "default": null,
           "title": "Nav"
         },
+        "nav_derived": {
+          "default": false,
+          "title": "Nav Derived",
+          "type": "boolean"
+        },
         "type": {
           "$ref": "#/$defs/TransactionType"
         },
