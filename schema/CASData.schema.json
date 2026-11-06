@@ -426,6 +426,9 @@
         "SEGREGATION",
         "GIFT_IN",
         "GIFT_OUT",
+        "TRANSMISSION_IN",
+        "TRANSMISSION_OUT",
+        "BONUS",
         "MISC",
         "UNKNOWN",
         "REVERSAL"

@@ -231,7 +231,9 @@ still returns, but the flagged scheme's data should not be trusted blindly.
 | `STT_TAX` / `STAMP_DUTY_TAX` / `TDS_TAX`| Tax rows — `amount` only, no units                            |
 | `SEGREGATION`                           | Units allotted in a segregated (side-pocketed) portfolio      |
 | `GIFT_IN` / `GIFT_OUT`                  | Units gifted in / out via inter-folio transfer                |
-| `REVERSAL`                              | Reversed / rejected transaction                               |
+| `TRANSMISSION_IN` / `TRANSMISSION_OUT`  | Units passed to a nominee or heir (transmission)              |
+| `BONUS`                                 | Bonus units, allotted without a payment                       |
+| `REVERSAL`                              | Reversed / rejected transaction, or units restored by one     |
 | `MISC` / `UNKNOWN`                      | Anything that doesn't match the above                         |
 
 #### NSDL / CDSL — `NSDLCASData`
