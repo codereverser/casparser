@@ -33,7 +33,7 @@ from casparser.types import (
 )
 
 
-def _cas_with_transactions(transactions, *, scheme_type="EQUITY"):
+def _cas_with_transactions(transactions, *, scheme_type="EQUITY", value="0"):
     """Build a minimal CASData wrapping a single scheme with the given
     transactions (zero opening balance) for CapitalGainsReport tests."""
     scheme = Scheme(
@@ -45,7 +45,7 @@ def _cas_with_transactions(transactions, *, scheme_type="EQUITY"):
         open=Decimal("0"),
         close=Decimal("0"),
         close_calculated=Decimal("0"),
-        valuation=SchemeValuation(date="2026-03-31", nav=Decimal("10"), value=Decimal("0")),
+        valuation=SchemeValuation(date="2026-03-31", nav=Decimal("10"), value=Decimal(value)),
         transactions=transactions,
     )
     folio = Folio(folio="12345", amc="Test Mutual Fund", schemes=[scheme])
@@ -808,3 +808,250 @@ class TestGifts:
         assert "donor" in msg
         # The gift itself is still disclosed.
         assert report.has_gifts() is True
+
+
+def _txn(dt, description, amount, units, nav, txn_type):
+    return TransactionData(
+        date=dt,
+        description=description,
+        amount=None if amount is None else Decimal(amount),
+        units=Decimal(units),
+        nav=None if nav is None else Decimal(nav),
+        balance=None,
+        type=txn_type,
+        dividend_rate=None,
+    )
+
+
+class TestUnitsWithoutPurchase:
+    """Bonus units, transmission and restored redemptions. (issue #153)"""
+
+    fund = Fund("F", "12345", "INF123456789", "EQUITY")
+
+    def test_bonus_units_are_a_free_lot(self):
+        """A bonus row has no amount, and used to be dropped, so selling
+        the bonus units ran FIFO dry. They are a nil-cost lot dated on the
+        allotment, apart from a purchase on the same day."""
+        transactions = [
+            _txn(date(2022, 1, 3), "Purchase", "1000.00", "100", "10", TransactionType.PURCHASE),
+            _txn(
+                date(2023, 1, 2), "SIP Purchase", "600.00", "50", "12", TransactionType.PURCHASE_SIP
+            ),
+            _txn(date(2023, 1, 2), "Bonus", None, "10", None, TransactionType.BONUS),
+            _txn(
+                date(2024, 6, 3), "Redemption", "-2400.00", "-160", "15", TransactionType.REDEMPTION
+            ),
+        ]
+        fifo = FIFOUnits(self.fund, transactions)
+        lots = [(g.purchase_date, g.units, g.purchase_value) for g in fifo.gains]
+        assert lots == [
+            (date(2022, 1, 3), Decimal("100"), Decimal("1000.00")),
+            (date(2023, 1, 2), Decimal("50"), Decimal("600.00")),
+            (date(2023, 1, 2), Decimal("10"), Decimal("0.00")),
+        ]
+        assert fifo.balance == Decimal("0")
+        report = _cas_with_transactions(transactions)
+        assert report.has_error() is False
+
+    @pytest.mark.parametrize("order", [(0, 1, 2, 3), (3, 2, 1, 0), (0, 3, 2, 1)])
+    def test_restored_redemption_undoes_the_sale(self, order):
+        """KFin's Franklin wound-up schemes: units extinguished and later
+        restored by a matching "-Reversed" row. Neither row is a transfer,
+        so the final payout sells the original lot."""
+        transactions = [
+            _txn(date(2020, 6, 1), "Purchase", "1000.00", "100", "10", TransactionType.PURCHASE),
+            _txn(
+                date(2021, 2, 15),
+                "Payment - Units Extinguished",
+                "-600.00",
+                "-50",
+                "12",
+                TransactionType.REDEMPTION,
+            ),
+            _txn(
+                date(2021, 3, 1),
+                "Payment - Units Extinguished-Reversed",
+                "600.00",
+                "50",
+                "12",
+                TransactionType.REVERSAL,
+            ),
+            _txn(
+                date(2022, 4, 1),
+                "Payment - Units Extinguished",
+                "-1500.00",
+                "-100",
+                "15",
+                TransactionType.REDEMPTION,
+            ),
+        ]
+        fifo = FIFOUnits(self.fund, [transactions[i] for i in order])
+        assert [(g.purchase_date, g.sale_date, g.units) for g in fifo.gains] == [
+            (date(2020, 6, 1), date(2022, 4, 1), Decimal("100")),
+        ]
+
+    @pytest.mark.parametrize("reversal_count", [1, 2])
+    def test_reversal_pairs_each_latest_earlier_sale_once(self, reversal_count):
+        purchase = _txn(date(2020, 6, 1), "Purchase", "2000", "200", "10", TransactionType.PURCHASE)
+        sales = [
+            _txn(dt, "Redemption", "-600", "-50", "12", TransactionType.REDEMPTION)
+            for dt in (date(2021, 1, 1), date(2021, 2, 1), date(2022, 1, 1))
+        ]
+        reversals = [
+            _txn(date(2021, 3, 1), "Reversed", "600", "50", "12", TransactionType.REVERSAL)
+            for _ in range(reversal_count)
+        ]
+        fifo = FIFOUnits(self.fund, [purchase, sales[2], *reversals, sales[0], sales[1]])
+        expected_dates = [date(2021, 1, 1), date(2022, 1, 1)][reversal_count - 1 :]
+        assert [g.sale_date for g in fifo.gains] == expected_dates
+        assert all(g.purchase_date == purchase.date and g.units == 50 for g in fifo.gains)
+        assert fifo.balance == 200 - 50 * len(expected_dates)
+
+    @pytest.mark.parametrize("amounts", [(None, None), ("0", "0"), (None, "0"), ("0", None)])
+    @pytest.mark.parametrize("reversal_date", [date(2023, 1, 2), date(2023, 1, 3)])
+    def test_bonus_reversal_preserves_paid_lot(self, amounts, reversal_date):
+        purchase = _txn(date(2023, 1, 2), "Purchase", "600", "50", "12", TransactionType.PURCHASE)
+        bonus = _txn(date(2023, 1, 2), "Bonus", amounts[0], "10", None, TransactionType.BONUS)
+        reversal = _txn(
+            reversal_date, "Bonus Reversal", amounts[1], "-10", "0", TransactionType.REVERSAL
+        )
+        fifo = FIFOUnits(self.fund, [bonus, reversal, purchase])
+        assert list(fifo.transactions) == [(purchase.date, Decimal("50"), Decimal("12"), 0)]
+        assert fifo.balance == 50
+        assert fifo.invested == 600
+        assert fifo.gains == []
+
+    @pytest.mark.parametrize("amount", [None, "0"])
+    @pytest.mark.parametrize("units", [("10",), ("3", "7")])
+    def test_partial_or_aggregated_bonus_reversal_excludes_scheme(self, amount, units):
+        transactions = [
+            _txn(date(2023, 1, 2), "Bonus", amount, u, None, TransactionType.BONUS) for u in units
+        ]
+        transactions.append(
+            _txn(
+                date(2023, 1, 2),
+                "Bonus Reversal",
+                amount,
+                "-5" if len(units) == 1 else "-10",
+                None,
+                TransactionType.REVERSAL,
+            )
+        )
+        report = _cas_with_transactions(transactions)
+        assert report.has_gains() is False
+        assert len(report.errors) == 1
+        assert "bonus reversal" in report.errors[0][1].lower()
+
+    def test_unpaired_reversal_stays_a_purchase(self):
+        """Without an earlier sale of the same units and amount, the
+        restored units stay a lot dated on the reversal, as before."""
+        transactions = [
+            _txn(
+                date(2021, 3, 1), "Units Reversed", "600.00", "50", "12", TransactionType.REVERSAL
+            ),
+            _txn(
+                date(2022, 4, 1), "Redemption", "-750.00", "-50", "15", TransactionType.REDEMPTION
+            ),
+        ]
+        fifo = FIFOUnits(self.fund, transactions)
+        assert [(g.purchase_date, g.purchase_value) for g in fifo.gains] == [
+            (date(2021, 3, 1), Decimal("600.00")),
+        ]
+
+    def test_transmission_in_resale_warns_and_excludes(self):
+        """Transmitted units keep the previous holder's cost and dates, so
+        FIFO can't price their sale; the error says why."""
+        report = _cas_with_transactions(
+            [
+                _txn(
+                    date(2024, 1, 1),
+                    "Purchase Transmission In From F. No. 123456789012 On 01/01/2024",
+                    "2000.00",
+                    "100",
+                    "20",
+                    TransactionType.TRANSMISSION_IN,
+                ),
+                _txn(
+                    date(2025, 6, 2),
+                    "Redemption",
+                    "-2500.00",
+                    "-100",
+                    "25",
+                    TransactionType.REDEMPTION,
+                ),
+            ]
+        )
+        assert report.has_gains() is False
+        assert len(report.errors) == 1
+        _, msg = report.errors[0]
+        assert "transmitted units" in msg
+        assert "previous holder" in msg
+
+    def test_transmission_out_is_not_a_redemption(self):
+        transactions = [
+            _txn(date(2022, 1, 3), "Purchase", "1000.00", "100", "10", TransactionType.PURCHASE),
+            _txn(
+                date(2025, 6, 2),
+                "Transmission Out",
+                "-2500.00",
+                "-100",
+                "25",
+                TransactionType.TRANSMISSION_OUT,
+            ),
+        ]
+        assert get_fund_type(transactions) == FundType.UNKNOWN
+        with pytest.raises(GainsError, match="transmission"):
+            FIFOUnits(self.fund, transactions)
+        report = _cas_with_transactions(transactions)
+        assert report.has_gains() is False
+        assert report.invested_amount == 0
+        assert report.current_value == 0
+        assert len(report.errors) == 1
+        assert "transmitted-out" in report.errors[0][1]
+
+    def test_transmission_in_without_sale_excludes_scheme_totals(self):
+        report = _cas_with_transactions(
+            [
+                _txn(
+                    date(2024, 1, 1),
+                    "Transmission In",
+                    "2000",
+                    "100",
+                    "20",
+                    TransactionType.TRANSMISSION_IN,
+                ),
+            ],
+            value="2500",
+        )
+        assert report.has_gains() is False
+        assert report.invested_amount == 0
+        assert report.current_value == 0
+        assert len(report.errors) == 1
+        assert "previous holder" in report.errors[0][1]
+
+    def test_transmission_out_with_redemption_excludes_scheme(self):
+        report = _cas_with_transactions(
+            [
+                _txn(date(2020, 1, 1), "Purchase", "1000", "100", "10", TransactionType.PURCHASE),
+                _txn(date(2021, 1, 1), "Purchase", "2000", "100", "20", TransactionType.PURCHASE),
+                _txn(
+                    date(2022, 1, 1),
+                    "Transmission Out",
+                    "-2500",
+                    "-100",
+                    "25",
+                    TransactionType.TRANSMISSION_OUT,
+                ),
+                _txn(
+                    date(2023, 1, 1),
+                    "Redemption",
+                    "-3000",
+                    "-100",
+                    "30",
+                    TransactionType.REDEMPTION,
+                ),
+            ]
+        )
+        assert report.has_gains() is False
+        assert len(report.errors) == 1
+        assert "transmitted-out" in report.errors[0][1]
