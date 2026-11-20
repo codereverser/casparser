@@ -68,6 +68,8 @@ NUMERIC_RE = re.compile(r"^-?(?:[\d,]+(?:\.\d+)?|\.\d+)$")
 # only a line-break indicator, absent from the authoritative
 # "Folio No :" block).
 FOLIO_TAIL_RE = re.compile(r"\d+/\d+")
+# pdfium can return U+0002 for a line-ending hyphen, including in wrapped names.
+LINE_END_HYPHEN = "\x02"
 
 PERIOD_RE = re.compile(
     r"(?:for\s+the\s+period\s+from|statement\s+for\s+the\s+period\s+from)\s+"
@@ -745,6 +747,17 @@ def _parse_holdings_row(block: Block) -> Optional[Tuple[str, str, Decimal, Decim
     return isin, name, num_shares, price, value
 
 
+def _wrapped_isin(text: str) -> Optional[str]:
+    """Recover a wrapped ISIN from a single cell and verify its ISO 6166 check digit."""
+    joined = text.replace(LINE_END_HYPHEN + "\n", "")
+    if joined == text or not joined.isascii() or not ISIN_RE.fullmatch(joined):
+        return None
+    # Letters count as 10-35, then the Luhn check runs over the digits.
+    digits = "".join(str(int(ch, 36)) for ch in joined)
+    total = sum(sum(divmod(int(d) * (1 + i % 2), 10)) for i, d in enumerate(reversed(digits)))
+    return joined if total % 10 == 0 else None
+
+
 # --- MF holdings row (the `MUTUAL FUND UNITS HELD AS ON` section) ---
 
 
@@ -779,16 +792,23 @@ def _parse_mf_holdings_row(
     """
     if len(block.cells) < 5:
         return None
-    # Find the ISIN cell — usually cell 1.
+    # Find the ISIN cell — usually cell 1. Only when no cell holds a
+    # printed ISIN, look for one wrapped at a line-end hyphen.
+    heads = [c.text.strip() for c in block.cells[:3]]
     isin_idx = None
-    for i in range(min(3, len(block.cells))):
-        s = block.cells[i].text.strip()
+    for i, s in enumerate(heads):
         if ISIN_RE.match(s):
-            isin_idx = i
+            isin_idx, isin = i, s
             break
+    else:
+        # A wrapped name cell can also pass the check digit. The ISIN follows the name.
+        for i in reversed(range(len(heads))):
+            isin = _wrapped_isin(heads[i])
+            if isin:
+                isin_idx = i
+                break
     if isin_idx is None:
         return None
-    isin = block.cells[isin_idx].text.strip()
 
     # Name is whatever precedes the ISIN, joined.
     name = (
