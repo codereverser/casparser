@@ -105,6 +105,67 @@ class TestCDSLHelpers:
         # Doesn't start with IN and isn't all digits → can't classify.
         assert cdsl_p._split_bo_id("ABCD123412341234") == ("", "", "")
 
+    @pytest.mark.parametrize(
+        "header, bo_id",
+        [
+            ("DP Name : EXAMPLE BROKER LIMITED BO ID : 1111222233334444", "1111222233334444"),
+            ("DP Name : EXAMPLE BROKER LIMITED DPID : IN12345699998888", "IN12345699998888"),
+            # Labels repeated in Hindi and Tamil (#162), including stacked block cells.
+            (
+                "DP Name : DP का नाम: DP பெயர் : EXAMPLE BROKER LIMITED EXAMPLE BROKER LIMITED"
+                " BO ID : BO ID: BO ஐடி : 1111222233334444",
+                "1111222233334444",
+            ),
+            (
+                "DP Name :\t\tDP\t\tका नाम:\t\tDP\t\tபெயர் :\t\tEXAMPLE BROKER LIMITED"
+                "\t\tBO ID :\t\tBO ID:\t\tBO\t\tஐடி :\t\t1111222233334444",
+                "1111222233334444",
+            ),
+            (
+                "DP Name :\nDP\t\tபெயர் :\nका नाम:\t\tEXAMPLE BROKER LIMITED"
+                "\t\tBO ID :\t\tBO ID:\t\tஐடி :\t\t1111222233334444",
+                "1111222233334444",
+            ),
+            # Apply the same matching rule to other scripts and DPID headers.
+            (
+                "DP Name : EXAMPLE BROKER LIMITED BO ID : BO ID: BO ডিম্যাট\u00a0আইডি :"
+                " 1111222233334444",
+                "1111222233334444",
+            ),
+            (
+                "DP Name : EXAMPLE BROKER LIMITED DPID : DPID: DPID ஐடி : IN12345699998888",
+                "IN12345699998888",
+            ),
+            # Skip the placeholder and reference by finding the later explicit label.
+            (
+                "DP Name : EXAMPLE BROKER LIMITED\t\tBO ID : -\t\tReference : 2222333344445555"
+                "\t\tBO ID : 1111222233334444",
+                "1111222233334444",
+            ),
+            # Unicode whitespace alone cannot supply a label.
+            (
+                "DP Name : EXAMPLE BROKER LIMITED BO ID :\u00a0: 2222333344445555"
+                " BO ID : 1111222233334444",
+                "1111222233334444",
+            ),
+        ],
+        ids=[
+            "cdsl",
+            "nsdl",
+            "regional-line",
+            "regional-cells",
+            "regional-stacked",
+            "other-script",
+            "nsdl-regional",
+            "later-bo-id",
+            "blank-regional-label",
+        ],
+    )
+    def test_section_boid_header(self, header, bo_id):
+        m = cdsl_p.SECTION_BOID_RE.search(header)
+        assert m is not None
+        assert m.group(2) == bo_id
+
     def test_account_key_normalises(self):
         assert cdsl_p._account_key("cdsl", " 11112222 ", "33334444 ") == (
             "CDSL",
