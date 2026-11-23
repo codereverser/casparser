@@ -45,6 +45,9 @@ jobs:
       run: ./.github/scripts/extract_files.sh
       env:
         FILES_PASSPHRASE: ${{ secrets.FILES_PASSPHRASE }}
+        # Fork and Dependabot PRs get no secrets: the script skips extraction
+        # there and the e2e tests skip. Everywhere else it is required.
+        FIXTURES_OPTIONAL: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]') }}
     - name: Test with pytest
       run: uv run pytest
       env:
