@@ -53,6 +53,16 @@ STP_RE = re.compile(r"\bs\s*t\s*p\b|systematic\s+transfer", re.I)
 # across two CAS files.
 GIFT_FOLIO_RE = re.compile(r"Folio\s+No\s*[:.]\s*(\d+)", re.I)
 
+# A row that undoes an earlier one. Units < 0 undo a purchase (a bounced
+# SIP instalment); units > 0 restore units an earlier row removed, such as
+# KFin's "Payment - Units Extinguished-Reversed" for Franklin's wound-up
+# schemes.
+REVERSAL_RE = re.compile(
+    r"revers(?:al|ed)|rejection|dishonoured|mismatch|insufficient\s+balance|"
+    r"payment\s+not\s+received",
+    re.I,
+)
+
 
 def extract_gift_folio(description: str) -> Optional[str]:
     """Return the counterparty folio number named in a gift description,
@@ -91,6 +101,10 @@ def get_transaction_type(
     elif units > 0:
         if "gift" in description:
             txn_type = TransactionType.GIFT_IN
+        elif REVERSAL_RE.search(description):
+            txn_type = TransactionType.REVERSAL
+        elif "transmission" in description:
+            txn_type = TransactionType.TRANSMISSION_IN
         elif "switch" in description or STP_RE.search(description):
             txn_type = (
                 TransactionType.SWITCH_IN_MERGER
@@ -99,6 +113,8 @@ def get_transaction_type(
             )
         elif "segregat" in description:
             txn_type = TransactionType.SEGREGATION
+        elif "bonus" in description:
+            txn_type = TransactionType.BONUS
         elif (
             "sip" in description
             or "systematic" in description
@@ -111,13 +127,10 @@ def get_transaction_type(
     elif units < 0:
         if "gift" in description:
             txn_type = TransactionType.GIFT_OUT
-        elif re.search(
-            r"reversal|rejection|dishonoured|mismatch|insufficient\s+balance|"
-            r"payment\s+not\s+received",
-            description,
-            re.I,
-        ):
+        elif REVERSAL_RE.search(description):
             txn_type = TransactionType.REVERSAL
+        elif "transmission" in description:
+            txn_type = TransactionType.TRANSMISSION_OUT
         elif "switch" in description or STP_RE.search(description):
             txn_type = (
                 TransactionType.SWITCH_OUT_MERGER

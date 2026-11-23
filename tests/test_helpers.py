@@ -118,6 +118,49 @@ class TestTransactionType:
             Decimal("4085.662"),
         ) == (TransactionType.GIFT_IN, None)
 
+    def test_reversal_restoring_units(self):
+        # A reversal that adds units back undoes an earlier row that
+        # removed them; it is not a new purchase. "Reversed" counts as
+        # the keyword for either sign. (issue #153)
+        assert get_transaction_type(
+            "Payment - Units Extinguished-Reversed",
+            Decimal("171.447"),
+        ) == (TransactionType.REVERSAL, None)
+        assert get_transaction_type(
+            "Payment - Units Extinguished-Reversed",
+            Decimal("-171.447"),
+        ) == (TransactionType.REVERSAL, None)
+
+    def test_bonus(self):
+        # Bonus units are allotted without a payment: positive units and
+        # no amount or NAV (issue #88). Selling them is still a
+        # redemption. (issue #153)
+        assert get_transaction_type("Bonus", Decimal("9.954")) == (
+            TransactionType.BONUS,
+            None,
+        )
+        assert get_transaction_type("Redemption of Bonus Units", Decimal("-9.954")) == (
+            TransactionType.REDEMPTION,
+            None,
+        )
+
+    def test_transmission(self):
+        # Units passed to a nominee or heir, by unit sign, even when the
+        # description also says "Purchase". (issue #153)
+        assert get_transaction_type(
+            "Purchase Transmission In From F. No. 123456789012 On 17/02/2025",
+            Decimal("20.000"),
+        ) == (TransactionType.TRANSMISSION_IN, None)
+        assert get_transaction_type("Transmission Out", Decimal("-20.000")) == (
+            TransactionType.TRANSMISSION_OUT,
+            None,
+        )
+        # Restatement marker rows without units stay MISC (issue #118).
+        assert get_transaction_type("***Transmission of Folios***", None) == (
+            TransactionType.MISC,
+            None,
+        )
+
     def test_stp(self):
         # Systematic Transfer Plan legs must classify as SWITCH_OUT (source,
         # negative units) / SWITCH_IN (target, positive units) regardless of
@@ -382,10 +425,9 @@ class TestBalanceSignFix:
         t = scheme.transactions[0]
         assert t.units == Decimal("171.447")
         assert t.amount == Decimal("5126.75")
-        # Type must be re-derived from the flipped sign; positive
-        # units + a non-SIP/non-switch/non-segregat description maps
-        # to PURCHASE in the classifier's positive branch.
-        assert t.type == TransactionType.PURCHASE
+        # Type must be re-derived from the flipped sign: positive units
+        # restored by a reversal are a REVERSAL, not a new PURCHASE.
+        assert t.type == TransactionType.REVERSAL
         # ... and as the enum itself, not its `.name` str — attribute
         # assignment bypasses pydantic validation, and a raw str trips
         # serializer warnings on JSON export.

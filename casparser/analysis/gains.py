@@ -210,6 +210,7 @@ class MergedTransaction:
     purchase_units: Decimal = Decimal(0.0)
     sale: Decimal = Decimal(0.0)
     sale_units: Decimal = Decimal(0.0)
+    bonus_units: Decimal = Decimal(0.0)
     stamp_duty: Decimal = Decimal(0.0)
     stt: Decimal = Decimal(0.0)
     tds: Decimal = Decimal(0.0)
@@ -234,6 +235,8 @@ class MergedTransaction:
             self.nav = Decimal(0.0)
             self.purchase_units += txn.units
             self.purchase = Decimal(0.0)
+        elif txn_type == TransactionType.BONUS and txn.units is not None:
+            self.bonus_units += txn.units
 
 
 @dataclass
@@ -421,7 +424,12 @@ def get_fund_type(transactions: List[TransactionData]) -> FundType:
         [
             x.units is not None
             and x.units < 0
-            and x.type not in (TransactionType.REVERSAL, TransactionType.GIFT_OUT)
+            and x.type
+            not in (
+                TransactionType.REVERSAL,
+                TransactionType.GIFT_OUT,
+                TransactionType.TRANSMISSION_OUT,
+            )
             for x in transactions
         ]
     )
@@ -459,13 +467,55 @@ class FIFOUnits:
 
     @property
     def clean_transactions(self):
-        """remove redundant transactions, without amount"""
-        return filter(lambda x: x.amount is not None, self._original_transactions)
+        """Keep priced rows and bonus units, excluding matched reversals."""
+        undone = self._undone_transactions()
+        return filter(
+            lambda x: (
+                (x.amount is not None or x.type == TransactionType.BONUS) and id(x) not in undone
+            ),
+            self._original_transactions,
+        )
+
+    def _undone_transactions(self) -> set:
+        """Pair reversals with the latest earlier sale or bonus allotment
+        of opposite units and amount. For bonuses, missing and zero amounts
+        both mean no payment. Unpaired positive reversals remain purchases."""
+        undone = set()
+        candidates = []
+        for txn in sorted(self._original_transactions, key=lambda x: x.date):
+            if txn.units is None:
+                continue
+            if txn.type == TransactionType.BONUS or (
+                txn.type in SALE_TXNS and txn.amount is not None
+            ):
+                candidates.append(txn)
+            elif txn.type == TransactionType.REVERSAL:
+                for original in reversed(candidates):
+                    if (
+                        id(original) not in undone
+                        and original.units == -txn.units
+                        and (txn.amount is not None or original.type == TransactionType.BONUS)
+                        and (original.amount or 0) == -(txn.amount or 0)
+                    ):
+                        undone.update((id(original), id(txn)))
+                        break
+                else:
+                    if txn.units < 0 and any(
+                        original.type == TransactionType.BONUS
+                        and id(original) not in undone
+                        and (original.amount or 0) == -(txn.amount or 0)
+                        for original in candidates
+                    ):
+                        raise GainsError(
+                            "Unmatched bonus reversal; partial or aggregated bonus "
+                            "reversals are not supported. Scheme excluded from gains."
+                        )
+        return undone
 
     def merge_transactions(self):
         """Group transactions by date with taxes and investments/redemptions separated."""
         merged_transactions = {}
-        for txn in sorted(self.clean_transactions, key=lambda x: (x.date, -x.amount)):
+        for txn in sorted(self.clean_transactions, key=lambda x: (x.date, -(x.amount or 0))):
             dt = txn.date
 
             if isinstance(dt, str):
@@ -478,10 +528,22 @@ class FIFOUnits:
 
     def process(self):
         self.gains = []
+        if any(
+            txn.type in (TransactionType.TRANSMISSION_IN, TransactionType.TRANSMISSION_OUT)
+            for txn in self._original_transactions
+        ):
+            raise GainsError(
+                "Scheme contains transmission transactions; this report does not "
+                "track inherited or transmitted-out lots. Scheme excluded from gains."
+            )
         for dt in sorted(self._merged_transactions.keys()):
             txn = self._merged_transactions[dt]
             if txn.purchase_units > 0:
                 self.buy(dt, txn.purchase_units, txn.nav, txn.stamp_duty)
+            if txn.bonus_units > 0:
+                # Bonus units cost nil (Sec 55(2)(aa)(iiia)) and are held
+                # from their allotment, so they are a lot of their own.
+                self.buy(dt, txn.bonus_units, Decimal(0), Decimal(0))
             if txn.sale_units < 0:
                 self.sell(dt, txn.sale_units, txn.nav, txn.stt)
         return self.gains
@@ -599,6 +661,9 @@ class CapitalGainsReport:
                 for txn in gift_txns:
                     self._gifts.append(GiftEntry.from_transaction(fund, txn))
                 has_gift_in = any(t.type == TransactionType.GIFT_IN for t in transactions)
+                has_transmission_in = any(
+                    t.type == TransactionType.TRANSMISSION_IN for t in transactions
+                )
                 if len(transactions) > 0:
                     if scheme.open >= 0.01:
                         raise IncompleteCASError(
@@ -625,6 +690,21 @@ class CapitalGainsReport:
                                     "(Sec 49(1) / 2(42A)), which are not present "
                                     "in this statement. Scheme excluded from "
                                     "gains — see the Gift transactions section.",
+                                )
+                            )
+                        elif has_transmission_in:
+                            # Transmission (to a nominee or heir) carries the
+                            # previous holder's cost and holding period over,
+                            # like a gift.
+                            self.errors.append(
+                                (
+                                    fund.name,
+                                    "Scheme received transmitted units; capital "
+                                    "gains on their later sale require the "
+                                    "previous holder's cost basis and holding "
+                                    "period (Sec 49(1) / 2(42A)), which are not "
+                                    "present in this statement. Scheme excluded "
+                                    "from gains.",
                                 )
                             )
                         else:
