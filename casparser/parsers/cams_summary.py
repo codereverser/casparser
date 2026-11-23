@@ -183,12 +183,11 @@ def _build_summary_columns(words: List[tuple[str, float, float]]) -> List[Column
 # Cell assignment (SUMMARY-specific zones)
 # -----------------------------------------------------------------------------
 
-# Numeric value widths in SUMMARY are narrower than DETAILED (cost/value
-# rarely exceed 13 chars). NAVDate values extend LEFTWARD of the "NAV
-# Date" label, so we treat it like a right-aligned column but with the
-# label's left edge as the right edge of its zone.
+# Numeric zones in SUMMARY are narrower than DETAILED. A wider value
+# still reads whole, because `assign_summary_cells` places each number by
+# its last glyph.
 
-NUMERIC_WIDTH = 42.0  # pts; widest expected numeric value in SUMMARY
+NUMERIC_WIDTH = 42.0  # pts; zone left of a right-aligned column's edge
 
 
 def _summary_column_ranges(columns: List[Column]) -> List[tuple[Column, float, float]]:
@@ -219,23 +218,66 @@ def _summary_column_ranges(columns: List[Column]) -> List[tuple[Column, float, f
     return ranges
 
 
+def _word_gap(chars: List[Char]) -> float:
+    """x-gap (pts) above which two glyphs belong to different words; the
+    same rule as `Line.text`."""
+    heights = sorted(c.h for c in chars)
+    return max(1.5, 0.6 * heights[len(heights) // 2])
+
+
+NUMBER_GLYPHS = frozenset("0123456789,.")
+
+
+def _glyph_runs(chars: List[Char]) -> List[List[Char]]:
+    """Group a line's glyphs, left to right, into runs: digits, "," and
+    "." with no word gap between them form one run (a number); every
+    other glyph is a run of its own. Numbers in neighbouring cells printed
+    less than a word gap apart join too."""
+    cs = sorted(chars, key=lambda c: c.x0)
+    gap = _word_gap(cs) if cs else 0.0
+    runs: List[List[Char]] = []
+    for c in cs:
+        prev = runs[-1][-1] if runs else None
+        if (
+            prev is not None
+            and prev.text in NUMBER_GLYPHS
+            and c.text in NUMBER_GLYPHS
+            and c.x0 - prev.x1 <= gap
+        ):
+            runs[-1].append(c)
+        else:
+            runs.append([c])
+    return runs
+
+
 def assign_summary_cells(line: Line, columns: List[Column]) -> dict[str, str]:
     ranges = _summary_column_ranges(columns)
-    cells: dict[str, list[Char]] = {c.label: [] for c in columns}
-    for ch in line.chars:
+
+    def column_at(ch: Char) -> Optional[Column]:
         x_mid = (ch.x0 + ch.x1) / 2
         for col, lo, hi in ranges:
             if lo <= x_mid < hi:
+                return col
+        return None
+
+    cells: dict[str, list[Char]] = {c.label: [] for c in columns}
+    for run in _glyph_runs(line.chars):
+        # A number that ends in a right-aligned column goes there whole,
+        # so a value wider than NUMERIC_WIDTH (₹1 crore is
+        # "1,00,00,000.00") keeps its leading digits.
+        col = column_at(run[-1])
+        if col is not None and col.alignment == "right":
+            cells[col.label].extend(run)
+            continue
+        for ch in run:
+            if (col := column_at(ch)) is not None:
                 cells[col.label].append(ch)
-                break
     out = {}
     for label, chars in cells.items():
         if not chars:
             continue
         chars.sort(key=lambda c: c.x0)
-        heights = sorted(c.h for c in chars)
-        h_med = heights[len(heights) // 2]
-        gap = max(1.5, 0.6 * h_med)
+        gap = _word_gap(chars)
         parts, prev_x1 = [], None
         for c in chars:
             if prev_x1 is not None and (c.x0 - prev_x1) > gap:
