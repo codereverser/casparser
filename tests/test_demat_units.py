@@ -18,6 +18,7 @@ from casparser.parsers.pageobj import (
     Cell,
     _cells_from_block_atoms,
     _join_column_atoms,
+    blocks_from_atoms,
 )
 
 
@@ -1153,6 +1154,93 @@ class TestSoftHyphen:
         assert len(cells) == 1
         assert cells[0].text == "INF179K01WN9"
         assert cdsl_p.INF_ISIN_RE.match(cells[0].text)
+
+
+def _mf_row(columns):
+    """One CDSL MF holdings row from atoms: `columns` maps x_left to the
+    cell's lines, top to bottom, 7 pt apart."""
+    columns = {
+        **columns,
+        167.0: ["1234567890"],
+        219.0: ["DIRECT"],
+        269.0: ["100.000"],
+        299.0: ["25.0000"],
+        348.0: ["2,000.00"],
+        398.0: ["2,500.00"],
+    }
+    atoms = [
+        Atom(x, x + 4.0 * len(text), 500.0 - 7 * i, 494.0 - 7 * i, text, "Helvetica")
+        for x, lines in columns.items()
+        for i, text in enumerate(lines)
+    ]
+    (block,) = blocks_from_atoms([atoms])
+    return block
+
+
+class TestLineEndHyphenISIN:
+    """Recover an ISIN wrapped at pdfium's U+0002 marker (issue #163)."""
+
+    @pytest.mark.parametrize(
+        "name, isin",
+        [
+            (
+                ["FFCDG - Fictiva Flexi Cap Fund - Direct", "Plan - Growth"],
+                ["INF000K01A\x02", "B8"],
+            ),
+            # A soft hyphen continues the second line.
+            (
+                ["FFCDG - Fictiva Flexi Cap Fund - Direct", "Plan - Growth"],
+                ["INF\x02", f"000K01{SOFT_HYPHEN}", "AB8"],
+            ),
+            # Embedded and final U+0002 in the name.
+            (
+                ["FFCDG - FICTIVA MF\x02 FICTIVA FLEXI CAP", "FUND-DIRECT PLAN-GROWTH\x02"],
+                ["INF000K01A\x02", "B8"],
+            ),
+            # U+0002 at the end of a continued name line.
+            (["FFCDG - FICTIVA MF\x02", "FICTIVA FLEXI CAP FUND"], ["INF000K01A\x02", "B8"]),
+        ],
+    )
+    def test_wrapped_isin_is_rejoined(self, name, isin):
+        block = _mf_row({22.0: name, 112.0: isin})
+        assert len(block.cells) == 8
+        mf = cdsl_p._parse_mf_holdings_row(block, {})
+        assert mf is not None
+        assert mf.isin == "INF000K01AB8"
+        assert mf.name == " ".join(name)
+        assert mf.folio == "1234567890"
+        assert mf.balance == Decimal("100.000")
+        assert mf.value == Decimal("2500.00")
+
+    @pytest.mark.parametrize("isin", [["INF000K01AB8"], ["INF000K01A\x02", "B8"]])
+    def test_isin_wins_over_wrapped_name(self, isin):
+        # The indented name cell can also rejoin into a checksum-valid ISIN.
+        block = _mf_row(
+            {
+                22.0: ["FFCDG - Fictiva Infra Green Fund -"],
+                60.0: ["INFRAGREEN\x02", "13"],
+                112.0: isin,
+            }
+        )
+        mf = cdsl_p._parse_mf_holdings_row(block, {})
+        assert mf is not None
+        assert mf.isin == "INF000K01AB8"
+        assert mf.name == "FFCDG - Fictiva Infra Green Fund - INFRAGREEN\x02 13"
+        assert mf.folio == "1234567890"
+        assert mf.balance == Decimal("100.000")
+        assert mf.value == Decimal("2500.00")
+
+    @pytest.mark.parametrize(
+        "isin",
+        [
+            pytest.param(["INF000K01A\x02", "B7"], id="bad-check-digit"),
+            pytest.param(["INF000K01A\x02", "B\uff18"], id="non-ascii-check-digit"),
+            pytest.param(["INF000K01A\x02B8"], id="inline-marker"),
+        ],
+    )
+    def test_invalid_wrapped_isin_is_rejected(self, isin):
+        block = _mf_row({22.0: ["FFCDG - Fictiva Flexi Cap Fund"], 112.0: isin})
+        assert cdsl_p._parse_mf_holdings_row(block, {}) is None
 
 
 class TestBatchEquitySymbols:
