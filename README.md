@@ -131,6 +131,7 @@ Serialisation notes:
         amount: decimal | null,
         units: decimal | null,           // null for non-unit rows (taxes)
         nav: decimal | null,
+        nav_derived: boolean,            // true: no NAV printed, nav = amount / units
         balance: decimal | null,         // running unit balance
         type: string,                    // see transaction types below
         dividend_rate: decimal | null,   // DIVIDEND_* rows only

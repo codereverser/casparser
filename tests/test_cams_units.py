@@ -9,6 +9,7 @@ the adjacency, gap, and cell-shape guards are exercised end to end.
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 import pytest
@@ -69,7 +70,9 @@ HEADER_BOT = [
 ]
 
 
-def _statement(rows: list[Line]) -> list[Page]:
+def _statement(
+    rows: list[Line], header: tuple[list, list] = (HEADER_TOP, HEADER_BOT)
+) -> list[Page]:
     """One synthetic page: period, AMC, folio, scheme header, opening
     balance, column header, `rows`, closing balance + footer."""
     lines = [
@@ -78,8 +81,8 @@ def _statement(rows: list[Line]) -> list[Page]:
         L(760, (30, "Folio No : 12345 / 67")),
         L(750, (75, "T123-Test Fund - Direct Growth - ISIN: INF123A01234 Registrar : CAMS")),
         L(740, (400, "Opening Unit Balance: 0.000")),
-        L(700, *HEADER_TOP),
-        L(692, *HEADER_BOT),
+        L(700, *header[0]),
+        L(692, *header[1]),
         *rows,
         L(
             560,
@@ -92,8 +95,10 @@ def _statement(rows: list[Line]) -> list[Page]:
 
 @pytest.fixture
 def parse_lines(monkeypatch):
-    def run(rows: list[Line]):
-        monkeypatch.setattr(cams_detailed, "extract_pages", lambda *a, **k: _statement(rows))
+    def run(rows: list[Line], header: tuple[list, list] = (HEADER_TOP, HEADER_BOT)):
+        monkeypatch.setattr(
+            cams_detailed, "extract_pages", lambda *a, **k: _statement(rows, header)
+        )
         monkeypatch.setattr(
             cams_detailed,
             "extract_cams_kfin_investor",
@@ -260,3 +265,68 @@ class TestContinuationMerge:
         assert data.parse_warnings == []
         scheme = data.folios[0].schemes[0]
         assert scheme.close_calculated == Decimal("5.000")
+
+
+# ------------------------------------------------------------- derived NAV
+
+# The same table without the Price column, as in templates that print
+# only Amount and Units per row.
+NO_PRICE_HEADER = (
+    [entry for entry in HEADER_TOP if entry[1] != "Price"],
+    [(R(360, "(INR)"), "(INR)"), (R(550, "Balance"), "Balance")],
+)
+
+
+class TestNavDerived:
+    def test_printed_price_is_not_derived(self, parse_lines):
+        txns = _txns(parse_lines([PURCHASE_ROW, REDEMPTION_ROW]))
+        assert [t.nav for t in txns] == [Decimal("100.0000"), Decimal("100.0000")]
+        assert [t.nav_derived for t in txns] == [False, False]
+
+    def test_no_price_column_derives_and_flags_nav(self, parse_lines):
+        rows = [
+            L(
+                680,
+                (30, "01-Jan-2024"),
+                (75, "Purchase -"),
+                (R(360, "24,998.75"), "24,998.75"),
+                (R(425, "9.747"), "9.747"),
+                (R(550, "9.747"), "9.747"),
+            ),
+            L(672, (30, "01-Jan-2024"), (75, "*** Stamp Duty ***"), (R(360, "1.25"), "1.25")),
+            L(
+                646,
+                (30, "03-Jan-2024"),
+                (75, "Redemption -"),
+                (R(360, "(12,175.00)"), "(12,175.00)"),
+                (R(425, "(4.747)"), "(4.747)"),
+                (R(550, "5.000"), "5.000"),
+            ),
+        ]
+        data = parse_lines(rows, NO_PRICE_HEADER)
+        assert data.parse_warnings == []
+        purchase, stamp, redemption = _txns(data)
+        # amount / units, rounded to 4 places
+        assert purchase.nav == Decimal("2564.7635")
+        assert purchase.nav_derived is True
+        assert redemption.nav == Decimal("2564.7778")
+        assert redemption.nav_derived is True
+        # Charge rows carry no units, so there is no NAV to derive.
+        assert stamp.nav is None
+        assert stamp.nav_derived is False
+        dumped = json.loads(data.model_dump_json())["folios"][0]["schemes"][0]["transactions"]
+        assert [t["nav_derived"] for t in dumped] == [True, False, True]
+
+    def test_only_the_row_without_a_price_is_flagged(self, parse_lines):
+        # A Price-column layout where one row's Price cell is blank.
+        purchase_no_price = L(
+            680,
+            (30, "01-Jan-2024"),
+            (75, "Purchase - BSE -"),
+            (R(360, "999.95"), "999.95"),
+            (R(425, "10.000"), "10.000"),
+            (R(550, "10.000"), "10.000"),
+        )
+        txns = _txns(parse_lines([purchase_no_price, REDEMPTION_ROW]))
+        assert [t.nav for t in txns] == [Decimal("99.9950"), Decimal("100.0000")]
+        assert [t.nav_derived for t in txns] == [True, False]

@@ -30,6 +30,10 @@ class TransactionData(BaseModel):
     amount: Optional[Decimal] = None
     units: Optional[Decimal] = None
     nav: Optional[Decimal] = None
+    # True when the statement printed no NAV for the row and `nav` is
+    # amount / units rounded to 4 places, which can differ from the NAV
+    # the fund applied.
+    nav_derived: bool = False
     balance: Optional[Decimal] = None
     type: TransactionType
     dividend_rate: Optional[Decimal] = None
