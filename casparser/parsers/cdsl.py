@@ -93,9 +93,15 @@ SECTION_DPC_RE = re.compile(
 # Transaction-page header: `DP Name : <broker>  BO ID : <16-char id>`.
 # The id concatenates DP ID + Client ID, both 8 chars. CDSL DP IDs are
 # numeric, NSDL DP IDs start with `IN`, so the 16-char field can be all
-# digits (CDSL) or two letters + 14 digits (NSDL).
+# digits (CDSL) or two letters + 14 digits (NSDL). Statements with Hindi
+# and regional-language label layers repeat the label before the id
+# (`BO ID : BO ID: BO ஐடி : <id>`, #162): `BO ID` or `DPID` again, or
+# non-ASCII words after an optional `BO` / `DPID`, each up to a colon.
 SECTION_BOID_RE = re.compile(
-    r"DP\s*Name\s*:\s*(.+?)\s+(?:BO\s*ID|DPID)\s*:\s*([A-Z0-9]{16})",
+    r"DP\s*Name\s*:\s*(.+?)\s+(?:BO\s*ID|DPID)\s*:\s*"
+    r"(?:(?:BO\s*ID|DPID|(?:(?:BO|DPID)\s*)?"
+    r"(?-i:[^\x00-\x7F\s]+(?:\s+[^\x00-\x7F\s]+)*))\s*:\s*)*"
+    r"([A-Z0-9]{16})",
     re.I | re.S,
 )
 
